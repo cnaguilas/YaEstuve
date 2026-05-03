@@ -1,0 +1,3457 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>YaEstuve</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Mulish:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script>
+// Auth propio con Firebase Realtime Database
+const FB_AUTH_URL = 'https://yaestuve-app-default-rtdb.europe-west1.firebasedatabase.app/usuarios';
+
+function hashSimple(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+function emailToKey(email) {
+  return email.replace(/[.@]/g, '_');
+}
+
+window.fbCreateUser = async (email, pass, nombre) => {
+  const key = emailToKey(email);
+  // Comprobar si ya existe
+  const r = await fetch(`${FB_AUTH_URL}/${key}.json`);
+  const existe = await r.json();
+  if (existe) throw { code: 'auth/email-already-in-use' };
+  
+  const uid = 'u_' + Date.now().toString(36);
+  const user = { uid, email, nombre, passHash: hashSimple(pass + email), creado: Date.now() };
+  await fetch(`${FB_AUTH_URL}/${key}.json`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(user)
+  });
+  return { uid, email, displayName: nombre };
+};
+
+window.fbLogin = async (email, pass) => {
+  const key = emailToKey(email);
+  const r = await fetch(`${FB_AUTH_URL}/${key}.json`);
+  const user = await r.json();
+  if (!user) throw { code: 'auth/user-not-found' };
+  if (user.passHash !== hashSimple(pass + email)) throw { code: 'auth/wrong-password' };
+  return { uid: user.uid, email: user.email, displayName: user.nombre };
+};
+
+window.fbLogout = () => {
+  localStorage.removeItem('ye_user');
+};
+
+window.fbOnAuth = (cb) => {
+  const saved = localStorage.getItem('ye_user');
+  if (saved) {
+    try { cb(JSON.parse(saved)); } catch { cb(null); }
+  } else {
+    cb(null);
+  }
+};
+</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root {
+  --bg: #F7F4EF;
+  --ink: #1C1917;
+  --primary: #E8471C;
+  --primary-light: #FEF0EC;
+  --gold: #D4A843;
+  --sage: #5C8C6A;
+  --muted: #9C9189;
+  --card: #FFFFFF;
+  --border: #EDE8DF;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: 'Mulish', sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+/* ── PANTALLAS ── */
+.screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  transform: translateX(100%);
+  transition: transform 0.32s cubic-bezier(0.4,0,0.2,1);
+  will-change: transform;
+  overflow: hidden;
+}
+.screen.active { transform: translateX(0); }
+.screen.behind { transform: translateX(-30%); }
+
+/* ── PANTALLA HOME ── */
+#screenHome {
+  transform: translateX(0);
+}
+
+.home-header {
+  padding: 52px 20px 16px;
+  background: var(--ink);
+  flex-shrink: 0;
+}
+
+.home-logo {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: white;
+  letter-spacing: -1px;
+  margin-bottom: 16px;
+}
+.home-logo span { color: var(--primary); }
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 14px;
+  padding: 12px 16px;
+  border: 1.5px solid rgba(255,255,255,0.15);
+}
+.search-bar input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: white;
+  font-family: 'Mulish', sans-serif;
+  font-size: 0.95rem;
+}
+.search-bar input::placeholder { color: rgba(255,255,255,0.45); }
+.search-icon { color: rgba(255,255,255,0.5); font-size: 1rem; }
+
+.home-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px;
+  padding-bottom: calc(80px + var(--safe-bottom));
+}
+
+.section-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+/* Categorías */
+.cats {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  margin-bottom: 24px;
+  padding-bottom: 4px;
+}
+.cats::-webkit-scrollbar { display: none; }
+
+.cat-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 50px;
+  padding: 8px 16px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.18s;
+  flex-shrink: 0;
+}
+.cat-chip.active, .cat-chip:active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+/* Cards destino */
+.destino-card {
+  background: var(--card);
+  border-radius: 18px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  cursor: pointer;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  border: 1px solid var(--border);
+  transition: transform 0.15s, box-shadow 0.15s;
+  active-scale: 0.97;
+}
+.destino-card:active { transform: scale(0.97); }
+
+.card-map-preview {
+  height: 130px;
+  background: #e8e0d0;
+  position: relative;
+  overflow: hidden;
+}
+.card-map-preview .leaflet-map-pane,
+.card-map-preview .leaflet-tile-pane { pointer-events: none; }
+
+.card-map-mini {
+  width: 100%;
+  height: 100%;
+}
+
+.card-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(28,25,23,0.55) 0%, transparent 60%);
+}
+
+.card-body { padding: 14px 16px 16px; }
+
+.card-dest-name {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-count {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.card-arrow {
+  width: 32px;
+  height: 32px;
+  background: var(--primary-light);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  font-size: 0.9rem;
+}
+
+/* ── PANTALLA LISTA ITINERARIOS ── */
+.nav-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 52px 20px 16px;
+  background: var(--ink);
+  flex-shrink: 0;
+}
+
+.back-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.12);
+  border: none;
+  color: white;
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.nav-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: white;
+  flex: 1;
+}
+
+.nav-count {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.5);
+}
+
+.screen-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+  padding-bottom: calc(80px + var(--safe-bottom));
+}
+
+.it-card {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  border: 1.5px solid var(--border);
+  transition: transform 0.15s;
+  box-shadow: 0 1px 8px rgba(0,0,0,0.05);
+}
+.it-card:active { transform: scale(0.97); }
+
+.it-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.it-titulo {
+  font-family: 'Syne', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.35;
+  flex: 1;
+}
+
+.it-dias {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 50px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.it-autor { font-size: 0.78rem; color: var(--muted); margin-bottom: 10px; }
+.it-autor strong { color: var(--ink); }
+
+.it-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+.it-tag {
+  font-size: 0.7rem;
+  background: var(--bg);
+  padding: 3px 9px;
+  border-radius: 50px;
+  border: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.it-presupuesto { font-size: 0.8rem; color: var(--muted); }
+.it-presupuesto strong { color: var(--sage); }
+
+/* ── PANTALLA DETALLE ── */
+#screenDetalle .nav-bar { background: transparent; position: absolute; top: 0; left: 0; right: 0; z-index: 10; padding-top: 48px; }
+#screenDetalle .nav-bar .back-btn { background: rgba(28,25,23,0.6); backdrop-filter: blur(8px); }
+#screenDetalle .nav-title { color: transparent; }
+
+.detalle-hero {
+  height: 240px;
+  background: var(--ink);
+  position: relative;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.hero-fotos {
+  display: flex;
+  height: 100%;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.hero-fotos::-webkit-scrollbar { display: none; }
+
+.hero-foto {
+  min-width: 100%;
+  height: 100%;
+  object-fit: cover;
+  scroll-snap-align: start;
+}
+
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(28,25,23,0.85) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.hero-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px 20px;
+}
+
+.hero-titulo {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: white;
+  line-height: 1.3;
+  margin-bottom: 6px;
+}
+
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.75);
+}
+
+.detalle-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+  padding-bottom: calc(80px + var(--safe-bottom));
+}
+
+.presupuesto-banner {
+  background: var(--sage);
+  color: white;
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.presupuesto-banner .label { font-size: 0.78rem; opacity: 0.85; }
+.presupuesto-banner .amount { font-family: 'Syne', sans-serif; font-size: 1.1rem; font-weight: 700; }
+
+.dia-block { margin-bottom: 20px; }
+
+.dia-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.dia-num {
+  background: var(--primary);
+  color: white;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  border-radius: 50px;
+  white-space: nowrap;
+}
+
+.dia-lugar {
+  font-family: 'Syne', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.dia-items { display: flex; flex-direction: column; gap: 8px; }
+
+.dia-item {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--border);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.dia-item.hotel { border-left-color: var(--gold); }
+.dia-item.comida { border-left-color: var(--sage); }
+.dia-item.visita { border-left-color: var(--primary); }
+.dia-item.tip { border-left-color: #9b87d4; }
+.dia-item.transporte { border-left-color: #4a9bd4; }
+.dia-item.atraccion { border-left-color: #d4a843; }
+.dia-item.bar { border-left-color: #7a9e7e; }
+
+.item-tipo {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.dia-item.hotel .item-tipo { color: var(--gold); }
+.dia-item.comida .item-tipo { color: var(--sage); }
+.dia-item.visita .item-tipo { color: var(--primary); }
+.dia-item.tip .item-tipo { color: #9b87d4; }
+.dia-item.transporte .item-tipo { color: #4a9bd4; }
+.dia-item.atraccion .item-tipo { color: #d4a843; }
+.dia-item.bar .item-tipo { color: #7a9e7e; }
+
+.item-nombre { font-size: 0.88rem; font-weight: 600; margin-bottom: 3px; }
+.item-desc { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+
+/* ── PANTALLA MAPA ── */
+#screenMapa .nav-bar {
+  background: var(--ink);
+  padding-top: 52px;
+  padding-bottom: 12px;
+}
+#map { flex: 1; }
+
+/* ── PANTALLA SUBIR VIAJE ── */
+#screenSubir .nav-bar { background: var(--ink); }
+
+.wizard-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px;
+  padding-bottom: calc(80px + var(--safe-bottom));
+}
+
+.paso { display: none; }
+.paso.active { display: block; }
+
+.paso-indicator {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 24px;
+}
+.paso-dot {
+  height: 4px;
+  flex: 1;
+  border-radius: 4px;
+  background: var(--border);
+  transition: background 0.3s;
+}
+.paso-dot.active { background: var(--primary); }
+
+.paso h2 {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.paso p { font-size: 0.85rem; color: var(--muted); margin-bottom: 24px; line-height: 1.5; }
+
+.form-group { margin-bottom: 16px; }
+.form-group label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 13px 16px;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  font-family: 'Mulish', sans-serif;
+  font-size: 0.95rem;
+  background: var(--card);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.18s;
+  -webkit-appearance: none;
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus { border-color: var(--primary); }
+.form-group textarea { resize: none; min-height: 130px; }
+
+.foto-upload-area {
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  cursor: pointer;
+  text-align: center;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: border-color 0.2s;
+  background: var(--card);
+}
+.foto-upload-area:active { border-color: var(--primary); }
+#fotoPlaceholder { font-size: 0.85rem; color: var(--muted); }
+.foto-preview-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+.foto-preview-grid img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.ia-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+  gap: 16px;
+  text-align: center;
+}
+.spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.ia-loading p { font-size: 0.88rem; color: var(--muted); }
+
+.ia-resultado { display: none; }
+
+.resumen-card {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 18px;
+  border: 1.5px solid var(--border);
+  margin-bottom: 20px;
+}
+.resumen-row { margin-bottom: 10px; }
+.resumen-label { font-size: 0.68rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+.resumen-val { font-size: 0.92rem; font-weight: 600; }
+
+/* ── BOTTOM NAV ── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(62px + var(--safe-bottom));
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  padding-top: 8px;
+  z-index: 100;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
+}
+
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  font-family: 'Mulish', sans-serif;
+  transition: opacity 0.15s;
+}
+.nav-item:active { opacity: 0.6; }
+.nav-icon { font-size: 1.3rem; line-height: 1; }
+.nav-label { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.3px; color: var(--muted); text-transform: uppercase; }
+.nav-item.active .nav-label { color: var(--primary); }
+
+.nav-item-add {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  padding: 0;
+  border: none;
+  background: none;
+}
+.nav-add-btn {
+  width: 44px;
+  height: 44px;
+  background: var(--primary);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.4rem;
+  box-shadow: 0 4px 14px rgba(232,71,28,0.4);
+  margin-top: -12px;
+  transition: transform 0.15s;
+}
+.nav-item-add:active .nav-add-btn { transform: scale(0.92); }
+.nav-add-label { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.3px; color: var(--muted); text-transform: uppercase; margin-top: 1px; }
+
+/* ── BTN PRIMARIO ── */
+.btn-primary {
+  width: 100%;
+  padding: 16px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 14px;
+  font-family: 'Syne', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 16px rgba(232,71,28,0.3);
+  margin-top: 8px;
+}
+.btn-primary:active { transform: scale(0.97); }
+
+.btn-secondary {
+  width: 100%;
+  padding: 14px;
+  background: var(--card);
+  color: var(--ink);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  font-family: 'Mulish', sans-serif;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+/* ── LIGHTBOX ── */
+.lightbox {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.95);
+  z-index: 3000;
+  align-items: center;
+  justify-content: center;
+}
+.lightbox.active { display: flex; }
+.lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.lightbox-close {
+  position: absolute;
+  top: 48px; right: 20px;
+  color: white; font-size: 1.8rem;
+  cursor: pointer; line-height: 1;
+  background: rgba(255,255,255,0.15);
+  border-radius: 50%;
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+
+/* ── EDICIÓN DÍAS ── */
+.dia-edit-block {
+  background: var(--card);
+  border-radius: 14px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.dia-edit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--ink);
+  color: white;
+}
+.dia-edit-num {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: var(--primary);
+  padding: 3px 10px;
+  border-radius: 50px;
+}
+.dia-edit-lugar {
+  flex: 1;
+  margin: 0 10px;
+  font-family: 'Syne', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.dia-edit-lugar input {
+  width: 100%;
+  background: rgba(255,255,255,0.15);
+  border: none;
+  border-radius: 8px;
+  padding: 5px 10px;
+  color: white;
+  font-family: 'Syne', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  outline: none;
+}
+.dia-edit-lugar input::placeholder { color: rgba(255,255,255,0.5); }
+.dia-edit-del {
+  background: rgba(255,255,255,0.15);
+  border: none;
+  color: white;
+  border-radius: 50%;
+  width: 26px; height: 26px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.dia-edit-items { padding: 10px; }
+.item-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 7px;
+}
+.item-edit-icon { font-size: 1rem; flex-shrink: 0; }
+.item-edit-fields { flex: 1; min-width: 0; }
+.item-edit-nombre {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: 'Mulish', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink);
+  outline: none;
+  margin-bottom: 3px;
+}
+.item-edit-desc {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: 'Mulish', sans-serif;
+  font-size: 0.75rem;
+  color: var(--muted);
+  outline: none;
+  resize: none;
+  height: 36px;
+}
+.item-edit-del {
+  background: #fee;
+  border: none;
+  color: #c00;
+  border-radius: 50%;
+  width: 24px; height: 24px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.dia-edit-add {
+  width: 100%;
+  padding: 8px;
+  background: none;
+  border: 1.5px dashed var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-top: 4px;
+  font-family: 'Mulish', sans-serif;
+}
+
+/* ── PERFIL ── */
+.perfil-header {
+  background: var(--ink);
+  padding: 52px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.perfil-avatar {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  background: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.8rem;
+  color: white;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+}
+.perfil-nombre { font-family: 'Syne', sans-serif; font-size: 1.1rem; font-weight: 700; color: white; }
+.perfil-email { font-size: 0.78rem; color: rgba(255,255,255,0.5); }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: var(--ink);
+  color: white;
+  padding: 12px 22px;
+  border-radius: 50px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  z-index: 4000;
+  opacity: 0;
+  transition: all 0.3s;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* Resultados búsqueda */
+.search-results {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0; right: 0;
+  background: var(--ink);
+  border-top: 1px solid rgba(255,255,255,0.1);
+  z-index: 10;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.search-result-item {
+  padding: 14px 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: white;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  transition: background 0.15s;
+}
+.search-result-item:active { background: rgba(255,255,255,0.08); }
+
+.home-header { position: relative; }
+
+
+/* ── PANTALLA EDICIÓN RICA ── */
+#screenEditar .nav-bar { background: var(--ink); }
+
+.editar-tabs {
+  display: flex;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.editar-tab {
+  flex: 1;
+  padding: 12px 8px;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2.5px solid transparent;
+  transition: all 0.2s;
+}
+.editar-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.editar-panel { display: none; flex: 1; overflow-y: auto; padding: 16px; padding-bottom: 100px; }
+.editar-panel#tabMapaPanel { padding: 12px; overflow: hidden; }
+.editar-panel.active { display: block; }
+
+/* Panel mapa edición */
+#mapaEdicion { display: none; flex: 1; position: relative; }
+#mapaEdicion.active { display: block; }
+#mapEdit { width: 100%; height: 100%; min-height: 400px; }
+
+.mapa-instruccion {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 50px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  z-index: 500;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Menú tipo de punto */
+.punto-menu {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0,0,0,0.5);
+  align-items: flex-end;
+  justify-content: center;
+}
+.punto-menu.active { display: flex; }
+.punto-menu-sheet {
+  background: var(--bg);
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  padding: 20px 16px 36px;
+  animation: slideUp 0.25s ease;
+  max-height: 75vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.punto-menu-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 16px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.punto-tipos {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.punto-tipo-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 8px;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: 'Mulish', sans-serif;
+}
+.punto-tipo-btn:active { transform: scale(0.95); border-color: var(--primary); }
+.punto-tipo-icon { font-size: 1.6rem; }
+.punto-tipo-label { font-size: 0.72rem; font-weight: 700; color: var(--ink); }
+
+/* Form punto */
+.punto-form {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0,0,0,0.5);
+  align-items: flex-end;
+  justify-content: center;
+}
+.punto-form.active { display: flex; }
+.punto-form-sheet {
+  background: var(--bg);
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  padding: 20px 16px 36px;
+  animation: slideUp 0.25s ease;
+}
+.punto-form-sheet h3 {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Lista de puntos */
+.punto-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+}
+.punto-item-icon { font-size: 1.2rem; flex-shrink: 0; }
+.punto-item-info { flex: 1; min-width: 0; }
+.punto-item-nombre { font-size: 0.88rem; font-weight: 600; }
+.punto-item-tipo { font-size: 0.72rem; color: var(--muted); }
+.punto-item-del {
+  width: 28px; height: 28px;
+  background: #fee;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+  border: none;
+}
+
+/* Ver en mapa — pantalla */
+#screenVerMapa .nav-bar { background: var(--ink); }
+#mapVer { flex: 1; }
+
+.mapa-popup-custom {
+  font-family: 'Mulish', sans-serif;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+</style>
+</head>
+<body>
+
+
+<!-- ══ LOGIN SHEET (overlay simple) ══ -->
+<div id="loginSheet" style="display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,0.6)">
+  <div style="position:absolute;bottom:0;left:0;right:0;background:#F7F4EF;border-radius:20px 20px 0 0;padding:28px 20px 40px">
+    <div style="width:40px;height:4px;background:#d0c8b8;border-radius:4px;margin:0 auto 24px"></div>
+    <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;margin-bottom:4px" id="loginSheetTitulo">Entrar</div>
+    <div style="font-size:0.82rem;color:#9C9189;margin-bottom:20px" id="loginSheetSub">Accede a tu cuenta YaEstuve</div>
+
+    <div id="loginNombreGroup" style="display:none;margin-bottom:12px">
+      <input type="text" id="loginNombre" placeholder="Tu nombre" style="width:100%;padding:13px 16px;border:1.5px solid #EDE8DF;border-radius:12px;font-family:'Mulish',sans-serif;font-size:0.95rem;outline:none;background:white">
+    </div>
+    <div style="margin-bottom:12px">
+      <input type="text" id="loginEmail" placeholder="Email" inputmode="email" autocomplete="email" style="width:100%;padding:13px 16px;border:1.5px solid #EDE8DF;border-radius:12px;font-family:'Mulish',sans-serif;font-size:0.95rem;outline:none;background:white">
+    </div>
+    <div style="margin-bottom:20px">
+      <input type="password" id="loginPass" placeholder="Contraseña (mín. 6 caracteres)" style="width:100%;padding:13px 16px;border:1.5px solid #EDE8DF;border-radius:12px;font-family:'Mulish',sans-serif;font-size:0.95rem;outline:none;background:white">
+    </div>
+
+    <div id="loginError" style="color:#E8471C;font-size:0.82rem;margin-bottom:12px;text-align:center"></div>
+
+    <button id="loginBtn" type="button" onclick="ejecutarLogin()" style="width:100%;padding:15px;background:#E8471C;color:white;border:none;border-radius:14px;font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;margin-bottom:12px">Entrar</button>
+    <button type="button" onclick="toggleLoginModo()" style="width:100%;padding:13px;background:white;border:1.5px solid #EDE8DF;border-radius:14px;font-family:'Mulish',sans-serif;font-size:0.88rem;cursor:pointer;margin-bottom:10px" id="loginToggleBtn">¿Sin cuenta? Regístrate</button>
+    <button type="button" onclick="cerrarLoginSheet()" style="width:100%;padding:10px;background:none;border:none;color:#9C9189;font-size:0.82rem;cursor:pointer">Cancelar</button>
+  </div>
+</div>
+
+<!-- ══ PANTALLA HOME ══ -->
+<!-- ══ PANTALLA HOME ══ -->
+<div class="screen active" id="screenHome">
+  <div class="home-header">
+    <div class="home-logo">Ya<span>Estuve</span></div>
+    <div class="search-bar" onclick="focusSearch()">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="Busca un destino..." oninput="buscar(this.value)" onblur="cerrarBusqueda()">
+    </div>
+    <div class="search-results" id="searchResults"></div>
+  </div>
+  <div class="home-body">
+    <div style="margin-bottom:20px">
+      <div class="section-label" style="margin-bottom:12px">Destinos</div>
+      <div id="destinosGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PANTALLA LISTA ITINERARIOS ══ -->
+<div class="screen" id="screenLista">
+  <div class="nav-bar">
+    <button class="back-btn" onclick="goBack()">←</button>
+    <div class="nav-title" id="listaTitulo">Destino</div>
+    <div class="nav-count" id="listaCount"></div>
+  </div>
+  <div class="screen-body" id="listaBody"></div>
+</div>
+
+<!-- ══ PANTALLA DETALLE ══ -->
+<div class="screen" id="screenDetalle">
+  <div class="nav-bar">
+    <button class="back-btn" onclick="goBack()">←</button>
+    <div class="nav-title"></div>
+  </div>
+  <div class="detalle-hero">
+    <div class="hero-fotos" id="heroFotos"></div>
+    <div class="hero-overlay"></div>
+    <div class="hero-info">
+      <div class="hero-titulo" id="heroTitulo"></div>
+      <div class="hero-meta" id="heroMeta"></div>
+    </div>
+    <div id="heroDots" style="position:absolute;bottom:12px;right:16px;display:flex;gap:5px;z-index:10"></div>
+  </div>
+  <div class="detalle-body">
+    <div class="presupuesto-banner">
+      <div>
+        <div class="label">Presupuesto est. / persona</div>
+        <div class="amount" id="detallePresupuesto"></div>
+      </div>
+      <span style="font-size:1.4rem">💰</span>
+    </div>
+    <button id="btnVerMapa" onclick="" style="width:100%;padding:12px;background:var(--ink);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:8px">🗺️ Ver en mapa</button>
+    <div id="detalleLinks" style="margin-bottom:16px"></div>
+    <div id="detalleDias"></div>
+  </div>
+</div>
+
+<!-- ══ PANTALLA MAPA ══ -->
+<div class="screen" id="screenMapa">
+  <div class="nav-bar">
+    <div class="nav-title" style="color:white;font-family:'Syne',sans-serif;font-weight:700">🗺️ Mapa</div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<!-- ══ PANTALLA SUBIR VIAJE ══ -->
+<div class="screen" id="screenSubir">
+  <div class="nav-bar">
+    <button class="back-btn" onclick="goBack()">←</button>
+    <div class="nav-title" style="color:white;font-family:'Syne',sans-serif;font-weight:700">Subir viaje</div>
+  </div>
+  <div class="wizard-body">
+
+    <div class="paso-indicator">
+      <div class="paso-dot active" id="dot1"></div>
+      <div class="paso-dot" id="dot2"></div>
+      <div class="paso-dot" id="dot3"></div>
+    </div>
+
+    <!-- Paso 1 -->
+    <div class="paso active" id="paso1">
+      <h2>Cuéntame tu viaje ✈️</h2>
+      <p>Escríbelo como si se lo contaras a un amigo. La IA lo estructurará sola.</p>
+      <div class="form-group">
+        <label>Tu nombre</label>
+        <input type="text" id="f-autor" placeholder="Ej: Javi desde Águilas">
+      </div>
+      <div class="form-group">
+        <label>Describe tu viaje</label>
+        <textarea id="f-descripcion" placeholder="Ej: Fin de semana en La Manga, hotel Alasun DobleMAR todo incluido, comimos en el chiringuito El Barón..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Fotos (opcional)</label>
+        <div class="foto-upload-area" onclick="document.getElementById('fotoInput').click()">
+          <div id="fotoPreview" class="foto-preview-grid"></div>
+          <div id="fotoPlaceholder">📷 Toca para añadir fotos</div>
+        </div>
+        <input type="file" id="fotoInput" accept="image/*" multiple style="display:none" onchange="procesarFotos(this)">
+      </div>
+      <button class="btn-primary" onclick="generarConIA()">✨ Generar con IA</button>
+      <button class="btn-secondary" onclick="crearManualmente()" style="display:flex;align-items:center;justify-content:center;gap:6px">✏️ Crear el viaje yo mismo</button>
+    </div>
+
+    <!-- Paso 2 -->
+    <div class="paso" id="paso2">
+      <h2>Revisa y retoca ✏️</h2>
+      <p>La IA ha estructurado tu viaje. Cambia lo que quieras.</p>
+
+      <div class="ia-loading" id="iaLoading">
+        <div class="spinner"></div>
+        <p>Estructurando tu viaje...</p>
+      </div>
+
+      <div class="ia-resultado" id="iaResultado">
+        <div class="form-group">
+          <label>Título</label>
+          <input type="text" id="r-titulo">
+        </div>
+        <div class="form-group">
+          <label>Destino</label>
+          <input type="text" id="r-destino">
+        </div>
+        <div class="form-group">
+          <label>Días</label>
+          <input type="number" id="r-dias" min="1">
+        </div>
+        <div class="form-group">
+          <label>Presupuesto / persona</label>
+          <input type="text" id="r-presupuesto">
+        </div>
+        <div class="form-group">
+          <label>Resumen</label>
+          <textarea id="r-resumen" style="min-height:80px"></textarea>
+        </div>
+        <button class="btn-primary" onclick="irPaso(3)">Continuar →</button>
+        <button class="btn-secondary" onclick="irPaso(1)">← Volver a escribir</button>
+      </div>
+    </div>
+
+    <!-- Paso 3 -->
+    <div class="paso" id="paso3">
+      <h2>¡Casi listo! ✨</h2>
+      <p>La IA ha estructurado tu viaje. Ahora puedes añadir puntos en el mapa, fotos y más detalles.</p>
+      <div class="resumen-card" id="resumenCard"></div>
+      <button class="btn-primary" onclick="abrirEdicion()">✏️ Añadir detalles y publicar</button>
+      <button class="btn-secondary" onclick="irPaso(2)">← Editar resumen</button>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ══ PANTALLA EDICIÓN RICA ══ -->
+<div class="screen" id="screenEditar">
+  <div class="nav-bar">
+    <button class="back-btn" onclick="goBack()">←</button>
+    <div class="nav-title" style="color:white;font-family:'Syne',sans-serif;font-weight:700">Editar viaje</div>
+    <button onclick="publicarViaje()" style="background:var(--primary);color:white;border:none;padding:8px 16px;border-radius:50px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer">Publicar</button>
+  </div>
+  <div class="editar-tabs">
+    <div class="editar-tab active" onclick="cambiarTab('tabInfo')" id="tabInfoBtn">📝 Info</div>
+    <div class="editar-tab" onclick="cambiarTab('tabDias')" id="tabDiasBtn">📅 Días</div>
+    <div class="editar-tab" onclick="abrirMapaEdicionPantalla()" id="tabMapaBtn">🗺️ Mapa</div>
+    <div class="editar-tab" onclick="cambiarTab('tabFotos')" id="tabFotosBtn">📷 Fotos</div>
+    <div class="editar-tab" onclick="cambiarTab('tabLinks')" id="tabLinksBtn">🔗 Links</div>
+  </div>
+
+  <!-- Tab Info -->
+  <div class="editar-panel active" id="tabInfo">
+    <div class="form-group">
+      <label>Título</label>
+      <input type="text" id="e-titulo">
+    </div>
+    <div class="form-group">
+      <label>Destino</label>
+      <input type="text" id="e-destino">
+    </div>
+    <div class="form-group">
+      <label>Días</label>
+      <input type="number" id="e-dias" min="1">
+    </div>
+    <div class="form-group">
+      <label>Presupuesto / persona</label>
+      <input type="text" id="e-presupuesto">
+    </div>
+    <div class="form-group">
+      <label>Resumen</label>
+      <textarea id="e-resumen" style="min-height:100px"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Tipo de viaje</label>
+      <div id="e-tipos" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"></div>
+    </div>
+  </div>
+
+  <!-- Tab Días -->
+  <div class="editar-panel" id="tabDias">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <p style="font-size:0.85rem;color:var(--muted)">Edita el itinerario día a día.</p>
+      <button onclick="añadirDia()" style="background:var(--primary);color:white;border:none;padding:7px 14px;border-radius:50px;font-size:0.78rem;font-weight:700;cursor:pointer">+ Día</button>
+    </div>
+    <div id="listaDias"></div>
+  </div>
+
+  <!-- Tab Puntos -->
+  <div class="editar-panel" id="tabPuntos">
+    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:16px">Añade restaurantes, hoteles, atracciones y más puntos a tu itinerario.</p>
+    <button class="btn-primary" style="margin-bottom:16px" onclick="abrirMenuPunto()">+ Añadir punto</button>
+    <div id="listaPuntos"></div>
+  </div>
+
+  <!-- Tab Mapa -->
+  <div class="editar-panel" id="tabMapaPanel" style="padding:12px">
+    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:12px">Toca en el mapa para añadir un punto de interés.</p>
+    <div style="position:relative;border-radius:16px;overflow:hidden;height:400px;width:100%">
+      <div id="mapEdit" style="width:100%;height:400px;min-height:400px"></div>
+      <div class="mapa-instruccion" id="mapaInstruccion">👆 Toca para añadir punto</div>
+    </div>
+  </div>
+
+  <!-- Tab Fotos -->
+  <div class="editar-panel" id="tabFotos">
+    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:16px">Añade fotos de tu viaje.</p>
+    <div id="fotoGridEditar" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px"></div>
+    <button onclick="document.getElementById('fotoInputEditar').click()" style="width:100%;padding:13px;border:2px dashed var(--border);border-radius:12px;background:var(--card);color:var(--muted);font-family:'Mulish',sans-serif;font-size:0.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+      📷 Añadir fotos
+    </button>
+    <input type="file" id="fotoInputEditar" accept="image/*" multiple style="display:none" onchange="procesarFotosEditar(this)">
+  </div>
+
+  <div class="editar-panel" id="tabLinks">
+    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:16px">Añade links útiles para quien quiera hacer este viaje.</p>
+
+    <div style="margin-bottom:20px">
+      <div style="font-size:0.7rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">✈️ Vuelos</div>
+      <div id="linksVuelos"></div>
+      <button onclick="añadirLink('vuelos')" style="width:100%;padding:10px;border:1.5px dashed var(--border);border-radius:10px;background:none;color:var(--muted);font-size:0.85rem;cursor:pointer;margin-top:6px">+ Añadir link de vuelo</button>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <div style="font-size:0.7rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">🔗 Enlaces de interés</div>
+      <div id="linksEnlaces"></div>
+      <button onclick="añadirLink('enlaces')" style="width:100%;padding:10px;border:1.5px dashed var(--border);border-radius:10px;background:none;color:var(--muted);font-size:0.85rem;cursor:pointer;margin-top:6px">+ Añadir enlace</button>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <div style="font-size:0.7rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">🎟️ Tours y actividades</div>
+      <div id="linksTours"></div>
+      <button onclick="añadirLink('tours')" style="width:100%;padding:10px;border:1.5px dashed var(--border);border-radius:10px;background:none;color:var(--muted);font-size:0.85rem;cursor:pointer;margin-top:6px">+ Añadir tour o actividad</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PANTALLA VER EN MAPA ══ -->
+<div class="screen" id="screenVerMapa">
+  <div class="nav-bar">
+    <button class="back-btn" onclick="goBack()">←</button>
+    <div class="nav-title" style="color:white;font-family:'Syne',sans-serif;font-weight:700" id="verMapaTitulo">Ver en mapa</div>
+  </div>
+  <div id="diasFiltroBar" style="display:none;padding:8px 12px;background:var(--ink);overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-shrink:0"></div>
+  <div id="mapVer" style="flex:1"></div>
+</div>
+
+<!-- ══ MENÚ TIPO DE PUNTO ══ -->
+<div class="punto-menu" id="puntoMenu" onclick="cerrarMenuPunto(event)">
+  <div class="punto-menu-sheet">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div class="punto-menu-title" style="margin-bottom:0">¿Qué tipo de punto?</div>
+      <button onclick="cancelarMenuPunto()" style="background:#f0f0f0;border:none;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+    <div class="punto-tipos">
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('restaurante')"><span class="punto-tipo-icon">🍽️</span><span class="punto-tipo-label">Restaurante</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('hotel')"><span class="punto-tipo-icon">🏨</span><span class="punto-tipo-label">Hotel</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('atraccion')"><span class="punto-tipo-icon">🎡</span><span class="punto-tipo-label">Atracción</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('bar')"><span class="punto-tipo-icon">🍻</span><span class="punto-tipo-label">Bar</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('monumento')"><span class="punto-tipo-icon">🏛️</span><span class="punto-tipo-label">Monumento</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('mirador')"><span class="punto-tipo-icon">🔭</span><span class="punto-tipo-label">Mirador</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('museo')"><span class="punto-tipo-icon">🖼️</span><span class="punto-tipo-label">Museo</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('parque')"><span class="punto-tipo-icon">🌳</span><span class="punto-tipo-label">Parque</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('iglesia')"><span class="punto-tipo-icon">⛪</span><span class="punto-tipo-label">Iglesia</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('playa')"><span class="punto-tipo-icon">🏖️</span><span class="punto-tipo-label">Playa</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('mercado')"><span class="punto-tipo-icon">🏪</span><span class="punto-tipo-label">Mercado</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('compras')"><span class="punto-tipo-icon">🛍️</span><span class="punto-tipo-label">Compras</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('discoteca')"><span class="punto-tipo-icon">🎶</span><span class="punto-tipo-label">Ocio nocturno</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('deporte')"><span class="punto-tipo-icon">🏄</span><span class="punto-tipo-label">Deporte</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('spa')"><span class="punto-tipo-icon">💆</span><span class="punto-tipo-label">Spa / Relax</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('fotografia')"><span class="punto-tipo-icon">📸</span><span class="punto-tipo-label">Foto imprescindible</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('transporte')"><span class="punto-tipo-icon">🚌</span><span class="punto-tipo-label">Bus</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('avion')"><span class="punto-tipo-icon">✈️</span><span class="punto-tipo-label">Vuelo</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('tren')"><span class="punto-tipo-icon">🚂</span><span class="punto-tipo-label">Tren</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('metro')"><span class="punto-tipo-icon">🚇</span><span class="punto-tipo-label">Metro</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('tranvia')"><span class="punto-tipo-icon">🚋</span><span class="punto-tipo-label">Tranvía</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('barco')"><span class="punto-tipo-icon">🚢</span><span class="punto-tipo-label">Barco / Ferry</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('templo')"><span class="punto-tipo-icon">🛕</span><span class="punto-tipo-label">Templo</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('castillo')"><span class="punto-tipo-icon">🏰</span><span class="punto-tipo-label">Castillo</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('cascada')"><span class="punto-tipo-icon">💧</span><span class="punto-tipo-label">Cascada / Río</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('ciudad')"><span class="punto-tipo-icon">🏙️</span><span class="punto-tipo-label">Ciudad</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('pueblo')"><span class="punto-tipo-icon">🏘️</span><span class="punto-tipo-label">Pueblo</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('pdi')"><span class="punto-tipo-icon">⭐</span><span class="punto-tipo-label">Punto de interés</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('gastronomia')"><span class="punto-tipo-icon">🥘</span><span class="punto-tipo-label">Gastronomía</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('paseo')"><span class="punto-tipo-icon">🚶</span><span class="punto-tipo-label">Paseo</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('bici')"><span class="punto-tipo-icon">🚴</span><span class="punto-tipo-label">En bici</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('coche')"><span class="punto-tipo-icon">🚗</span><span class="punto-tipo-label">En coche</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('tip')"><span class="punto-tipo-icon">💡</span><span class="punto-tipo-label">Consejo</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FORM PUNTO ══ -->
+<div class="punto-form" id="puntoForm" onclick="cerrarFormPunto(event)">
+  <div class="punto-form-sheet">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h3 id="puntoFormTitulo" style="margin-bottom:0">🍽️ Restaurante</h3>
+      <button onclick="document.getElementById('puntoForm').classList.remove('active');latLngPunto=null;" style="background:#f0f0f0;border:none;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+    <div class="form-group">
+      <label>Nombre</label>
+      <input type="text" id="p-nombre" placeholder="Ej: Restaurante El Rincón">
+    </div>
+    <div class="form-group">
+      <label>Descripción</label>
+      <textarea id="p-desc" style="min-height:80px" placeholder="Qué lo hace especial, precio aproximado..."></textarea>
+    </div>
+    <button class="btn-primary" onclick="guardarPunto()">Añadir punto ✓</button>
+    <button class="btn-secondary" onclick="document.getElementById('puntoForm').classList.remove('active')">Cancelar</button>
+  </div>
+</div>
+
+
+<!-- ══ PANTALLA PERFIL ══ -->
+<div class="screen" id="screenPerfil">
+  <div class="perfil-header">
+    <div class="perfil-avatar" id="perfilAvatar">?</div>
+    <div class="perfil-nombre" id="perfilNombre">Sin cuenta</div>
+    <div class="perfil-email" id="perfilEmail"></div>
+  </div>
+  <div class="screen-body">
+    <div id="perfilMisViajes"></div>
+    <div style="margin-top:20px">
+      <button id="perfilLogoutBtn" onclick="cerrarSesion()" style="width:100%;padding:14px;background:white;color:#e8471c;border:1.5px solid #e8471c;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;display:none">Cerrar sesión</button>
+      <button id="perfilLoginBtn" onclick="abrirLoginSheet()" style="width:100%;padding:14px;background:var(--primary);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer">Iniciar sesión</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ PANTALLA MAPA EDICIÓN ══ -->
+<div class="screen" id="screenMapaEdit">
+  <div class="nav-bar" style="background:var(--ink)">
+    <button class="back-btn" onclick="cerrarMapaEdicion()">←</button>
+    <div class="nav-title" style="color:white;font-family:'Syne',sans-serif;font-weight:700">Añadir puntos</div>
+    <button onclick="cerrarMapaEdicion()" style="background:var(--primary);color:white;border:none;padding:8px 16px;border-radius:50px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer">Listo ✓</button>
+  </div>
+  <!-- Buscador -->
+  <div style="background:var(--ink);padding:8px 12px 10px;position:relative;z-index:600">
+    <div style="display:flex;align-items:center;background:rgba(255,255,255,0.12);border-radius:10px;padding:0 10px;gap:8px">
+      <span style="color:rgba(255,255,255,0.6);font-size:0.9rem">🔍</span>
+      <input id="mapaEditSearch" type="text" placeholder="Busca un lugar..." autocomplete="off"
+        style="flex:1;background:none;border:none;outline:none;color:white;font-family:'Mulish',sans-serif;font-size:0.88rem;padding:9px 0"
+        oninput="buscarLugarMapa(this.value)"
+        onkeydown="if(event.key==='Escape')cerrarBusquedaMapa()">
+      <button id="mapaEditSearchClear" onclick="limpiarBusquedaMapa()" style="display:none;background:none;border:none;color:rgba(255,255,255,0.5);font-size:1rem;cursor:pointer;padding:4px">✕</button>
+    </div>
+    <div id="mapaEditResults" style="display:none;position:absolute;left:12px;right:12px;top:calc(100% - 2px);background:var(--bg);border-radius:0 0 12px 12px;box-shadow:0 8px 24px rgba(0,0,0,0.2);z-index:700;overflow:hidden;max-height:240px;overflow-y:auto"></div>
+  </div>
+  <div style="position:relative;flex:1">
+    <div id="mapEditFull" style="width:100%;height:100%"></div>
+    <div id="mapaEditSpinner" style="position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:400">
+      <div style="width:36px;height:36px;border:3px solid #e0d8c8;border-top-color:var(--primary);border-radius:50%;animation:spin 0.8s linear infinite"></div>
+      <p style="font-size:0.85rem;color:var(--muted);font-family:'Mulish',sans-serif">Cargando mapa...</p>
+    </div>
+    <div id="mapaEditHint" style="display:none;position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--ink);color:white;padding:8px 16px;border-radius:50px;font-size:0.78rem;font-weight:600;z-index:500;white-space:nowrap;pointer-events:none">👆 Toca para añadir punto</div>
+  </div>
+</div>
+
+<!-- ── BOTTOM NAV ── -->
+<nav class="bottom-nav">
+  <button class="nav-item active" id="navHome" onclick="navegarA('screenHome', 'navHome')">
+    <span class="nav-icon">🏠</span>
+    <span class="nav-label">Inicio</span>
+  </button>
+  <button class="nav-item" id="navMapa" onclick="navegarA('screenMapa', 'navMapa')">
+    <span class="nav-icon">🗺️</span>
+    <span class="nav-label">Mapa</span>
+  </button>
+  <button class="nav-item-add" onclick="navegarA('screenSubir', null)">
+    <div class="nav-add-btn">+</div>
+    <div class="nav-add-label">Subir</div>
+  </button>
+  <button class="nav-item" id="navBuscar" onclick="focusSearch(); navegarA('screenHome','navHome')">
+    <span class="nav-icon">🔍</span>
+    <span class="nav-label">Buscar</span>
+  </button>
+  <button class="nav-item" id="navInfo" onclick="navegarA('screenPerfil', 'navInfo')">
+    <span class="nav-icon">👤</span>
+    <span class="nav-label">Perfil</span>
+  </button>
+</nav>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox">
+  <div class="lightbox-close" onclick="cerrarLightbox()">✕</div>
+  <button id="lbPrev" onclick="lbNavegar(-1)" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;color:white;font-size:1.5rem;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10">‹</button>
+  <img id="lightboxImg" src="" alt="" style="max-width:100%;max-height:100%;object-fit:contain;user-select:none">
+  <button id="lbNext" onclick="lbNavegar(1)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;color:white;font-size:1.5rem;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10">›</button>
+  <div id="lbCounter" style="position:absolute;bottom:32px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.7);font-size:0.8rem;font-family:'Mulish',sans-serif"></div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══ DATOS ══════════════════════════════════════════
+const FB_URL = 'https://yaestuve-app-default-rtdb.europe-west1.firebasedatabase.app';
+
+const destinos = {};
+
+
+
+
+// ══ AUTH ══════════════════════════════════════
+let loginModo = 'login';
+
+function abrirLoginSheet() {
+  document.getElementById('loginEmail').value = '';
+  document.getElementById('loginPass').value = '';
+  document.getElementById('loginNombre').value = '';
+  document.getElementById('loginError').textContent = '';
+  loginModo = 'login';
+  document.getElementById('loginSheetTitulo').textContent = 'Entrar';
+  document.getElementById('loginSheetSub').textContent = 'Accede a tu cuenta YaEstuve';
+  document.getElementById('loginNombreGroup').style.display = 'none';
+  document.getElementById('loginBtn').textContent = 'Entrar';
+  document.getElementById('loginToggleBtn').textContent = '¿Sin cuenta? Regístrate';
+  document.getElementById('loginSheet').style.display = 'block';
+}
+
+function cerrarLoginSheet() {
+  document.getElementById('loginSheet').style.display = 'none';
+}
+
+function toggleLoginModo() {
+  loginModo = loginModo === 'login' ? 'registro' : 'login';
+  const esRegistro = loginModo === 'registro';
+  document.getElementById('loginSheetTitulo').textContent = esRegistro ? 'Crear cuenta' : 'Entrar';
+  document.getElementById('loginSheetSub').textContent = esRegistro ? 'Únete a YaEstuve gratis' : 'Accede a tu cuenta YaEstuve';
+  document.getElementById('loginNombreGroup').style.display = esRegistro ? 'block' : 'none';
+  document.getElementById('loginBtn').textContent = esRegistro ? 'Crear cuenta' : 'Entrar';
+  document.getElementById('loginToggleBtn').textContent = esRegistro ? '¿Ya tienes cuenta? Entra' : '¿Sin cuenta? Regístrate';
+  document.getElementById('loginError').textContent = '';
+}
+
+async function ejecutarLogin() {
+  const emailEl = document.getElementById('loginEmail');
+  const passEl = document.getElementById('loginPass');
+  const nombreEl = document.getElementById('loginNombre');
+  const errEl = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+
+  if (!emailEl || !passEl) { 
+    alert('Error: no se encontraron los campos');
+    return; 
+  }
+
+  const email = emailEl.value.trim();
+  const pass = passEl.value;
+  const nombre = nombreEl ? nombreEl.value.trim() : '';
+
+  errEl.textContent = 'Procesando...';
+
+  if (!email || !pass) { errEl.textContent = 'Rellena email y contraseña'; return; }
+  if (loginModo === 'registro' && !nombre) { errEl.textContent = 'Pon tu nombre'; return; }
+  if (pass.length < 6) { errEl.textContent = 'La contraseña debe tener al menos 6 caracteres'; return; }
+
+  btn.disabled = true;
+  btn.textContent = '...';
+  errEl.textContent = 'Conectando...';
+
+  try {
+    let user;
+    if (loginModo === 'registro') {
+      user = await window.fbCreateUser(email, pass, nombre);
+    } else {
+      user = await window.fbLogin(email, pass);
+    }
+    if (!user) throw new Error('No se obtuvo usuario');
+    usuarioActual = user;
+    localStorage.setItem('ye_user', JSON.stringify(user));
+    cerrarLoginSheet();
+    actualizarPerfil();
+    mostrarToast('¡Bienvenido' + (loginModo === 'registro' ? ' a YaEstuve' : '') + '! 🎉');
+  } catch(e) {
+    const msgs = {
+      'auth/email-already-in-use': 'Ese email ya está registrado',
+      'auth/user-not-found': 'No existe cuenta con ese email',
+      'auth/wrong-password': 'Contraseña incorrecta',
+      'auth/invalid-credential': 'Email o contraseña incorrectos'
+    };
+    errEl.textContent = msgs[e.code] || 'Error: ' + (e.message || JSON.stringify(e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = loginModo === 'registro' ? 'Crear cuenta' : 'Entrar';
+  }
+}
+
+function actualizarPerfil() {
+  const u = usuarioActual;
+  const avatarEl = document.getElementById('perfilAvatar');
+  const nombreEl = document.getElementById('perfilNombre');
+  const emailEl = document.getElementById('perfilEmail');
+  const logoutBtn = document.getElementById('perfilLogoutBtn');
+  const loginBtn = document.getElementById('perfilLoginBtn');
+
+  if (u) {
+    const inicial = (u.displayName || u.email || '?')[0].toUpperCase();
+    if (avatarEl) avatarEl.textContent = inicial;
+    if (nombreEl) nombreEl.textContent = u.displayName || 'Usuario';
+    if (emailEl) emailEl.textContent = u.email || '';
+    if (logoutBtn) logoutBtn.style.display = 'block';
+    if (loginBtn) loginBtn.style.display = 'none';
+    cargarMisViajes();
+  } else {
+    if (avatarEl) avatarEl.textContent = '?';
+    if (nombreEl) nombreEl.textContent = 'Sin cuenta';
+    if (emailEl) emailEl.textContent = '';
+    if (logoutBtn) logoutBtn.style.display = 'none';
+    if (loginBtn) loginBtn.style.display = 'block';
+    const misViajes = document.getElementById('perfilMisViajes');
+    if (misViajes) misViajes.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:0.85rem;padding:20px">Inicia sesión para ver tus viajes</p>';
+  }
+}
+
+async function cargarMisViajes() {
+  if (!usuarioActual) return;
+  const container = document.getElementById('perfilMisViajes');
+  if (!container) return;
+  container.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;padding:8px">Cargando tus viajes...</p>';
+
+  try {
+    const r = await fetch(`${FB_URL}/itinerarios.json`);
+    const data = await r.json();
+    if (!data) {
+      container.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:0.85rem;padding:20px">Aún no has subido viajes ✈️</p>';
+      return;
+    }
+
+    const misViajes = Object.entries(data)
+      .filter(([k,v]) => v.autorUid === usuarioActual.uid || v.autorEmail === usuarioActual.email)
+      .map(([k,v]) => ({...v, fbId: k}));
+
+    if (!misViajes.length) {
+      container.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:0.85rem;padding:20px">Aún no has subido viajes ✈️</p>';
+      return;
+    }
+
+    container.innerHTML = '<div style="font-size:0.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:12px">Mis viajes</div>' +
+      misViajes.map(it => `
+        <div style="background:white;border-radius:14px;padding:14px;margin-bottom:10px;border:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="flex:1;cursor:pointer" onclick="editarViajeFirebase('${it.fbId}')">
+              <div style="font-family:'Syne',sans-serif;font-size:0.9rem;font-weight:700">${it.titulo || it.destino}</div>
+              <div style="font-size:0.75rem;color:var(--muted);margin-top:2px">${it.destino} · ${it.dias} días</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;margin-left:10px">
+              <div style="color:var(--primary);font-size:0.8rem;font-weight:700;cursor:pointer" onclick="editarViajeFirebase('${it.fbId}')">Editar →</div>
+              <div style="color:#ccc;font-size:0.8rem;font-weight:700;cursor:pointer" onclick="eliminarViaje('${it.fbId}','${(it.titulo||it.destino).replace(/'/g,'').substring(0,20)}')">🗑️</div>
+            </div>
+          </div>
+        </div>`).join('');
+  } catch(e) {
+    container.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;padding:8px">Error cargando viajes</p>';
+  }
+}
+
+async function editarViajeFirebase(fbId) {
+  try {
+    mostrarToast('Cargando viaje...');
+    const r = await fetch(`${FB_URL}/itinerarios/${fbId}.json`);
+    const it = await r.json();
+    it.fbId = fbId;
+    itinerarioGenerado = it;
+    // Cargar puntos y jornadas frescos de Firebase
+    puntosEdicion = (it.puntos || []).slice();
+    // Cargar jornadas frescas si existen en Firebase
+    try {
+      const rj = await fetch(`${FB_URL}/itinerarios/${fbId}/jornadas.json`);
+      const jornadasFb = await rj.json();
+      if (Array.isArray(jornadasFb) && jornadasFb.length > 0) {
+        it.jornadas = jornadasFb;
+      }
+    } catch(e) {}
+    fotosBase64 = it.fotos || [];
+    if (!itinerarioGenerado.links) itinerarioGenerado.links = { vuelos:[], enlaces:[], tours:[] };
+    // Navegar desde perfil a edición limpiamente
+    navegarA('screenSubir', null);
+    setTimeout(() => {
+      abrirEdicion();
+    }, 100);
+  } catch(e) {
+    mostrarToast('Error cargando el viaje');
+  }
+}
+
+async function eliminarViaje(fbId, titulo) {
+  if (!confirm(`¿Eliminar "${titulo}"?`)) return;
+  try {
+    await fetch(`${FB_URL}/itinerarios/${fbId}.json`, { method:'DELETE' });
+    mostrarToast('🗑️ Viaje eliminado');
+    cargarMisViajes();
+    // Limpiar de memoria local
+    Object.values(destinos).forEach(d => {
+      d.itinerarios = d.itinerarios.filter(i => i.fbId !== fbId);
+    });
+    renderHome();
+  } catch(e) {
+    mostrarToast('❌ Error eliminando');
+  }
+}
+
+function cerrarSesion() {
+  window.fbLogout?.();
+  localStorage.removeItem('ye_user');
+  usuarioActual = null;
+  actualizarPerfil();
+  mostrarToast('Sesión cerrada');
+}
+
+// ══ EDICIÓN DÍAS ══════════════════════════════
+function getJornadas() {
+  return itinerarioGenerado?.jornadas || [];
+}
+
+function guardarJornadasEnFirebase() {
+  const fbId = itinerarioGenerado?.fbId;
+  if (!fbId || !itinerarioGenerado?.jornadas) return;
+  fetch(`${FB_URL}/itinerarios/${fbId}/jornadas.json`, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(itinerarioGenerado.jornadas)
+  }).catch(() => {});
+}
+
+function renderDias() {
+  const lista = document.getElementById('listaDias');
+  if (!lista) return;
+  const jornadas = getJornadas();
+  
+  if (!jornadas.length) {
+    lista.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:0.85rem;padding:20px">No hay días. Pulsa + Día para añadir.</p>';
+    return;
+  }
+
+  lista.innerHTML = jornadas.map((j, ji) => `
+    <div class="dia-edit-block">
+      <div class="dia-edit-header">
+        <span class="dia-edit-num">DÍA ${j.dia}</span>
+        <div class="dia-edit-lugar">
+          <input type="text" value="${j.lugar||''}" placeholder="Ciudad o zona" 
+            oninput="actualizarLugarDia(${ji}, this.value)">
+        </div>
+        <button class="dia-edit-del" onclick="eliminarDia(${ji})">✕</button>
+      </div>
+      <div class="dia-edit-items" id="itemsDia${ji}">
+        ${(j.items||[]).map((item, ii) => `
+          <div class="item-edit-row">
+            <span class="item-edit-icon">${iconoTipo(item.tipo)}</span>
+            <div class="item-edit-fields">
+              <input class="item-edit-nombre" type="text" value="${(item.nombre||'').replace(/"/g,'&quot;')}" 
+                placeholder="Nombre" oninput="actualizarItem(${ji},${ii},'nombre',this.value)">
+              <textarea class="item-edit-desc" placeholder="Descripción" 
+                oninput="actualizarItem(${ji},${ii},'desc',this.value)">${item.desc||''}</textarea>
+            </div>
+            <button class="item-edit-del" onclick="eliminarItem(${ji},${ii})">✕</button>
+          </div>
+        `).join('')}
+        <button class="dia-edit-add" onclick="añadirPuntoDesde(${ji})" style="color:var(--primary);border-color:var(--primary);margin-bottom:4px">📍 Añadir punto (con mapa)</button>
+        <button class="dia-edit-add" onclick="añadirItemTexto(${ji})">+ Añadir texto sin mapa</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function actualizarLugarDia(ji, valor) {
+  if (!itinerarioGenerado?.jornadas?.[ji]) return;
+  itinerarioGenerado.jornadas[ji].lugar = valor;
+  guardarJornadasEnFirebase();
+}
+
+function actualizarItem(ji, ii, campo, valor) {
+  if (!itinerarioGenerado?.jornadas?.[ji]?.items?.[ii]) return;
+  itinerarioGenerado.jornadas[ji].items[ii][campo] = valor;
+  guardarJornadasEnFirebase();
+}
+
+function eliminarDia(ji) {
+  if (!itinerarioGenerado?.jornadas) return;
+  if (!confirm('¿Eliminar este día?')) return;
+  itinerarioGenerado.jornadas.splice(ji, 1);
+  itinerarioGenerado.jornadas.forEach((j, i) => j.dia = i + 1);
+  guardarJornadasEnFirebase();
+  renderDias();
+  mostrarToast('🗑️ Día eliminado');
+}
+
+function eliminarItem(ji, ii) {
+  if (!itinerarioGenerado?.jornadas?.[ji]?.items) return;
+  itinerarioGenerado.jornadas[ji].items.splice(ii, 1);
+  guardarJornadasEnFirebase();
+  renderDias();
+}
+
+function añadirDia() {
+  if (!itinerarioGenerado) return;
+  if (!itinerarioGenerado.jornadas) itinerarioGenerado.jornadas = [];
+  const numDia = itinerarioGenerado.jornadas.length + 1;
+  itinerarioGenerado.jornadas.push({ dia: numDia, lugar: 'Nuevo día', items: [] });
+  guardarJornadasEnFirebase();
+  renderDias();
+  mostrarToast('📅 Día añadido');
+}
+
+function añadirPuntoDesde(ji) {
+  // Guardar el día al que se asociará el punto
+  window._puntoParaDia = ji;
+  abrirMapaEdicionPantalla();
+}
+
+function añadirItemTexto(ji) {
+  if (!itinerarioGenerado?.jornadas?.[ji]) return;
+  itinerarioGenerado.jornadas[ji].items.push({ tipo: 'visita', nombre: 'Nuevo item', desc: '' });
+  guardarJornadasEnFirebase();
+  renderDias();
+  setTimeout(() => {
+    const items = document.querySelectorAll(`#itemsDia${ji} .item-edit-nombre`);
+    if (items.length) items[items.length-1].focus();
+  }, 150);
+}
+
+// ══ EDICIÓN RICA ══════════════════════════════
+const TIPOS_CONFIG = {
+  restaurante: { icon: '🍽️', label: 'Restaurante',  color: '#7A9E7E' },
+  hotel:       { icon: '🏨', label: 'Hotel',         color: '#D4A843' },
+  atraccion:   { icon: '🎡', label: 'Atracción',     color: '#E8471C' },
+  bar:         { icon: '🍻', label: 'Bar',            color: '#5C8C6A' },
+  transporte:  { icon: '🚌', label: 'Transporte',    color: '#4a9bd4' },
+  inicio:      { icon: '🏁', label: 'Inicio ruta',   color: '#1C1917' },
+  playa:       { icon: '🏖️', label: 'Playa',         color: '#2a7db5' },
+  compras:     { icon: '🛍️', label: 'Compras',       color: '#9b4ea8' },
+  tip:         { icon: '💡', label: 'Consejo',        color: '#9b87d4' },
+  monumento:   { icon: '🏛️', label: 'Monumento',     color: '#8B6914' },
+  mirador:     { icon: '🔭', label: 'Mirador',        color: '#2E7D32' },
+  museo:       { icon: '🖼️', label: 'Museo',         color: '#6A1B9A' },
+  parque:      { icon: '🌳', label: 'Parque',         color: '#388E3C' },
+  iglesia:     { icon: '⛪', label: 'Iglesia',        color: '#5D4037' },
+  mercado:     { icon: '🏪', label: 'Mercado',        color: '#F57C00' },
+  discoteca:   { icon: '🎶', label: 'Ocio nocturno', color: '#880E4F' },
+  deporte:     { icon: '🏄', label: 'Deporte',        color: '#0277BD' },
+  spa:         { icon: '💆', label: 'Spa / Relax',   color: '#00695C' },
+  fotografia:  { icon: '📸', label: 'Foto imprescindible', color: '#37474F' },
+  visita:      { icon: '📍', label: 'Visita',         color: '#E8471C' },
+  comida:      { icon: '🍽️', label: 'Restaurante',   color: '#7A9E7E' },
+  avion:       { icon: '✈️', label: 'Vuelo',          color: '#1565C0' },
+  tren:        { icon: '🚂', label: 'Tren',           color: '#4E342E' },
+  metro:       { icon: '🚇', label: 'Metro',          color: '#1976D2' },
+  tranvia:     { icon: '🚋', label: 'Tranvía',        color: '#00838F' },
+  barco:       { icon: '🚢', label: 'Barco / Ferry',  color: '#0277BD' },
+  templo:      { icon: '🛕', label: 'Templo',         color: '#BF360C' },
+  pdi:         { icon: '⭐', label: 'Punto de interés', color: '#F9A825' },
+  ciudad:      { icon: '🏙️', label: 'Ciudad',         color: '#546E7A' },
+  pueblo:      { icon: '🏘️', label: 'Pueblo',         color: '#795548' },
+  cascada:     { icon: '💧', label: 'Cascada / Río',  color: '#0288D1' },
+  castillo:    { icon: '🏰', label: 'Castillo',       color: '#6D4C41' },
+  gastronomia: { icon: '🥘', label: 'Gastronomía',    color: '#E65100' },
+  paseo:       { icon: '🚶', label: 'Paseo / Andando', color: '#43A047' },
+  bici:        { icon: '🚴', label: 'En bici',         color: '#F57C00' },
+  coche:       { icon: '🚗', label: 'En coche',        color: '#E53935' },
+};
+
+let puntosEdicion = [];
+let tipoPuntoSeleccionado = null;
+let latLngPunto = null;
+let mapEditInstance = null;
+let mapVerInstance = null;
+let mapEditIniciado = false;
+
+function abrirEdicion() {
+  const it = itinerarioGenerado;
+  if (!it) return;
+  
+  // Resetear mapa de edición
+  if (mapEditInstance) {
+    mapEditInstance.remove();
+    mapEditInstance = null;
+  }
+  mapEditIniciado = false;
+  if (mapEditFullInstance) {
+    mapEditFullInstance.remove();
+    mapEditFullInstance = null;
+  }
+
+  // Rellenar campos info
+  document.getElementById('e-titulo').value = it.titulo || '';
+  document.getElementById('e-destino').value = it.destino || '';
+  document.getElementById('e-dias').value = it.dias || '';
+  document.getElementById('e-presupuesto').value = it.presupuesto || '';
+  document.getElementById('e-resumen').value = it.resumen || '';
+
+  // Tipos chips
+  const tiposOpciones = ['Mochilero','Familiar','Pareja','Lujo','Aventura','Cultural','Relax','Naturaleza'];
+  const tiposEl = document.getElementById('e-tipos');
+  tiposEl.innerHTML = tiposOpciones.map(t => `
+    <div onclick="toggleTipo(this,'${t}')" class="cat-chip ${(it.tipo||[]).includes(t)?'active':''}">${t}</div>
+  `).join('');
+
+  // Puntos existentes desde jornadas
+  puntosEdicion = [];
+  (it.jornadas||[]).forEach(j => {
+    (j.items||[]).forEach(item => {
+      puntosEdicion.push({
+        tipo: item.tipo,
+        nombre: item.nombre,
+        desc: item.desc,
+        lat: null, lng: null
+      });
+    });
+  });
+
+  renderPuntos();
+  cambiarTab('tabInfo');
+  navegarDetalle('screenEditar');
+}
+
+function toggleTipo(el, tipo) {
+  el.classList.toggle('active');
+}
+
+function cambiarTab(tab) {
+  ['tabInfo','tabDias','tabMapaPanel','tabFotos','tabLinks'].forEach(t => {
+    document.getElementById(t).classList.remove('active');
+  });
+  ['tabInfoBtn','tabDiasBtn','tabMapaBtn','tabFotosBtn','tabLinksBtn'].forEach(b => {
+    document.getElementById(b).classList.remove('active');
+  });
+  document.getElementById(tab).classList.add('active');
+
+  const btnMap = {tabInfo:'tabInfoBtn', tabDias:'tabDiasBtn', tabMapaPanel:'tabMapaBtn', tabFotos:'tabFotosBtn', tabLinks:'tabLinksBtn'};
+  document.getElementById(btnMap[tab]).classList.add('active');
+
+  if (tab === 'tabDias') renderDias();
+  if (tab === 'tabFotos') renderFotosEditar();
+  if (tab === 'tabLinks') renderLinks();
+
+  if (tab === 'tabMapaPanel') {
+    if (!mapEditIniciado) {
+      mapEditIniciado = true;
+      setTimeout(() => {
+        iniciarMapaEdicion();
+        setTimeout(() => mapEditInstance && mapEditInstance.invalidateSize(), 300);
+      }, 200);
+    } else if (mapEditInstance) {
+      setTimeout(() => mapEditInstance.invalidateSize(), 100);
+    }
+  }
+}
+
+function iniciarMapaEdicion() {
+  const it = itinerarioGenerado;
+  const lat = it?.lat || 40;
+  const lng = it?.lng || -3;
+
+  mapEditInstance = L.map('mapEdit', { center:[lat,lng], zoom:12, zoomControl:false });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(mapEditInstance);
+  L.control.zoom({ position:'topright' }).addTo(mapEditInstance);
+
+  // Pinchar en el mapa
+  mapEditInstance.on('click', e => {
+    latLngPunto = e.latlng;
+    abrirMenuPunto();
+  });
+
+  // Renderizar puntos existentes con coordenadas
+  renderPuntosEnMapa();
+}
+
+function renderPuntosEnMapa() {
+  if (!mapEditInstance) return;
+  puntosEdicion.forEach(p => {
+    if (p.lat && p.lng) {
+      const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.visita;
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="font-size:1.4rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">${cfg.icon}</div>`,
+        iconSize: [28,28], iconAnchor: [14,14]
+      });
+      L.marker([p.lat, p.lng], {icon}).addTo(mapEditInstance)
+        .bindPopup(`<b>${cfg.icon} ${p.nombre}</b><br><small>${p.desc||''}</small>`);
+    }
+  });
+}
+
+function abrirMenuPunto() {
+  document.getElementById('puntoMenu').classList.add('active');
+}
+
+function cerrarMenuPunto(e) {
+  if (e.target === document.getElementById('puntoMenu')) {
+    cancelarMenuPunto();
+  }
+}
+
+function cancelarMenuPunto() {
+  document.getElementById('puntoMenu').classList.remove('active');
+  latLngPunto = null; // limpiar coordenada para no marcar nada
+  window._puntoParaDia = undefined;
+}
+
+function seleccionarTipoPunto(tipo) {
+  tipoPuntoSeleccionado = tipo;
+  document.getElementById('puntoMenu').classList.remove('active');
+  const cfg = TIPOS_CONFIG[tipo];
+  document.getElementById('puntoFormTitulo').textContent = `${cfg.icon} ${cfg.label}`;
+  document.getElementById('p-nombre').value = '';
+  document.getElementById('p-desc').value = '';
+  document.getElementById('puntoForm').classList.add('active');
+}
+
+function cerrarFormPunto(e) {
+  if (e.target === document.getElementById('puntoForm')) {
+    document.getElementById('puntoForm').classList.remove('active');
+  }
+}
+
+async function guardarPunto() {
+  const nombre = document.getElementById('p-nombre').value.trim();
+  if (!nombre) { mostrarToast('⚠️ Ponle un nombre al punto'); return; }
+  const desc = document.getElementById('p-desc').value.trim();
+  const formEl = document.getElementById('puntoForm');
+  const editIndex = formEl._editIndex;
+
+  const diaDelPunto = (window._puntoParaDia !== undefined && itinerarioGenerado?.jornadas)
+    ? (itinerarioGenerado.jornadas[window._puntoParaDia]?.dia || null)
+    : null;
+
+  const punto = {
+    tipo: tipoPuntoSeleccionado,
+    nombre,
+    desc,
+    lat: editIndex !== undefined ? puntosEdicion[editIndex]?.lat : (latLngPunto?.lat || null),
+    lng: editIndex !== undefined ? puntosEdicion[editIndex]?.lng : (latLngPunto?.lng || null),
+    dia: editIndex !== undefined ? (puntosEdicion[editIndex]?.dia || null) : diaDelPunto
+  };
+
+  if (editIndex !== undefined) {
+    puntosEdicion[editIndex] = punto;
+    delete formEl._editIndex;
+    if (mapEditFullInstance) {
+      mapEditFullInstance.remove();
+      mapEditFullInstance = null;
+      setTimeout(() => abrirMapaEdicionPantalla(), 100);
+    }
+  } else {
+    puntosEdicion.push(punto);
+    // Si viene de un día específico, añadirlo como item del día con tipo e icono
+    if (window._puntoParaDia !== undefined && itinerarioGenerado?.jornadas) {
+      const ji = window._puntoParaDia;
+      if (itinerarioGenerado.jornadas[ji]) {
+        itinerarioGenerado.jornadas[ji].items.push({
+          tipo: punto.tipo,
+          nombre: punto.nombre,
+          desc: punto.desc
+        });
+        guardarJornadasEnFirebase();
+        mostrarToast('✅ Punto añadido al Día ' + (ji + 1));
+      }
+      delete window._puntoParaDia;
+      // Volver a la edición y mostrar el día actualizado
+      goBack();
+      setTimeout(() => cambiarTab('tabDias'), 200);
+    }
+  }
+
+  formEl.classList.remove('active');
+  latLngPunto = null;
+  renderPuntos();
+
+  // Guardar puntos en Firebase inmediatamente
+  const fbId = itinerarioGenerado?.fbId;
+  if (fbId) {
+    const puntosLimpios = puntosEdicion.filter(p => p && p.tipo);
+    await fetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(puntosLimpios)
+    }).catch(() => {});
+  }
+
+  // Añadir al mapa
+  if (punto.lat && mapEditFullInstance) {
+    const cfg = TIPOS_CONFIG[punto.tipo] || TIPOS_CONFIG.visita;
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="font-size:1.6rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">${cfg.icon}</div>`,
+      iconSize: [32,32], iconAnchor: [16,16]
+    });
+    L.marker([punto.lat, punto.lng], {icon}).addTo(mapEditFullInstance)
+      .bindPopup(`<b>${cfg.icon} ${punto.nombre}</b><br><small>${punto.desc||''}</small>`);
+  }
+
+  mostrarToast('✅ Punto guardado');
+}
+
+function renderPuntos() {
+  const lista = document.getElementById('listaPuntos');
+  if (!puntosEdicion.length) {
+    lista.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:0.85rem;padding:20px">Aún no hay puntos. Pulsa + Añadir punto.</p>';
+    return;
+  }
+  lista.innerHTML = puntosEdicion.map((p,i) => {
+    const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.visita;
+    return `<div class="punto-item">
+      <span class="punto-item-icon">${cfg.icon}</span>
+      <div class="punto-item-info">
+        <div class="punto-item-nombre">${p.nombre}</div>
+        <div class="punto-item-tipo">${cfg.label}${p.lat ? ' · 📍 En mapa' : ''}</div>
+      </div>
+      <button class="punto-item-del" onclick="eliminarPunto(${i})">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function eliminarPunto(i) {
+  puntosEdicion.splice(i, 1);
+  renderPuntos();
+  // Guardar en Firebase
+  const fbId = itinerarioGenerado?.fbId;
+  if (fbId) {
+    fetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(puntosEdicion.filter(p => p && p.tipo))
+    }).catch(()=>{});
+  }
+  // Recargar mapa
+  if (mapEditFullInstance) {
+    mapEditFullInstance.remove();
+    mapEditFullInstance = null;
+    setTimeout(() => abrirMapaEdicionPantalla(), 100);
+  }
+  mostrarToast('🗑️ Punto eliminado');
+}
+
+function editarPunto(i) {
+  const p = puntosEdicion[i];
+  if (!p) return;
+  // Cerrar popup
+  if (mapEditFullInstance) mapEditFullInstance.closePopup();
+  // Seleccionar tipo
+  tipoPuntoSeleccionado = p.tipo;
+  const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.visita;
+  document.getElementById('puntoFormTitulo').textContent = `${cfg.icon} Editar ${cfg.label}`;
+  document.getElementById('p-nombre').value = p.nombre || '';
+  document.getElementById('p-desc').value = p.desc || '';
+  // Guardar índice para sobreescribir
+  document.getElementById('puntoForm')._editIndex = i;
+  document.getElementById('puntoForm').classList.add('active');
+}
+
+function renderFotosEditar() {
+  const grid = document.getElementById('fotoGridEditar');
+  if (!grid) return;
+  grid.innerHTML = '';
+  fotosBase64.forEach((src, i) => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden';
+    const img = document.createElement('img');
+    img.src = src;
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover';
+    const btn = document.createElement('button');
+    btn.textContent = '✕';
+    btn.style.cssText = 'position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.6);color:white;border:none;border-radius:50%;width:22px;height:22px;font-size:0.7rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1';
+    btn.onclick = (e) => { e.stopPropagation(); fotosBase64.splice(i, 1); renderFotosEditar(); };
+    wrap.appendChild(img);
+    wrap.appendChild(btn);
+    grid.appendChild(wrap);
+  });
+}
+
+function procesarFotosEditar(input) {
+  const files = Array.from(input.files);
+  input.value = '';
+  let loaded = 0;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const max = 800;
+        let w = img.width, h = img.height;
+        if (w > max) { h = h * max / w; w = max; }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        const b64 = canvas.toDataURL('image/jpeg', 0.72);
+        fotosBase64.push(b64);
+        loaded++;
+        if (loaded === files.length) renderFotosEditar();
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// ══ VER EN MAPA ════════════════════════════════
+// Índice de marcadores del mapa de ver, por nombre
+let mapVerMarkers = {};
+// ID del itinerario actualmente cargado en el mapa de ver
+let mapVerItId = null;
+
+async function verPuntoEnMapa(key, id, nombre) {
+  // Si el mapa ya está cargado con este itinerario, solo centrar
+  if (mapVerInstance && mapVerItId === id) {
+    navegarDetalle('screenVerMapa');
+    setTimeout(() => {
+      const marker = mapVerMarkers[nombre];
+      if (marker) {
+        mapVerInstance.setView(marker.getLatLng(), 16, { animate: true });
+        marker.openPopup();
+      }
+    }, 200);
+    return;
+  }
+  // Si no, cargar el mapa primero y luego centrar
+  await verEnMapa(key, id);
+  setTimeout(() => {
+    const marker = mapVerMarkers[nombre];
+    if (marker) {
+      mapVerInstance.setView(marker.getLatLng(), 16, { animate: true });
+      marker.openPopup();
+    }
+  }, 500);
+}
+
+async function verEnMapa(key, id) {
+  const d = destinos[key];
+  let it = d.itinerarios.find(i => i.id === id || i.fbId === id);
+  if (!it) return;
+
+  document.getElementById('verMapaTitulo').textContent = it.titulo;
+  navegarDetalle('screenVerMapa');
+
+  // Cargar puntos frescos de Firebase
+  if (it.fbId) {
+    try {
+      const r = await fetch(`${FB_URL}/itinerarios/${it.fbId}/puntos.json`);
+      const puntosFirebase = await r.json();
+      if (Array.isArray(puntosFirebase) && puntosFirebase.length > 0) it.puntos = puntosFirebase;
+    } catch(e) {}
+  }
+
+  setTimeout(() => {
+    if (mapVerInstance) { mapVerInstance.remove(); mapVerInstance = null; }
+    mapVerMarkers = {};
+    mapVerItId = id;
+    const lat = it.lat || d.lat || 40;
+    const lng = it.lng || d.lng || -3;
+    mapVerInstance = L.map('mapVer', { center:[lat,lng], zoom:13, zoomControl:false });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(mapVerInstance);
+    L.control.zoom({ position:'topright' }).addTo(mapVerInstance);
+
+    const destino = it.destino || d.nombre || '';
+    const puntos = it.puntos || [];
+    if (puntos.length) {
+      // Construir filtro de días
+      const diasBar = document.getElementById('diasFiltroBar');
+      const diasUnicos = [...new Set(puntos.filter(p=>p.lat&&p.dia).map(p=>p.dia))].sort((a,b)=>a-b);
+      window._verMapaIt = it;
+      window._verMapaD = d;
+      window._verMapaDestino = destino;
+
+      if (diasUnicos.length > 1) {
+        diasBar.style.display = 'block';
+        diasBar.innerHTML = ['todos', ...diasUnicos].map(d => `
+          <button onclick="filtrarDiasMapa(${d==='todos'?'null':d})" 
+            data-dia="${d}"
+            style="display:inline-block;margin-right:6px;padding:5px 12px;border-radius:50px;border:1.5px solid rgba(255,255,255,0.3);background:${d==='todos'?'var(--primary)':'transparent'};color:white;font-family:'Mulish',sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;white-space:nowrap">
+            ${d==='todos'?'Todos':('Día '+d)}
+          </button>`).join('');
+      } else {
+        diasBar.style.display = 'none';
+      }
+
+      dibujarPuntosYRuta(puntos, null, destino, it);
+
+      const bounds = L.latLngBounds(puntos.filter(p=>p.lat).map(p=>[p.lat,p.lng]));
+      if (bounds.isValid()) mapVerInstance.fitBounds(bounds, { padding:[40,40] });
+    } else {
+      mostrarToast('Este viaje aún no tiene puntos en el mapa');
+    }
+  }, 200);
+}
+
+function filtrarDiasMapa(dia) {
+  const it = window._verMapaIt;
+  const d = window._verMapaD;
+  const destino = window._verMapaDestino;
+  if (!it || !mapVerInstance) return;
+
+  // Actualizar botones activos
+  document.querySelectorAll('#diasFiltroBar button').forEach(btn => {
+    const btnDia = btn.dataset.dia;
+    const activo = (dia === null && btnDia === 'todos') || (dia !== null && parseInt(btnDia) === dia);
+    btn.style.background = activo ? 'var(--primary)' : 'transparent';
+  });
+
+  // Limpiar capas anteriores excepto el tile layer
+  mapVerInstance.eachLayer(layer => {
+    if (!(layer instanceof L.TileLayer) && !(layer._isZoomControl)) {
+      mapVerInstance.removeLayer(layer);
+    }
+  });
+  mapVerMarkers = {};
+
+  const puntosFiltrados = dia === null
+    ? (it.puntos || [])
+    : (it.puntos || []).filter(p => p.dia === dia);
+
+  dibujarPuntosYRuta(puntosFiltrados, dia, destino, it);
+
+  if (puntosFiltrados.filter(p=>p.lat).length > 0) {
+    const bounds = L.latLngBounds(puntosFiltrados.filter(p=>p.lat).map(p=>[p.lat,p.lng]));
+    if (bounds.isValid()) mapVerInstance.fitBounds(bounds, { padding:[40,40] });
+  }
+}
+
+// Estilos de línea por tipo de transporte
+function estiloRuta(jornadas, dia) {
+  if (!jornadas || !dia) return { color:'#E8471C', weight:2.5, opacity:0.6, dashArray:'6,8' };
+  const jornada = jornadas.find(j => j.dia === dia);
+  const tipoTransporte = jornada?.items?.find(i => 
+    ['avion','barco','tren','metro','tranvia','transporte'].includes(i.tipo))?.tipo;
+  const estilos = {
+    avion:     { color:'#1565C0', weight:2,   opacity:0.5, dashArray:'4,10' },
+    barco:     { color:'#0277BD', weight:2.5, opacity:0.6, dashArray:'8,6'  },
+    tren:      { color:'#4E342E', weight:3,   opacity:0.7, dashArray:'10,4' },
+    metro:     { color:'#1976D2', weight:2.5, opacity:0.6, dashArray:'3,5'  },
+    tranvia:   { color:'#00838F', weight:2.5, opacity:0.6, dashArray:'6,4'  },
+    transporte:{ color:'#37474F', weight:2,   opacity:0.6, dashArray:'6,8'  },
+  };
+  return estilos[tipoTransporte] || { color:'#E8471C', weight:2.5, opacity:0.6, dashArray:'6,8' };
+}
+
+function dibujarPuntosYRuta(puntos, diaFiltro, destino, it) {
+  puntos.forEach(p => {
+    if (!p.lat || !p.lng) return;
+    const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.visita;
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="font-size:1.6rem;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.35))">${cfg.icon}</div>`,
+      iconSize: [32,32], iconAnchor: [16,16]
+    });
+    const marker = L.marker([p.lat, p.lng], {icon}).addTo(mapVerInstance);
+    marker.bindPopup(`<div style="font-family:'Mulish',sans-serif;min-width:160px">
+      <b style="font-size:0.9rem">${cfg.icon} ${p.nombre}</b>
+      ${p.dia ? `<div style="font-size:0.7rem;color:#E8471C;font-weight:700;margin-top:2px">DÍA ${p.dia}</div>` : ''}
+      ${p.desc ? `<p style="margin-top:4px;font-size:0.78rem;color:#666">${p.desc}</p>` : ''}
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button onclick="buscarEnGoogle('${p.nombre.replace(/'/g,'')}','${destino.replace(/'/g,'')}');return false;" style="flex:1;padding:6px;background:#4285f4;color:white;border:none;border-radius:8px;font-size:0.72rem;cursor:pointer">🔍 Google</button>
+        <button onclick="abrirEnGoogleMaps(${p.lat},${p.lng},'${p.nombre.replace(/'/g,'')}');return false;" style="flex:1;padding:6px;background:#34A853;color:white;border:none;border-radius:8px;font-size:0.72rem;cursor:pointer">🗺️ Maps</button>
+        <button onclick="infoConIA('${p.nombre.replace(/'/g,'')}','${destino.replace(/'/g,'')}');return false;" style="flex:1;padding:6px;background:#E8471C;color:white;border:none;border-radius:8px;font-size:0.72rem;cursor:pointer">✨ IA</button>
+      </div>
+      <div id="iaInfoResult_${p.nombre.replace(/[^a-z0-9]/gi,'')}" style="margin-top:6px;font-size:0.75rem;color:#444"></div>
+    </div>`);
+    mapVerMarkers[p.nombre] = marker;
+  });
+
+  // Línea de ruta con flechas
+  const coords = puntos.filter(p => p.lat && p.lng && p.dia).map(p => [p.lat, p.lng]);
+  if (coords.length >= 2) {
+    const estilo = estiloRuta(it.jornadas, diaFiltro);
+    L.polyline(coords, { ...estilo, lineJoin:'round' }).addTo(mapVerInstance);
+
+    // Flechas de dirección cada ~2 segmentos
+    for (let i = 0; i < coords.length - 1; i += Math.max(1, Math.floor((coords.length-1)/5))) {
+      const mid = [(coords[i][0]+coords[i+1][0])/2, (coords[i][1]+coords[i+1][1])/2];
+      const angle = Math.atan2(coords[i+1][1]-coords[i][1], coords[i+1][0]-coords[i][0]) * 180/Math.PI;
+      L.marker(mid, {
+        icon: L.divIcon({
+          className: '',
+          html: `<div style="transform:rotate(${angle}deg);font-size:1rem;color:${estilo.color};opacity:0.8;line-height:1">➤</div>`,
+          iconSize: [16,16], iconAnchor: [8,8]
+        }),
+        interactive: false
+      }).addTo(mapVerInstance);
+    }
+  }
+}
+
+
+function buscarEnGoogle(nombre, destino) {
+  const q = encodeURIComponent(nombre + ' ' + destino);
+  window.open('https://www.google.com/search?q=' + q, '_blank');
+}
+
+function abrirEnGoogleMaps(lat, lng, nombre) {
+  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(nombre)}&center=${lat},${lng}`;
+  window.open(url, '_blank');
+}
+
+async function infoConIA(nombre, destino) {
+  const id = 'iaInfoResult_' + nombre.replace(/[^a-z0-9]/gi,'');
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = '✨ Buscando info...';
+
+  try {
+    const r = await fetch('/.netlify/functions/claude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 200,
+        messages: [{
+          role: 'user',
+          content: `Dame 2-3 frases muy breves y prácticas sobre "${nombre}" en ${destino}. Horarios, precio aproximado, qué destacar. Sin formato, solo texto directo.`
+        }]
+      })
+    });
+    const data = await r.json();
+    el.textContent = data.content[0]?.text || 'Sin información disponible';
+  } catch(e) {
+    el.textContent = 'Error obteniendo información';
+  }
+}
+
+// ══ MAPA EDICIÓN PANTALLA COMPLETA ══
+let mapEditFullInstance = null;
+
+async function abrirMapaEdicionPantalla() {
+  navegarDetalle('screenMapaEdit');
+  
+  setTimeout(async () => {
+    if (mapEditFullInstance) {
+      mapEditFullInstance.remove();
+      mapEditFullInstance = null;
+    }
+
+    // Cargar puntos frescos de Firebase si hay fbId
+    const fbId = itinerarioGenerado?.fbId;
+    if (fbId) {
+      try {
+        const r = await fetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`);
+        const puntosFirebase = await r.json();
+        if (Array.isArray(puntosFirebase) && puntosFirebase.length > 0) {
+          puntosEdicion = puntosFirebase.filter(p => p && p.tipo);
+        }
+      } catch(e) { console.log('No se pudieron cargar puntos de Firebase', e); }
+    }
+
+    const it = itinerarioGenerado;
+    const lat = it?.lat || 40;
+    const lng = it?.lng || -3;
+    mapEditFullInstance = L.map('mapEditFull', { center:[lat,lng], zoom:13, zoomControl:false });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(mapEditFullInstance);
+    L.control.zoom({ position:'topright' }).addTo(mapEditFullInstance);
+    mapEditFullInstance.invalidateSize();
+    
+    // Ocultar spinner y mostrar hint
+    mapEditFullInstance.whenReady(() => {
+      const spinner = document.getElementById('mapaEditSpinner');
+      const hint = document.getElementById('mapaEditHint');
+      if (spinner) spinner.style.display = 'none';
+      if (hint) hint.style.display = 'block';
+    });
+
+    // Pinchar en el mapa para añadir punto
+    mapEditFullInstance.on('click', e => {
+      latLngPunto = e.latlng;
+      abrirMenuPunto();
+    });
+
+    // Mostrar puntos con coordenadas
+    const conCoords = puntosEdicion.filter(p => p && p.lat && p.lng);
+    conCoords.forEach(p => {
+      const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.visita;
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="font-size:1.6rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">${cfg.icon}</div>`,
+        iconSize: [32,32], iconAnchor: [16,16]
+      });
+      const marker = L.marker([p.lat, p.lng], {icon}).addTo(mapEditFullInstance);
+      const idx = puntosEdicion.indexOf(p);
+      marker.bindPopup(`
+        <div style="font-family:'Mulish',sans-serif;min-width:160px">
+          <b style="font-size:0.9rem">${cfg.icon} ${p.nombre}</b>
+          ${p.desc ? `<p style="font-size:0.78rem;color:#666;margin:4px 0">${p.desc}</p>` : ''}
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button onclick="editarPunto(${idx})" style="flex:1;padding:6px;background:#E8471C;color:white;border:none;border-radius:8px;font-size:0.75rem;cursor:pointer">✏️ Editar</button>
+            <button onclick="eliminarPunto(${idx})" style="flex:1;padding:6px;background:#fee;color:#c00;border:1px solid #fcc;border-radius:8px;font-size:0.75rem;cursor:pointer">🗑️ Borrar</button>
+          </div>
+        </div>`);
+    });
+
+    if (conCoords.length > 0) {
+      const bounds = L.latLngBounds(conCoords.map(p => [p.lat, p.lng]));
+      if (bounds.isValid()) mapEditFullInstance.fitBounds(bounds, { padding:[40,40] });
+    }
+
+    renderPuntos();
+  }, 300);
+}
+
+function cerrarMapaEdicion() {
+  goBack();
+  // Actualizar lista de puntos al volver
+  renderPuntos();
+}
+
+// Sobrescribir guardarPunto para añadir al mapa completo también
+const _guardarPuntoOriginal = guardarPunto;
+// ══ NAVEGACIÓN ══════════════════════════════════
+const navHistory = ['screenHome'];
+let mapaIniciado = false;
+let itinerarioGenerado = null;
+let fotosBase64 = [];
+
+function procesarFotos(input) {
+  const files = Array.from(input.files);
+  fotosBase64 = [];
+  const preview = document.getElementById('fotoPreview');
+  const placeholder = document.getElementById('fotoPlaceholder');
+  preview.innerHTML = '';
+  
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      // Comprimir
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const max = 800;
+        let w = img.width, h = img.height;
+        if (w > max) { h = h * max / w; w = max; }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        const b64 = canvas.toDataURL('image/jpeg', 0.72);
+        fotosBase64.push(b64);
+        const thumb = document.createElement('img');
+        thumb.src = b64;
+        preview.appendChild(thumb);
+        placeholder.style.display = 'none';
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function navegarA(screenId, navId) {
+  const current = navHistory[navHistory.length - 1];
+  if (current === screenId) return;
+
+  // Ocultar TODAS las pantallas primero
+  document.querySelectorAll('.screen').forEach(s => {
+    s.classList.remove('active', 'behind');
+  });
+
+  // Mostrar solo la pantalla destino
+  document.getElementById(screenId).classList.add('active');
+  navHistory.length = 0;
+  navHistory.push(screenId);
+
+  // Mostrar/ocultar nav
+  if (screenId === 'screenAuth') {
+    
+  } else {
+    
+  }
+
+  // Nav activo
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (navId) document.getElementById(navId)?.classList.add('active');
+
+  // Iniciar mapa si es necesario
+  if (screenId === 'screenMapa' && !mapaIniciado) iniciarMapa();
+}
+
+function navegarDetalle(screenId) {
+  const current = navHistory[navHistory.length - 1];
+  // Si venimos del mapa, no ponemos 'behind' porque el mapa tiene posición fixed
+  if (current === 'screenMapa') {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active','behind'));
+    document.getElementById(screenId).classList.add('active');
+    navHistory.push(screenId);
+  } else {
+    document.getElementById(current).classList.remove('active');
+    document.getElementById(current).classList.add('behind');
+    document.getElementById(screenId).classList.add('active');
+    document.getElementById(screenId).classList.remove('behind');
+    navHistory.push(screenId);
+  }
+}
+
+function goBack() {
+  if (navHistory.length <= 1) return;
+  const current = navHistory.pop();
+  const prev = navHistory[navHistory.length - 1];
+
+  document.getElementById(current).classList.remove('active', 'behind');
+  document.getElementById(prev).classList.remove('behind');
+  document.getElementById(prev).classList.add('active');
+
+  // Restaurar nav
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (prev === 'screenHome') document.getElementById('navHome').classList.add('active');
+  else if (prev === 'screenMapa') document.getElementById('navMapa').classList.add('active');
+}
+
+// ══ HOME — renderizar destinos ════════════════
+function renderHome() {
+  const grid = document.getElementById('destinosGrid');
+  grid.innerHTML = '';
+  Object.entries(destinos).forEach(([key, d]) => {
+    const card = document.createElement('div');
+    card.className = 'destino-card';
+    card.innerHTML = `
+      <div class="card-body">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-size:1.6rem;margin-bottom:4px">${d.emoji}</div>
+            <div class="card-dest-name">${d.nombre}</div>
+            <div class="card-count">${d.itinerarios.length} itinerario${d.itinerarios.length!==1?'s':''}</div>
+          </div>
+          <div class="card-arrow">→</div>
+        </div>
+      </div>`;
+    card.onclick = () => abrirDestino(key);
+    grid.appendChild(card);
+  });
+}
+
+// ══ LISTA ITINERARIOS ════════════════════════
+function abrirDestino(key) {
+  const d = destinos[key];
+  document.getElementById('listaTitulo').textContent = `${d.emoji} ${d.nombre}`;
+  document.getElementById('listaCount').textContent = `${d.itinerarios.length} viajes`;
+
+  const body = document.getElementById('listaBody');
+  body.innerHTML = '';
+  d.itinerarios.forEach(it => {
+    const card = document.createElement('div');
+    card.className = 'it-card';
+    card.innerHTML = `
+      <div class="it-card-top">
+        <div class="it-titulo">${it.titulo}</div>
+        <div class="it-dias">${it.dias} días</div>
+      </div>
+      <div class="it-autor">Por <strong>${it.autor}</strong></div>
+      <div class="it-tags">${it.tipo.map(t=>`<span class="it-tag">${t}</span>`).join('')}</div>
+      <div class="it-presupuesto">💰 <strong>${it.presupuesto}</strong></div>`;
+    card.onclick = () => abrirItinerario(key, it.id);
+    body.appendChild(card);
+  });
+  navegarDetalle('screenLista');
+}
+
+// ══ DETALLE ══════════════════════════════════
+function abrirItinerario(key, id) {
+  const d = destinos[key];
+  const it = d.itinerarios.find(i => i.id === id || i.fbId === id);
+
+  // Hero fotos
+  const heroFotos = document.getElementById('heroFotos');
+  const heroDots = document.getElementById('heroDots');
+  heroFotos.innerHTML = '';
+  heroDots.innerHTML = '';
+  if (it.fotos && it.fotos.length) {
+    it.fotos.forEach(src => {
+      const img = document.createElement('img');
+      img.className = 'hero-foto';
+      img.src = src;
+      img.onclick = () => abrirLightbox(src, it.fotos);
+      heroFotos.appendChild(img);
+    });
+    if (it.fotos.length > 1) {
+      it.fotos.forEach((_, i) => {
+        const dot = document.createElement('div');
+        dot.style.cssText = `width:6px;height:6px;border-radius:50%;background:${i===0?'white':'rgba(255,255,255,0.45)'};transition:background 0.2s`;
+        heroDots.appendChild(dot);
+      });
+      heroFotos.addEventListener('scroll', () => {
+        const idx = Math.round(heroFotos.scrollLeft / heroFotos.offsetWidth);
+        heroDots.querySelectorAll('div').forEach((d, i) => {
+          d.style.background = i === idx ? 'white' : 'rgba(255,255,255,0.45)';
+        });
+      }, { passive: true });
+    }
+  } else {
+    heroFotos.innerHTML = `<div style="min-width:100%;height:100%;background:linear-gradient(135deg,${d.color}88,${d.color});display:flex;align-items:center;justify-content:center;font-size:5rem">${d.emoji}</div>`;
+  }
+
+  document.getElementById('heroTitulo').textContent = it.titulo;
+  document.getElementById('heroMeta').innerHTML = `
+    <span>✈️ ${d.nombre}</span>
+    <span>📅 ${it.dias} días</span>
+    <span>👤 ${it.autor}</span>`;
+  document.getElementById('detallePresupuesto').textContent = it.presupuesto;
+
+  const diasEl = document.getElementById('detalleDias');
+  diasEl.innerHTML = '';
+  // Índice de puntos con coords por nombre para lookup rápido
+  const puntosMap = {};
+  (it.puntos || []).forEach(p => { if (p.lat && p.lng) puntosMap[p.nombre] = p; });
+
+  it.jornadas.forEach(j => {
+    const block = document.createElement('div');
+    block.className = 'dia-block';
+    block.innerHTML = `
+      <div class="dia-header">
+        <span class="dia-num">DÍA ${j.dia}</span>
+        <span class="dia-lugar">${j.lugar}</span>
+      </div>
+      <div class="dia-items">
+        ${j.items.map(item => {
+          const tieneCoords = !!puntosMap[item.nombre];
+          return `<div class="dia-item ${item.tipo}" ${tieneCoords ? `onclick="verPuntoEnMapa('${(key)}','${(it.fbId||id)}','${item.nombre.replace(/'/g,"\'")}');return false;" style="cursor:pointer"` : ''}>
+            <div class="item-tipo">${iconoTipo(item.tipo)} ${labelTipo(item.tipo)}${tieneCoords ? ' <span style="font-size:0.65rem;background:var(--primary-light);color:var(--primary);padding:2px 6px;border-radius:50px;margin-left:4px">📍 Ver mapa</span>' : ''}</div>
+            <div class="item-nombre">${item.nombre}</div>
+            <div class="item-desc">${item.desc}</div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    diasEl.appendChild(block);
+  });
+
+  document.getElementById('btnVerMapa').onclick = () => verEnMapa(key, it.fbId || id);
+
+  // Mostrar links si existen
+  const detalleLinksEl = document.getElementById('detalleLinks');
+  const links = it.links || {};
+  const nVuelos = (links.vuelos||[]).length;
+  const nEnlaces = (links.enlaces||[]).length;
+  const nTours = (links.tours||[]).length;
+  const totalLinks = nVuelos + nEnlaces + nTours;
+  window._detalleLinks = links;
+
+  if (totalLinks > 0) {
+    detalleLinksEl.innerHTML = `
+      <button onclick="abrirLinksSheet()" style="width:100%;padding:13px 16px;background:var(--card);border:1.5px solid var(--border);border-radius:14px;display:flex;align-items:center;gap:12px;cursor:pointer;font-family:'Mulish',sans-serif">
+        <span style="font-size:1.3rem">🔗</span>
+        <div style="flex:1;text-align:left">
+          <div style="font-size:0.9rem;font-weight:700;color:var(--ink)">Vuelos · Alojamiento · Tours</div>
+          <div style="font-size:0.75rem;color:var(--muted);margin-top:2px">
+            ${[nVuelos?`${nVuelos} vuelo${nVuelos>1?'s':''}`:null, nEnlaces?`${nEnlaces} enlace${nEnlaces>1?'s':''}`:null, nTours?`${nTours} tour${nTours>1?'s':''}`:null].filter(Boolean).join(' · ')}
+          </div>
+        </div>
+        <span style="color:var(--muted);font-size:1.1rem">›</span>
+      </button>`;
+  } else {
+    detalleLinksEl.innerHTML = '';
+  }
+
+  navegarDetalle('screenDetalle');
+}
+
+function abrirLinksSheet(cat) {
+  const links = window._detalleLinks || {};
+  let sheet = document.getElementById('_linksSheet');
+  if (sheet) sheet.remove();
+  sheet = document.createElement('div');
+  sheet.id = '_linksSheet';
+  sheet.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:3000;display:flex;align-items:flex-end';
+
+  const CATS = [
+    { key:'vuelos',   icon:'✈️', label:'Vuelos' },
+    { key:'enlaces',  icon:'🔗', label:'Enlaces de interés' },
+    { key:'tours',    icon:'🎟️', label:'Tours y actividades' },
+  ];
+
+  if (!cat) {
+    // Mostrar los 3 botones de categoría
+    sheet.innerHTML = `
+      <div style="background:var(--bg);border-radius:20px 20px 0 0;width:100%;padding:20px 16px 36px">
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1rem;margin-bottom:16px;text-align:center">¿Qué buscas?</div>
+        ${CATS.map(c => {
+          const n = (links[c.key]||[]).length;
+          if (!n) return '';
+          return `<button onclick="document.getElementById('_linksSheet').remove();abrirLinksSheet('${c.key}')"
+            style="width:100%;padding:14px 16px;background:var(--card);border:1.5px solid var(--border);border-radius:14px;display:flex;align-items:center;gap:12px;cursor:pointer;font-family:'Mulish',sans-serif;margin-bottom:10px">
+            <span style="font-size:1.4rem">${c.icon}</span>
+            <div style="flex:1;text-align:left">
+              <div style="font-size:0.9rem;font-weight:700;color:var(--ink)">${c.label}</div>
+              <div style="font-size:0.75rem;color:var(--muted)">${n} enlace${n>1?'s':''}</div>
+            </div>
+            <span style="color:var(--muted)">›</span>
+          </button>`;
+        }).join('')}
+        <button onclick="document.getElementById('_linksSheet').remove()" style="width:100%;padding:12px;background:none;border:1.5px solid var(--border);border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;margin-top:4px">Cerrar</button>
+      </div>`;
+  } else {
+    // Mostrar links de esa categoría
+    const catInfo = CATS.find(c=>c.key===cat);
+    const lista = links[cat]||[];
+    sheet.innerHTML = `
+      <div style="background:var(--bg);border-radius:20px 20px 0 0;width:100%;padding:20px 16px 36px;max-height:80vh;overflow-y:auto">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+          <button onclick="document.getElementById('_linksSheet').remove();abrirLinksSheet()" style="background:#f0f0f0;border:none;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer">←</button>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1rem">${catInfo.icon} ${catInfo.label}</div>
+        </div>
+        ${lista.map(l => {
+          const plat = (LINKS_PLATAFORMAS[cat]||[]).find(p=>p.id===l.plataforma) || {icon:'🔗', color:'#666', label:'Link'};
+          return `<a href="${l.url}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:8px;text-decoration:none">
+            <div style="width:38px;height:38px;border-radius:10px;background:${plat.color}18;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0">${plat.icon}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:0.88rem;font-weight:700;color:var(--ink)">${l.titulo||plat.label}</div>
+              <div style="font-size:0.72rem;color:${plat.color};font-weight:600">${plat.label} · Abrir →</div>
+            </div>
+            <span style="color:var(--muted);font-size:1.1rem">›</span>
+          </a>`;
+        }).join('')}
+        <button onclick="document.getElementById('_linksSheet').remove()" style="width:100%;padding:12px;background:none;border:1.5px solid var(--border);border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;margin-top:4px">Cerrar</button>
+      </div>`;
+  }
+  document.body.appendChild(sheet);
+}
+
+function iconoTipo(t) { return (TIPOS_CONFIG[t] || TIPOS_CONFIG.visita).icon; }
+function labelTipo(t) { return (TIPOS_CONFIG[t] || TIPOS_CONFIG.visita).label; }
+
+// ══ BUSCADOR MAPA EDICIÓN ══════════════════════
+let _busquedaMapaTimer = null;
+
+async function buscarLugarMapa(q) {
+  const clearBtn = document.getElementById('mapaEditSearchClear');
+  if (clearBtn) clearBtn.style.display = q ? 'block' : 'none';
+  clearTimeout(_busquedaMapaTimer);
+  const resultsEl = document.getElementById('mapaEditResults');
+  if (!q || q.length < 2) { resultsEl.style.display = 'none'; return; }
+  _busquedaMapaTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=1`, {
+        headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuveApp/1.0' }
+      });
+      const data = await res.json();
+      if (!data.length) {
+        resultsEl.innerHTML = '<div style="padding:14px;text-align:center;color:var(--muted);font-size:0.85rem">Sin resultados</div>';
+        resultsEl.style.display = 'block';
+        return;
+      }
+      resultsEl.innerHTML = data.map(r => {
+        const nombre = r.display_name.split(',').slice(0,2).join(', ');
+        const detalle = r.display_name.split(',').slice(2,4).join(', ');
+        return `<div onclick="seleccionarLugarMapa(${r.lat},${r.lon},'${nombre.replace(/'/g,"\\'")}',event)"
+          style="padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:10px;font-family:'Mulish',sans-serif">
+          <span style="font-size:1rem;flex-shrink:0">📍</span>
+          <div style="min-width:0">
+            <div style="font-size:0.85rem;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nombre}</div>
+            <div style="font-size:0.72rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${detalle}</div>
+          </div>
+        </div>`;
+      }).join('');
+      resultsEl.style.display = 'block';
+    } catch(e) { resultsEl.style.display = 'none'; }
+  }, 400);
+}
+
+function seleccionarLugarMapa(lat, lng, nombre, e) {
+  if (e) e.stopPropagation();
+  cerrarBusquedaMapa();
+  if (mapEditFullInstance) {
+    mapEditFullInstance.setView([parseFloat(lat), parseFloat(lng)], 16, { animate: true });
+  }
+}
+
+function limpiarBusquedaMapa() {
+  const input = document.getElementById('mapaEditSearch');
+  if (input) input.value = '';
+  cerrarBusquedaMapa();
+  const clearBtn = document.getElementById('mapaEditSearchClear');
+  if (clearBtn) clearBtn.style.display = 'none';
+}
+
+function cerrarBusquedaMapa() {
+  const el = document.getElementById('mapaEditResults');
+  if (el) el.style.display = 'none';
+}
+
+// ══ MODO RÁPIDO ════════════════════════════════
+// ══ LINKS (vuelos, enlaces, tours) ══════════
+const LINKS_PLATAFORMAS = {
+  vuelos:   [{ id:'skyscanner', label:'Skyscanner', color:'#0770e3', icon:'✈️' }, { id:'google_flights', label:'Google Flights', color:'#4285f4', icon:'✈️' }, { id:'kayak', label:'Kayak', color:'#FF690F', icon:'✈️' }, { id:'otro', label:'Otro', color:'#666', icon:'🔗' }],
+  enlaces:  [{ id:'booking', label:'Booking', color:'#003580', icon:'🏨' }, { id:'airbnb', label:'Airbnb', color:'#FF5A5F', icon:'🏠' }, { id:'europcar', label:'Europcar', color:'#FF6600', icon:'🚗' }, { id:'renfe', label:'Renfe', color:'#C00', icon:'🚂' }, { id:'avis', label:'Avis', color:'#C00', icon:'🚗' }, { id:'otro', label:'Otro', color:'#666', icon:'🔗' }],
+  tours:    [{ id:'getyourguide', label:'GetYourGuide', color:'#FF5A00', icon:'🎟️' }, { id:'viator', label:'Viator', color:'#179BD7', icon:'🎟️' }, { id:'civitatis', label:'Civitatis', color:'#e30613', icon:'🎟️' }, { id:'otro', label:'Otro', color:'#666', icon:'🔗' }],
+};
+
+function renderLinks() {
+  if (!itinerarioGenerado) return;
+  const links = itinerarioGenerado.links || { vuelos:[], enlaces:[], tours:[] };
+  ['vuelos','enlaces','tours'].forEach(cat => {
+    const el = document.getElementById('links' + cat.charAt(0).toUpperCase() + cat.slice(1));
+    if (!el) return;
+    const plat = LINKS_PLATAFORMAS[cat];
+    el.innerHTML = (links[cat]||[]).map((l,i) => {
+      const p = plat.find(p=>p.id===l.plataforma) || {icon:'🔗', color:'#666', label:'Link'};
+      return `<div style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px">
+        <div style="width:36px;height:36px;border-radius:10px;background:${p.color}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0">${p.icon}</div>
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="window.open('${l.url}','_blank')">
+          <div style="font-size:0.85rem;font-weight:700;color:var(--ink)">${l.titulo||p.label}</div>
+          <div style="font-size:0.72rem;color:var(--primary);font-weight:600">${p.label} · Abrir →</div>
+        </div>
+        <button onclick="eliminarLink('${cat}',${i})" style="background:none;border:none;color:#ccc;font-size:1rem;cursor:pointer;flex-shrink:0;padding:4px">✕</button>
+      </div>`;
+    }).join('') || '';
+  });
+}
+
+let _linkSheet = null;
+let _linkCat = null;
+let _linkPlat = null;
+
+function añadirLink(cat) {
+  _linkCat = cat;
+  _linkPlat = null;
+  const plataformas = LINKS_PLATAFORMAS[cat];
+
+  if (_linkSheet) _linkSheet.remove();
+  _linkSheet = document.createElement('div');
+  _linkSheet.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:3000;display:flex;align-items:flex-end';
+  _linkSheet.innerHTML = `
+    <div style="background:var(--bg);border-radius:20px 20px 0 0;width:100%;padding:20px 16px 36px;max-height:80vh;overflow-y:auto">
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1rem;margin-bottom:16px">Añadir link</div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px" id="_platGrid">
+        ${plataformas.map(p=>`
+          <button data-pid="${p.id}" onclick="selLinkPlat(this,'${p.id}','${p.color}')"
+            style="padding:10px;border:1.5px solid var(--border);border-radius:10px;background:var(--card);font-size:0.82rem;font-weight:700;cursor:pointer">
+            ${p.icon} ${p.label}
+          </button>`).join('')}
+      </div>
+      <div class="form-group">
+        <label>Título</label>
+        <input type="text" id="_lTitulo" placeholder="Ej: Vuelo MAD-CDG ida y vuelta">
+      </div>
+      <div class="form-group">
+        <label>URL del link</label>
+        <input type="url" id="_lUrl" placeholder="https://...">
+      </div>
+      <button onclick="guardarLink()" style="width:100%;padding:13px;background:var(--primary);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.95rem;cursor:pointer;margin-bottom:8px">✓ Guardar</button>
+      <button onclick="cerrarLinkSheet()" style="width:100%;padding:13px;background:none;border:1.5px solid var(--border);border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">Cancelar</button>
+    </div>`;
+  document.body.appendChild(_linkSheet);
+}
+
+function selLinkPlat(btn, id, color) {
+  _linkPlat = id;
+  document.querySelectorAll('#_platGrid button').forEach(b => {
+    b.style.background = 'var(--card)';
+    b.style.borderColor = 'var(--border)';
+  });
+  btn.style.background = color + '22';
+  btn.style.borderColor = color;
+}
+
+function cerrarLinkSheet() {
+  if (_linkSheet) { _linkSheet.remove(); _linkSheet = null; }
+}
+
+function guardarLink() {
+  const url = document.getElementById('_lUrl')?.value.trim();
+  const titulo = document.getElementById('_lTitulo')?.value.trim();
+  if (!url) { mostrarToast('⚠️ Añade la URL'); return; }
+  if (!itinerarioGenerado.links) itinerarioGenerado.links = { vuelos:[], enlaces:[], tours:[] };
+  if (!itinerarioGenerado.links[_linkCat]) itinerarioGenerado.links[_linkCat] = [];
+  const platLabel = LINKS_PLATAFORMAS[_linkCat]?.find(p=>p.id===_linkPlat)?.label || 'Link';
+  itinerarioGenerado.links[_linkCat].push({
+    plataforma: _linkPlat || 'otro',
+    titulo: titulo || platLabel,
+    url
+  });
+  const fbId = itinerarioGenerado?.fbId;
+  if (fbId) fetch(`${FB_URL}/itinerarios/${fbId}/links.json`, {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(itinerarioGenerado.links)
+  }).catch(()=>{});
+  cerrarLinkSheet();
+  renderLinks();
+  mostrarToast('✅ Link añadido');
+}
+
+function eliminarLink(cat, idx) {
+  if (!itinerarioGenerado?.links?.[cat]) return;
+  itinerarioGenerado.links[cat].splice(idx, 1);
+  const fbId = itinerarioGenerado?.fbId;
+  if (fbId) fetch(`${FB_URL}/itinerarios/${fbId}/links.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(itinerarioGenerado.links) }).catch(()=>{});
+  renderLinks();
+}
+
+// ══ MAPA ══════════════════════════════════════
+let mapaMundial = null;
+
+function iniciarMapa() {
+  mapaIniciado = true;
+  const m = L.map('map', { center:[25,10], zoom:2, zoomControl:false });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(m);
+  L.control.zoom({ position:'topright' }).addTo(m);
+  mapaMundial = m;
+  // Añadir pins de destinos ya cargados
+  Object.entries(destinos).forEach(([key, d]) => añadirPinMundial(key, d));
+}
+
+function añadirPinMundial(key, d) {
+  if (!mapaMundial) return;
+  const icon = L.divIcon({
+    className: '',
+    html: `<div style="background:${d.color};color:white;border-radius:50px;padding:6px 12px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 3px 12px rgba(0,0,0,0.2);border:2px solid white;cursor:pointer">${d.emoji} ${d.nombre}</div>`,
+    iconSize: null, iconAnchor: [0,0]
+  });
+  L.marker([d.lat, d.lng], { icon }).addTo(mapaMundial).on('click', () => abrirDestino(key));
+}
+
+// ══ BÚSQUEDA ══════════════════════════════════
+function focusSearch() {
+  setTimeout(() => document.getElementById('searchInput').focus(), 100);
+}
+
+function buscar(q) {
+  const results = document.getElementById('searchResults');
+  if (!q || q.length < 2) { results.style.display = 'none'; return; }
+  const matches = Object.entries(destinos).filter(([k,d]) =>
+    d.nombre.toLowerCase().includes(q.toLowerCase()) ||
+    d.itinerarios.some(it => it.titulo.toLowerCase().includes(q.toLowerCase()))
+  );
+  if (!matches.length) { results.style.display = 'none'; return; }
+  results.style.display = 'block';
+  results.innerHTML = matches.map(([key,d]) => `
+    <div class="search-result-item" onmousedown="abrirDestino('${key}');cerrarBusqueda()">
+      <span>${d.emoji}</span><span>${d.nombre}</span>
+      <span style="margin-left:auto;font-size:0.75rem;opacity:0.5">${d.itinerarios.length} viajes</span>
+    </div>`).join('');
+}
+
+function cerrarBusqueda() {
+  setTimeout(() => { document.getElementById('searchResults').style.display = 'none'; }, 150);
+}
+
+// ══ WIZARD IA ══════════════════════════════════
+function irPaso(n) {
+  document.querySelectorAll('.paso').forEach(p => p.classList.remove('active'));
+  document.getElementById(`paso${n}`).classList.add('active');
+  document.querySelectorAll('.paso-dot').forEach((d,i) => {
+    d.classList.toggle('active', i < n);
+  });
+  if (n === 3) rellenarResumen();
+}
+
+function crearManualmente() {
+  const autor = document.getElementById('f-autor').value.trim();
+  if (!autor) { mostrarToast('⚠️ Pon primero tu nombre'); return; }
+  // Crear itinerario vacío y abrir edición directamente
+  itinerarioGenerado = {
+    titulo: 'Mi viaje',
+    destino: '',
+    emoji: '📍',
+    lat: 40, lng: -3,
+    color: '#E8471C',
+    dias: 1,
+    tipo: [],
+    presupuesto: '',
+    resumen: '',
+    autor,
+    id: Date.now(),
+    destinoKey: 'mi_viaje_' + Date.now(),
+    jornadas: [{ dia: 1, lugar: 'Día 1', items: [] }],
+    puntos: [],
+    fotos: [],
+    links: { vuelos:[], enlaces:[], tours:[] }
+  };
+  puntosEdicion = [];
+  fotosBase64 = [];
+  navegarA('screenSubir', null);
+  setTimeout(() => abrirEdicion(), 100);
+}
+
+async function generarConIA() {
+  const autor = document.getElementById('f-autor').value.trim();
+  const desc = document.getElementById('f-descripcion').value.trim();
+  if (!autor || !desc) { mostrarToast('⚠️ Rellena tu nombre y el viaje'); return; }
+
+  irPaso(2);
+  const loadEl = document.getElementById('iaLoading');
+  loadEl.style.display = 'flex';
+  loadEl.innerHTML = '<div class="spinner"></div><p>Estructurando tu viaje...</p>';
+  document.getElementById('iaResultado').style.display = 'none';
+
+  const prompt = `Eres un asistente que estructura itinerarios de viaje. Devuelve SOLO un objeto JSON válido sin texto ni markdown:
+{"titulo":"...","destino":"...","emoji":"...","lat":0,"lng":0,"color":"#hex","dias":0,"tipo":["Mochilero|Familiar|Pareja|Lujo|Aventura|Cultural|Relax|Naturaleza"],"presupuesto":"~XXX€/persona","resumen":"2-3 frases","jornadas":[{"dia":1,"lugar":"...","items":[{"tipo":"hotel|restaurante|visita|tip|transporte|atraccion|bar|playa|monumento|museo|parque|fotografia|compras|deporte|avion|barco|tren|templo|castillo|gastronomia|pdi|paseo|bici|coche","nombre":"...","desc":"..."}]}]}
+Descripción: ${desc}
+Autor: ${autor}`;
+
+  const apiCall = async (body) => {
+    for (let i = 0; i < 3; i++) {
+      if (i > 0) {
+        loadEl.innerHTML = `<div class="spinner"></div><p>Reintentando (${i+1}/3)...</p>`;
+        await new Promise(r => setTimeout(r, 2000));
+      }
+      const r = await fetch('/.netlify/functions/claude', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      });
+      const data = await r.json();
+      if (data.error?.type === 'overloaded_error') { loadEl.innerHTML = '<div class="spinner"></div><p>Mucha demanda, espera...</p>'; continue; }
+      if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+      return data;
+    }
+    throw new Error('El servicio está muy ocupado. Inténtalo en unos minutos.');
+  };
+
+  try {
+    // Paso 1: generar itinerario
+    const data = await apiCall({ model:'claude-sonnet-4-20250514', max_tokens:4000, messages:[{role:'user',content:prompt}] });
+    const txt = data.content.map(c=>c.text||'').join('');
+    const jsonMatch = txt.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('La IA no devolvió JSON válido');
+    const parsed = JSON.parse(jsonMatch[0]);
+    parsed.autor = autor;
+    parsed.id = Date.now();
+    parsed.destinoKey = parsed.destino.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,'_');
+
+    // Paso 2: obtener coordenadas de los lugares mencionados
+    loadEl.innerHTML = '<div class="spinner"></div><p>Localizando puntos en el mapa...</p>';
+    const lugares = [];
+    (parsed.jornadas||[]).forEach(j => {
+      (j.items||[]).forEach(item => {
+        if (!['tip','avion','barco','tren','metro','tranvia','transporte','paseo','bici','coche'].includes(item.tipo)) {
+          lugares.push({ nombre: item.nombre, tipo: item.tipo||'visita', dia: j.dia, desc: item.desc||'' });
+        }
+      });
+    });
+
+    let puntosIA = [];
+    if (lugares.length > 0) {
+      const promptCoords = `Devuelve SOLO un array JSON con coordenadas GPS precisas de estos lugares en ${parsed.destino}. Sin texto ni backticks:
+[{"nombre":"nombre exacto","lat":0.000000,"lng":0.000000}]
+Lugares: ${lugares.map(l=>l.nombre).join(' | ')}`;
+      try {
+        const d2 = await apiCall({ model:'claude-sonnet-4-20250514', max_tokens:2000, messages:[{role:'user',content:promptCoords}] });
+        const txt2 = (d2.content||[]).map(c=>c.text||'').join('');
+        const arrMatch = txt2.match(/\[[\s\S]*?\]/);
+        if (arrMatch) {
+          const coords = JSON.parse(arrMatch[0]);
+          const coordMap = {};
+          coords.forEach(c => { if (c.nombre) coordMap[c.nombre.toLowerCase().trim()] = c; });
+          lugares.forEach(l => {
+            const key = l.nombre.toLowerCase().trim();
+            const c = coordMap[key] || coords.find(c2 => c2.nombre && key.includes(c2.nombre.toLowerCase().trim()));
+            if (c && Math.abs(c.lat) > 0.01 && Math.abs(c.lng) > 0.01) {
+              puntosIA.push({ tipo: l.tipo, nombre: l.nombre, desc: l.desc, lat: parseFloat(c.lat), lng: parseFloat(c.lng), dia: l.dia });
+            }
+          });
+        }
+      } catch(e2) { console.warn('Coords step failed:', e2); }
+    }
+
+    parsed.puntos = puntosIA;
+    puntosEdicion = puntosIA.slice();
+    itinerarioGenerado = parsed;
+
+    document.getElementById('r-titulo').value = parsed.titulo||'';
+    document.getElementById('r-destino').value = parsed.destino||'';
+    document.getElementById('r-dias').value = parsed.dias||'';
+    document.getElementById('r-presupuesto').value = parsed.presupuesto||'';
+    document.getElementById('r-resumen').value = parsed.resumen||'';
+
+    loadEl.style.display = 'none';
+    document.getElementById('iaResultado').style.display = 'block';
+    if (puntosIA.length > 0) mostrarToast(`✨ Listo — ${puntosIA.length} puntos añadidos al mapa`);
+  } catch(e) {
+    console.error('Error IA:', e);
+    loadEl.innerHTML = `<p style="color:#e8471c;margin-bottom:16px">😔 ${e.message}</p>
+      <button class="btn-secondary" onclick="irPaso(1)">← Volver a intentarlo</button>`;
+  }
+}
+
+function rellenarResumen() {
+  if (!itinerarioGenerado) return;
+  itinerarioGenerado.titulo = document.getElementById('r-titulo').value;
+  itinerarioGenerado.destino = document.getElementById('r-destino').value;
+  itinerarioGenerado.dias = parseInt(document.getElementById('r-dias').value)||1;
+  itinerarioGenerado.presupuesto = document.getElementById('r-presupuesto').value;
+  itinerarioGenerado.resumen = document.getElementById('r-resumen').value;
+
+  document.getElementById('resumenCard').innerHTML = `
+    <div class="resumen-row"><div class="resumen-label">Destino</div><div class="resumen-val">${itinerarioGenerado.emoji||'📍'} ${itinerarioGenerado.destino}</div></div>
+    <div class="resumen-row"><div class="resumen-label">Título</div><div class="resumen-val">${itinerarioGenerado.titulo}</div></div>
+    <div class="resumen-row"><div class="resumen-label">Autor</div><div class="resumen-val">${itinerarioGenerado.autor}</div></div>
+    <div class="resumen-row"><div class="resumen-label">Duración · Presupuesto</div><div class="resumen-val">${itinerarioGenerado.dias} días · ${itinerarioGenerado.presupuesto}</div></div>`;
+}
+
+async function publicarViaje() {
+  const it = itinerarioGenerado;
+  const key = it.destinoKey;
+
+  // Recoger cambios de edición si estamos en pantalla editar
+  it.titulo = document.getElementById('e-titulo')?.value || it.titulo;
+  it.destino = document.getElementById('e-destino')?.value || it.destino;
+  it.dias = parseInt(document.getElementById('e-dias')?.value) || it.dias;
+  it.presupuesto = document.getElementById('e-presupuesto')?.value || it.presupuesto;
+  it.resumen = document.getElementById('e-resumen')?.value || it.resumen;
+  it.fotos = fotosBase64 || [];
+  it.autorUid = usuarioActual?.uid || null;
+  it.autorEmail = usuarioActual?.email || null;
+  it.autorNombre = usuarioActual?.displayName || it.autor || 'Anónimo';
+  fotosBase64 = [];
+
+  // Si es edición, cargar puntos frescos de Firebase para no machacarlos
+  if (it.fbId) {
+    try {
+      const rp = await fetch(`${FB_URL}/itinerarios/${it.fbId}/puntos.json`);
+      const puntosFirebase = await rp.json();
+      if (Array.isArray(puntosFirebase) && puntosFirebase.length > 0) {
+        it.puntos = puntosFirebase;
+      } else {
+        it.puntos = puntosEdicion.filter(p => p && p.tipo);
+      }
+    } catch(e) {
+      it.puntos = puntosEdicion.filter(p => p && p.tipo);
+    }
+  } else {
+    it.puntos = puntosEdicion.filter(p => p && p.tipo);
+  }
+
+  const btn = document.querySelector('#screenEditar button[onclick="publicarViaje()"]') || 
+               document.querySelector('.btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+  try {
+    // Si tiene fbId es una edición — actualizar en Firebase
+    if (it.fbId) {
+      await fetch(`${FB_URL}/itinerarios/${it.fbId}.json`, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(it)
+      });
+      // Actualizar en memoria local
+      const k = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_');
+      if (destinos[k]) {
+        const idx = destinos[k].itinerarios.findIndex(i => i.fbId === it.fbId);
+        if (idx >= 0) destinos[k].itinerarios[idx] = it;
+      }
+      mostrarToast('✅ Viaje actualizado');
+    } else {
+      // Viaje nuevo
+      const r = await fetch(`${FB_URL}/itinerarios.json`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(it)
+      });
+      const data = await r.json();
+      it.fbId = data.name;
+
+      if (!destinos[key]) {
+        destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||40, lng:it.lng||0, color:it.color||'#C4522A', itinerarios:[] };
+      }
+      destinos[key].itinerarios.push(it);
+      mostrarToast('✅ ¡Viaje publicado!');
+    }
+
+    renderHome();
+    navegarA('screenHome','navHome');
+    setTimeout(() => abrirDestino(it.destinoKey), 400);
+    irPaso(1);
+    document.getElementById('f-autor').value = '';
+    document.getElementById('f-descripcion').value = '';
+    itinerarioGenerado = null;
+    fotosBase64 = [];
+  } catch(e) {
+    mostrarToast('❌ Error guardando. Inténtalo de nuevo.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Publicar'; }
+  }
+}
+
+// ══ FIREBASE — cargar al arrancar ═════════════
+async function cargarDeFirebase() {
+  try {
+    const r = await fetch(`${FB_URL}/itinerarios.json`);
+    const data = await r.json();
+    if (!data) return;
+    Object.values(data).forEach(it => {
+      const key = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_');
+      if (!key) return;
+      if (!destinos[key]) {
+        destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||40, lng:it.lng||0, color:it.color||'#C4522A', itinerarios:[] };
+      }
+      const esNuevo = !destinos[key].itinerarios.find(i => i.id === it.id || i.fbId === it.fbId);
+      if (esNuevo) {
+        it.fotos = it.fotos || [];
+        it.puntos = it.puntos || [];
+        destinos[key].itinerarios.push(it);
+      }
+    });
+    renderHome();
+    // Añadir pins al mapa mundial si ya está iniciado
+    if (mapaIniciado) {
+      Object.entries(destinos).forEach(([key, d]) => añadirPinMundial(key, d));
+    }
+  } catch(e) { console.log('Error cargando Firebase:', e); }
+}
+
+// ══ UTILS ══════════════════════════════════════
+let lbFotos = [];
+let lbIndex = 0;
+
+function abrirLightbox(src, fotos) {
+  lbFotos = fotos || [src];
+  lbIndex = lbFotos.indexOf(src);
+  if (lbIndex < 0) lbIndex = 0;
+  lbMostrar();
+  document.getElementById('lightbox').classList.add('active');
+  // Swipe táctil
+  const lb = document.getElementById('lightbox');
+  let startX = 0;
+  lb._touchStart = e => { startX = e.touches[0].clientX; };
+  lb._touchEnd = e => {
+    const diff = startX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) lbNavegar(diff > 0 ? 1 : -1);
+  };
+  lb.removeEventListener('touchstart', lb._touchStart);
+  lb.removeEventListener('touchend', lb._touchEnd);
+  lb.addEventListener('touchstart', lb._touchStart, { passive: true });
+  lb.addEventListener('touchend', lb._touchEnd, { passive: true });
+}
+
+function lbMostrar() {
+  document.getElementById('lightboxImg').src = lbFotos[lbIndex];
+  const counter = document.getElementById('lbCounter');
+  const prev = document.getElementById('lbPrev');
+  const next = document.getElementById('lbNext');
+  if (lbFotos.length > 1) {
+    counter.textContent = `${lbIndex + 1} / ${lbFotos.length}`;
+    prev.style.display = lbIndex > 0 ? 'flex' : 'none';
+    next.style.display = lbIndex < lbFotos.length - 1 ? 'flex' : 'none';
+  } else {
+    counter.textContent = '';
+    prev.style.display = 'none';
+    next.style.display = 'none';
+  }
+}
+
+function lbNavegar(dir) {
+  lbIndex = Math.max(0, Math.min(lbFotos.length - 1, lbIndex + dir));
+  lbMostrar();
+}
+
+function cerrarLightbox() {
+  document.getElementById('lightbox').classList.remove('active');
+}
+
+function mostrarToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ══ INIT ══════════════════════════════════════
+function mostrarPantallaAuth() {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active','behind'));
+  document.getElementById('screenAuth').classList.add('active');
+  
+  navHistory.length = 0;
+  navHistory.push('screenAuth');
+}
+
+function mostrarPantallaHome() {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active','behind'));
+  document.getElementById('screenHome').classList.add('active');
+  
+  navHistory.length = 0;
+  navHistory.push('screenHome');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('navHome').classList.add('active');
+}
+
+renderHome();
+cargarDeFirebase();
+
+// Comprobar sesión guardada
+const sesionGuardada = localStorage.getItem('ye_user');
+if (sesionGuardada) {
+  try {
+    usuarioActual = JSON.parse(sesionGuardada);
+    actualizarPerfil();
+  } catch(e) {
+    localStorage.removeItem('ye_user');
+  }
+}
+</script>
+</body>
+</html>
