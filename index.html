@@ -1178,6 +1178,10 @@ html, body {
       <div id="destinosGrid"></div>
     </div>
   </div>
+  <!-- Botón instalar app -->
+  <div id="btnInstalarApp" onclick="instalarApp()" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--ink);color:white;padding:11px 22px;border-radius:50px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.85rem;cursor:pointer;align-items:center;gap:8px;box-shadow:0 4px 20px rgba(0,0,0,0.3);z-index:500;white-space:nowrap">
+    📲 Instalar YaEstuve
+  </div>
 </div>
 
 <!-- ══ PANTALLA LISTA ITINERARIOS ══ -->
@@ -3466,6 +3470,35 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js')
       .then(reg => console.log('SW registrado:', reg.scope))
       .catch(err => console.log('SW error:', err));
+  });
+}
+
+// ── BOTÓN INSTALAR ──
+let _installPrompt = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  _installPrompt = e;
+  // Mostrar botón en home
+  const btn = document.getElementById('btnInstalarApp');
+  if (btn) btn.style.display = 'flex';
+});
+
+window.addEventListener('appinstalled', () => {
+  const btn = document.getElementById('btnInstalarApp');
+  if (btn) btn.style.display = 'none';
+  _installPrompt = null;
+});
+
+function instalarApp() {
+  if (!_installPrompt) return;
+  _installPrompt.prompt();
+  _installPrompt.userChoice.then(result => {
+    if (result.outcome === 'accepted') {
+      const btn = document.getElementById('btnInstalarApp');
+      if (btn) btn.style.display = 'none';
+    }
+    _installPrompt = null;
   });
 }
 </script>
