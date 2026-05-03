@@ -2471,7 +2471,7 @@ async function infoConIA(nombre, destino) {
   el.textContent = '✨ Buscando info...';
 
   try {
-    const r = await fetch('/.netlify/functions/claude', {
+    const r = await fetch('/api/claude', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -3159,7 +3159,7 @@ Autor: ${autor}`;
         loadEl.innerHTML = `<div class="spinner"></div><p>Reintentando (${i+1}/3)...</p>`;
         await new Promise(r => setTimeout(r, 2000));
       }
-      const r = await fetch('/.netlify/functions/claude', {
+      const r = await fetch('/api/claude', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify(body)
