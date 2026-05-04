@@ -2137,16 +2137,20 @@ async function guardarPunto() {
           nombre: punto.nombre,
           desc: punto.desc
         });
+        // Cerrar formulario ANTES de guardar en Firebase para no bloquear UI
+        formEl.classList.remove('active');
+        latLngPunto = null;
+        renderPuntos();
         guardarJornadasEnFirebase();
-        mostrarToast('✅ Punto añadido al Día ' + (ji + 1));
+        mostrarToast('✅ Punto añadido al Día ' + itinerarioGenerado.jornadas[ji].dia);
       }
       delete window._puntoParaDia;
-      // Volver a la edición y mostrar el día actualizado
       goBack();
       setTimeout(() => cambiarTab('tabDias'), 200);
     }
   }
 
+  if (!formEl.classList.contains('active')) return; // ya se cerró arriba
   formEl.classList.remove('active');
   latLngPunto = null;
   renderPuntos();
