@@ -2,9 +2,24 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // Si es la llamada a la IA
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        }
+      });
+    }
+
     if (url.pathname === '/api/claude' && request.method === 'POST') {
       try {
+        if (!env.ANTHROPIC_API_KEY) {
+          return new Response(JSON.stringify({ error: { message: 'API key no configurada' } }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+          });
+        }
         const body = await request.json();
         const response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
@@ -22,12 +37,11 @@ export default {
       } catch (e) {
         return new Response(JSON.stringify({ error: { message: e.message } }), {
           status: 500,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
       }
     }
 
-    // Para todo lo demás, servir el index.html
     return env.ASSETS.fetch(request);
   }
 };
