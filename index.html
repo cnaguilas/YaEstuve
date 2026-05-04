@@ -2499,6 +2499,10 @@ async function infoConIA(nombre, destino) {
       })
     });
     const data = await r.json();
+    if (data.error) {
+      el.textContent = 'Error: ' + (data.error.message || JSON.stringify(data.error));
+      return;
+    }
     el.textContent = data.content[0]?.text || 'Sin información disponible';
   } catch(e) {
     el.textContent = 'Error obteniendo información';
