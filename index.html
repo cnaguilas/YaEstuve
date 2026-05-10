@@ -3581,12 +3581,10 @@ if (sesionGuardada) {
   }
 }
 
-// ── PWA SERVICE WORKER ──
+// ── PWA SERVICE WORKER — desregistrar si existe para limpiar caché ──
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then(reg => console.log('SW registrado:', reg.scope))
-      .catch(err => console.log('SW error:', err));
+  navigator.serviceWorker.getRegistrations().then(regs => {
+    regs.forEach(reg => reg.unregister());
   });
 }
 
