@@ -1491,6 +1491,24 @@ html, body {
       <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('cafeteria')"><span class="punto-tipo-icon">☕</span><span class="punto-tipo-label">Café</span></div>
       <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('helado')"><span class="punto-tipo-icon">🍦</span><span class="punto-tipo-label">Helado / Dulces</span></div>
       <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('tip')"><span class="punto-tipo-icon">💡</span><span class="punto-tipo-label">Consejo</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('parking')"><span class="punto-tipo-icon">🅿️</span><span class="punto-tipo-label">Parking</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('aeropuerto')"><span class="punto-tipo-icon">🛫</span><span class="punto-tipo-label">Aeropuerto</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('gasolinera')"><span class="punto-tipo-icon">⛽</span><span class="punto-tipo-label">Gasolinera</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('teatro')"><span class="punto-tipo-icon">🎭</span><span class="punto-tipo-label">Teatro / Cine</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('zoo')"><span class="punto-tipo-icon">🦒</span><span class="punto-tipo-label">Zoo / Acuario</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('globo')"><span class="punto-tipo-icon">🎈</span><span class="punto-tipo-label">Globo aerostático</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('tirolina')"><span class="punto-tipo-icon">🧗</span><span class="punto-tipo-label">Aventura</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('acantilado')"><span class="punto-tipo-icon">🏔️</span><span class="punto-tipo-label">Acantilado / Costa</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('isla')"><span class="punto-tipo-icon">🏝️</span><span class="punto-tipo-label">Isla</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('volcan')"><span class="punto-tipo-icon">🌋</span><span class="punto-tipo-label">Volcán</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('desierto')"><span class="punto-tipo-icon">🏜️</span><span class="punto-tipo-label">Desierto</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('selva')"><span class="punto-tipo-icon">🌴</span><span class="punto-tipo-label">Selva / Tropical</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('nieve')"><span class="punto-tipo-icon">❄️</span><span class="punto-tipo-label">Nieve</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('casino')"><span class="punto-tipo-icon">🎰</span><span class="punto-tipo-label">Casino</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('golf')"><span class="punto-tipo-icon">⛳</span><span class="punto-tipo-label">Golf</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('kayak')"><span class="punto-tipo-icon">🛶</span><span class="punto-tipo-label">Kayak / Canoa</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('parapente')"><span class="punto-tipo-icon">🪂</span><span class="punto-tipo-label">Parapente</span></div>
+      <div class="punto-tipo-btn" onclick="seleccionarTipoPunto('crucero')"><span class="punto-tipo-icon">🛳️</span><span class="punto-tipo-label">Crucero</span></div>
     </div>
   </div>
 </div>
@@ -1525,7 +1543,21 @@ html, body {
   </div>
   <div class="screen-body">
     <div id="perfilMisViajes"></div>
-    <div style="margin-top:20px">
+
+    <!-- Configuración API Key -->
+    <div style="margin-top:24px;background:white;border-radius:16px;padding:16px;border:1.5px solid var(--border)">
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;margin-bottom:4px">🤖 IA — Clave API</div>
+      <div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px">Necesaria para generar viajes con IA y obtener info de lugares. Se guarda solo en tu dispositivo.</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." 
+          style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:'Mulish',sans-serif;font-size:0.82rem;outline:none;background:var(--bg)"
+          oninput="actualizarEstadoApiKey()">
+        <button onclick="guardarApiKey()" style="padding:10px 16px;background:var(--ink);color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer">Guardar</button>
+      </div>
+      <div id="apiKeyEstado" style="font-size:0.75rem;margin-top:8px;color:var(--muted)"></div>
+    </div>
+
+    <div style="margin-top:16px">
       <button id="perfilLogoutBtn" onclick="cerrarSesion()" style="width:100%;padding:14px;background:white;color:#e8471c;border:1.5px solid #e8471c;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;display:none">Cerrar sesión</button>
       <button id="perfilLoginBtn" onclick="abrirLoginSheet()" style="width:100%;padding:14px;background:var(--primary);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer">Iniciar sesión</button>
     </div>
@@ -1988,6 +2020,26 @@ const TIPOS_CONFIG = {
   banco:       { icon: '🏦', label: 'Banco / Cajero',  color: '#37474F' },
   taxi:        { icon: '🚕', label: 'Taxi / Uber',     color: '#F9A825' },
   moto:        { icon: '🏍️', label: 'Moto / Scooter',  color: '#E53935' },
+  parking:     { icon: '🅿️', label: 'Parking',          color: '#1565C0' },
+  aeropuerto:  { icon: '🛫', label: 'Aeropuerto',       color: '#0277BD' },
+  gasolinera:  { icon: '⛽', label: 'Gasolinera',       color: '#F57F17' },
+  teatro:      { icon: '🎭', label: 'Teatro / Cine',    color: '#6A1B9A' },
+  zoo:         { icon: '🦒', label: 'Zoo / Acuario',    color: '#2E7D32' },
+  crucero:     { icon: '🛳️', label: 'Crucero',          color: '#0288D1' },
+  tirolina:    { icon: '🧗', label: 'Aventura / Tirolina', color: '#00695C' },
+  globo:       { icon: '🎈', label: 'Globo aerostático', color: '#E91E63' },
+  observatorio:{ icon: '🔭', label: 'Observatorio',     color: '#37474F' },
+  acantilado:  { icon: '🏔️', label: 'Acantilado / Costa', color: '#546E7A' },
+  nieve:       { icon: '❄️', label: 'Nieve / Invierno', color: '#90CAF9' },
+  desierto:    { icon: '🏜️', label: 'Desierto',         color: '#F9A825' },
+  selva:       { icon: '🌴', label: 'Selva / Tropical', color: '#388E3C' },
+  volcan:      { icon: '🌋', label: 'Volcán',           color: '#BF360C' },
+  isla:        { icon: '🏝️', label: 'Isla',             color: '#0097A7' },
+  crucero:     { icon: '🛳️', label: 'Crucero',          color: '#0288D1' },
+  casino:      { icon: '🎰', label: 'Casino',           color: '#880E4F' },
+  golf:        { icon: '⛳', label: 'Golf',              color: '#33691E' },
+  kayak:       { icon: '🛶', label: 'Kayak / Canoa',    color: '#006064' },
+  parapente:   { icon: '🪂', label: 'Parapente',        color: '#7B1FA2' },
 };
 
 let puntosEdicion = [];
@@ -2553,9 +2605,14 @@ async function infoConIA(nombre, destino) {
   el.textContent = '✨ Buscando info...';
 
   try {
-    const r = await fetch('/api/claude', {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': window.ANTHROPIC_API_KEY || '',
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 200,
@@ -3287,9 +3344,14 @@ Autor: ${autor}`;
         loadEl.innerHTML = `<div class="spinner"></div><p>Reintentando (${i+1}/3)...</p>`;
         await new Promise(r => setTimeout(r, 2000));
       }
-      const r = await fetch('/api/claude', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': window.ANTHROPIC_API_KEY || '',
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
         body: JSON.stringify(body)
       });
       const data = await r.json();
@@ -3324,8 +3386,9 @@ Autor: ${autor}`;
 
     let puntosIA = [];
     if (lugares.length > 0) {
-      const promptCoords = `Devuelve SOLO un array JSON con coordenadas GPS precisas de estos lugares en ${parsed.destino}. Sin texto ni backticks:
-[{"nombre":"nombre exacto","lat":0.000000,"lng":0.000000}]
+      const promptCoords = `Devuelve SOLO un array JSON con coordenadas GPS reales y precisas de estos lugares en ${parsed.destino}. Es CRÍTICO que las coordenadas sean correctas. Sin texto, sin explicaciones, sin backticks, solo el array JSON puro:
+[{"nombre":"nombre exacto del lugar","lat":00.000000,"lng":00.000000}]
+Si no conoces las coordenadas exactas de algún lugar, pon las del centro de la ciudad/zona más cercana. TODOS los lugares deben tener coordenadas válidas (no 0,0).
 Lugares: ${lugares.map(l=>l.nombre).join(' | ')}`;
       try {
         const d2 = await apiCall({ model:'claude-sonnet-4-20250514', max_tokens:2000, messages:[{role:'user',content:promptCoords}] });
@@ -3616,6 +3679,50 @@ function instalarApp() {
     _installPrompt = null;
   });
 }
+
+// ── API KEY GESTIÓN ──
+window.ANTHROPIC_API_KEY = localStorage.getItem('ye_api_key') || '';
+
+function guardarApiKey() {
+  const val = document.getElementById('apiKeyInput')?.value?.trim() || '';
+  if (!val) { mostrarToast('⚠️ Introduce una clave API'); return; }
+  if (!val.startsWith('sk-ant-')) { mostrarToast('⚠️ La clave debe empezar por sk-ant-'); return; }
+  localStorage.setItem('ye_api_key', val);
+  window.ANTHROPIC_API_KEY = val;
+  mostrarToast('✅ Clave API guardada');
+  actualizarEstadoApiKey();
+}
+
+function actualizarEstadoApiKey() {
+  const el = document.getElementById('apiKeyEstado');
+  const input = document.getElementById('apiKeyInput');
+  if (!el || !input) return;
+  const val = input.value.trim();
+  if (val.startsWith('sk-ant-') && val.length > 20) {
+    el.textContent = '✅ Clave válida';
+    el.style.color = '#388E3C';
+  } else if (val.length > 0) {
+    el.textContent = '⚠️ Formato incorrecto (debe empezar por sk-ant-)';
+    el.style.color = '#E65100';
+  } else {
+    el.textContent = '';
+  }
+}
+
+// Cargar API key guardada en el input de perfil al arrancar
+document.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('ye_api_key');
+  const input = document.getElementById('apiKeyInput');
+  if (saved && input) {
+    input.value = saved;
+    actualizarEstadoApiKey();
+  }
+  const estadoEl = document.getElementById('apiKeyEstado');
+  if (estadoEl && saved) {
+    estadoEl.textContent = '✅ Clave cargada';
+    estadoEl.style.color = '#388E3C';
+  }
+});
 </script>
 </body>
 </html>
