@@ -3381,6 +3381,7 @@ Autor: ${autor}`;
     // Paso 1: generar itinerario
     const data = await apiCall({ model:'claude-sonnet-4-20250514', max_tokens:4000, messages:[{role:'user',content:prompt}] });
     const txt = data.content.map(c=>c.text||'').join('');
+    mostrarToast('🔍 ' + txt.substring(0, 120));
     const jsonMatch = txt.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('La IA no devolvió JSON válido');
     const parsed = JSON.parse(jsonMatch[0]);
