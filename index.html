@@ -2670,6 +2670,15 @@ async function abrirMapaEdicionPantalla() {
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(mapEditFullInstance);
     L.control.zoom({ position:'topright' }).addTo(mapEditFullInstance);
     mapEditFullInstance.invalidateSize();
+
+    // Pinchar en el mapa para añadir punto
+    mapEditFullInstance.on('click', e => {
+      latLngPunto = e.latlng;
+      abrirMenuPunto();
+    });
+
+    // Debug temporal: mostrar cuántos puntos con coords hay
+    const debugEl = document.getElementById('mapaEditHint');
     
     // Mostrar puntos con coordenadas
     const conCoords = puntosEdicion.filter(p => p && p.lat && p.lng);
@@ -2697,8 +2706,13 @@ async function abrirMapaEdicionPantalla() {
       const spinner = document.getElementById('mapaEditSpinner');
       const hint = document.getElementById('mapaEditHint');
       if (spinner) spinner.style.display = 'none';
-      if (hint) hint.style.display = 'block';
-      // fitBounds aquí dentro garantiza que el mapa está listo
+      if (hint) {
+        hint.style.display = 'block';
+        // Debug temporal: mostrar info de puntos
+        hint.innerHTML = conCoords.length > 0
+          ? `👆 Toca para añadir punto · ${conCoords.length} puntos cargados`
+          : `👆 Toca para añadir punto · puntosEdicion:${puntosEdicion.length} sinCoords:${puntosEdicion.filter(p=>!p.lat).length}`;
+      }
       if (conCoords.length > 0) {
         const bounds = L.latLngBounds(conCoords.map(p => [p.lat, p.lng]));
         if (bounds.isValid()) {
