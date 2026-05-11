@@ -3352,7 +3352,9 @@ async function generarConIA() {
   document.getElementById('iaResultado').style.display = 'none';
 
   const prompt = `Eres un asistente que estructura itinerarios de viaje. Devuelve SOLO un objeto JSON válido sin texto ni markdown:
-{"titulo":"...","destino":"...","emoji":"...","lat":0,"lng":0,"color":"#hex","dias":0,"tipo":["Mochilero|Familiar|Pareja|Lujo|Aventura|Cultural|Relax|Naturaleza"],"presupuesto":"~XXX€/persona","resumen":"2-3 frases","jornadas":[{"dia":1,"lugar":"...","items":[{"tipo":"hotel|restaurante|visita|tip|transporte|atraccion|bar|playa|monumento|museo|parque|fotografia|compras|deporte|avion|barco|tren|templo|castillo|gastronomia|pdi|paseo|bici|coche","nombre":"...","desc":"..."}]}]}
+{"titulo":"...","destino":"...","emoji":"...","lat":0.0,"lng":0.0,"color":"#hex","dias":0,"tipo":["Mochilero|Familiar|Pareja|Lujo|Aventura|Cultural|Relax|Naturaleza"],"presupuesto":"~XXX€/persona","resumen":"2-3 frases","jornadas":[{"dia":1,"lugar":"...","items":[{"tipo":"hotel|restaurante|visita|tip|transporte|atraccion|bar|playa|monumento|museo|parque|fotografia|compras|deporte|avion|barco|tren|templo|castillo|gastronomia|pdi|paseo|bici|coche","nombre":"...","desc":"...","lat":0.000000,"lng":0.000000}]}]}
+IMPORTANTE: En cada item incluye "lat" y "lng" con coordenadas GPS reales y precisas del lugar. Si no sabes las exactas, usa las del centro de la ciudad. Nunca pongas 0,0.
+En "lat"/"lng" del objeto raíz pon las coordenadas del destino principal.
 Descripción: ${desc}
 Autor: ${autor}`;
 
@@ -3386,47 +3388,51 @@ Autor: ${autor}`;
     parsed.id = Date.now();
     parsed.destinoKey = parsed.destino.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,'_');
 
-    // Paso 2: obtener coordenadas de los lugares mencionados
+    // Paso 2: extraer coordenadas directamente del JSON generado
     loadEl.innerHTML = '<div class="spinner"></div><p>Localizando puntos en el mapa...</p>';
-    const lugares = [];
+    let puntosIA = [];
     (parsed.jornadas||[]).forEach(j => {
       (j.items||[]).forEach(item => {
-        if (!['tip','avion','barco','tren','metro','tranvia','transporte','paseo','bici','coche'].includes(item.tipo)) {
-          lugares.push({ nombre: item.nombre, tipo: item.tipo||'visita', dia: j.dia, desc: item.desc||'' });
+        const lat = parseFloat(item.lat);
+        const lng = parseFloat(item.lng);
+        const tieneCoords = !isNaN(lat) && !isNaN(lng) && Math.abs(lat) > 0.01 && Math.abs(lng) > 0.01;
+        if (!['tip','avion','barco','tren','metro','tranvia','transporte'].includes(item.tipo)) {
+          puntosIA.push({
+            tipo: item.tipo || 'visita',
+            nombre: item.nombre,
+            desc: item.desc || '',
+            dia: j.dia,
+            lat: tieneCoords ? lat : null,
+            lng: tieneCoords ? lng : null
+          });
         }
       });
     });
-
-    let puntosIA = [];
-    if (lugares.length > 0) {
-      const promptCoords = `Devuelve SOLO un array JSON con coordenadas GPS reales y precisas de estos lugares en ${parsed.destino}. Es CRÍTICO que las coordenadas sean correctas. Sin texto, sin explicaciones, sin backticks, solo el array JSON puro:
-[{"nombre":"nombre exacto del lugar","lat":00.000000,"lng":00.000000}]
-Si no conoces las coordenadas exactas de algún lugar, pon las del centro de la ciudad/zona más cercana. TODOS los lugares deben tener coordenadas válidas (no 0,0).
-Lugares: ${lugares.map(l=>l.nombre).join(' | ')}`;
+    // Fallback: si el JSON no trajo coords, hacer segunda llamada
+    const sinCoords = puntosIA.filter(p => !p.lat);
+    if (sinCoords.length > 0 && puntosIA.length > 0) {
       try {
+        const promptCoords = `Devuelve SOLO un array JSON con coordenadas GPS precisas. Sin texto, sin backticks:
+[{"nombre":"nombre","lat":00.000000,"lng":00.000000}]
+Lugares en ${parsed.destino}: ${sinCoords.map(l=>l.nombre).join(' | ')}`;
         const d2 = await apiCall({ model:'claude-sonnet-4-20250514', max_tokens:2000, messages:[{role:'user',content:promptCoords}] });
         const txt2 = (d2.content||[]).map(c=>c.text||'').join('');
-        mostrarToast('📍 Raw coords: ' + txt2.substring(0,80));
-        // Regex greedy para capturar el array completo (no cortar en el primer ])
         const arrMatch = txt2.match(/\[[\s\S]*\]/);
         if (arrMatch) {
           const coords = JSON.parse(arrMatch[0]);
-          // Normalizar función para comparar nombres sin acentos ni mayúsculas
           const norm = s => s ? s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim() : '';
-          lugares.forEach(l => {
-            const keyL = norm(l.nombre);
-            // Buscar por coincidencia exacta normalizada, luego por inclusión
-            const c = coords.find(c2 => norm(c2.nombre) === keyL)
-                   || coords.find(c2 => keyL.includes(norm(c2.nombre)) || norm(c2.nombre).includes(keyL));
-            if (c && Math.abs(parseFloat(c.lat)) > 0.01 && Math.abs(parseFloat(c.lng)) > 0.01) {
-              puntosIA.push({ tipo: l.tipo, nombre: l.nombre, desc: l.desc, lat: parseFloat(c.lat), lng: parseFloat(c.lng), dia: l.dia });
+          puntosIA.forEach(p => {
+            if (!p.lat) {
+              const c = coords.find(c2 => norm(c2.nombre) === norm(p.nombre))
+                     || coords.find(c2 => norm(p.nombre).includes(norm(c2.nombre)) || norm(c2.nombre).includes(norm(p.nombre)));
+              if (c && Math.abs(parseFloat(c.lat)) > 0.01) {
+                p.lat = parseFloat(c.lat);
+                p.lng = parseFloat(c.lng);
+              }
             }
           });
         }
-      } catch(e2) { 
-        console.warn('Coords step failed:', e2);
-        mostrarToast('⚠️ Coords error: ' + e2.message.substring(0,60));
-      }
+      } catch(e2) { console.warn('Coords fallback failed:', e2); }
     }
 
     parsed.puntos = puntosIA;
