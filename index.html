@@ -2111,7 +2111,18 @@ function cambiarTab(tab) {
         setTimeout(() => mapEditInstance && mapEditInstance.invalidateSize(), 300);
       }, 200);
     } else if (mapEditInstance) {
-      setTimeout(() => mapEditInstance.invalidateSize(), 100);
+      setTimeout(() => {
+        mapEditInstance.invalidateSize();
+        // Re-renderizar siempre por si hay puntos nuevos de IA
+        mapEditInstance.eachLayer(l => { if (l instanceof L.Marker) mapEditInstance.removeLayer(l); });
+        renderPuntosEnMapa();
+        // Centrar en los puntos si los hay
+        const pts = puntosEdicion.filter(p => p.lat && p.lng);
+        if (pts.length > 0) {
+          const bounds = L.latLngBounds(pts.map(p => [p.lat, p.lng]));
+          mapEditInstance.fitBounds(bounds, { padding: [40, 40] });
+        }
+      }, 100);
     }
   }
 }
@@ -2133,6 +2144,13 @@ function iniciarMapaEdicion() {
 
   // Renderizar puntos existentes con coordenadas
   renderPuntosEnMapa();
+
+  // Centrar en los puntos si los hay
+  const pts = puntosEdicion.filter(p => p.lat && p.lng);
+  if (pts.length > 0) {
+    const bounds = L.latLngBounds(pts.map(p => [p.lat, p.lng]));
+    mapEditInstance.fitBounds(bounds, { padding: [40, 40] });
+  }
 }
 
 function renderPuntosEnMapa() {
