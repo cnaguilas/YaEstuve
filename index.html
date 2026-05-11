@@ -3392,15 +3392,18 @@ Lugares: ${lugares.map(l=>l.nombre).join(' | ')}`;
       try {
         const d2 = await apiCall({ model:'claude-sonnet-4-20250514', max_tokens:2000, messages:[{role:'user',content:promptCoords}] });
         const txt2 = (d2.content||[]).map(c=>c.text||'').join('');
-        const arrMatch = txt2.match(/\[[\s\S]*?\]/);
+        // Regex greedy para capturar el array completo (no cortar en el primer ])
+        const arrMatch = txt2.match(/\[[\s\S]*\]/);
         if (arrMatch) {
           const coords = JSON.parse(arrMatch[0]);
-          const coordMap = {};
-          coords.forEach(c => { if (c.nombre) coordMap[c.nombre.toLowerCase().trim()] = c; });
+          // Normalizar función para comparar nombres sin acentos ni mayúsculas
+          const norm = s => s ? s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim() : '';
           lugares.forEach(l => {
-            const key = l.nombre.toLowerCase().trim();
-            const c = coordMap[key] || coords.find(c2 => c2.nombre && key.includes(c2.nombre.toLowerCase().trim()));
-            if (c && Math.abs(c.lat) > 0.01 && Math.abs(c.lng) > 0.01) {
+            const keyL = norm(l.nombre);
+            // Buscar por coincidencia exacta normalizada, luego por inclusión
+            const c = coords.find(c2 => norm(c2.nombre) === keyL)
+                   || coords.find(c2 => keyL.includes(norm(c2.nombre)) || norm(c2.nombre).includes(keyL));
+            if (c && Math.abs(parseFloat(c.lat)) > 0.01 && Math.abs(parseFloat(c.lng)) > 0.01) {
               puntosIA.push({ tipo: l.tipo, nombre: l.nombre, desc: l.desc, lat: parseFloat(c.lat), lng: parseFloat(c.lng), dia: l.dia });
             }
           });
