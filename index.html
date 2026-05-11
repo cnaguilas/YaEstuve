@@ -3406,6 +3406,7 @@ Lugares: ${lugares.map(l=>l.nombre).join(' | ')}`;
       try {
         const d2 = await apiCall({ model:'claude-sonnet-4-20250514', max_tokens:2000, messages:[{role:'user',content:promptCoords}] });
         const txt2 = (d2.content||[]).map(c=>c.text||'').join('');
+        mostrarToast('📍 Raw coords: ' + txt2.substring(0,80));
         // Regex greedy para capturar el array completo (no cortar en el primer ])
         const arrMatch = txt2.match(/\[[\s\S]*\]/);
         if (arrMatch) {
@@ -3422,7 +3423,10 @@ Lugares: ${lugares.map(l=>l.nombre).join(' | ')}`;
             }
           });
         }
-      } catch(e2) { console.warn('Coords step failed:', e2); }
+      } catch(e2) { 
+        console.warn('Coords step failed:', e2);
+        mostrarToast('⚠️ Coords error: ' + e2.message.substring(0,60));
+      }
     }
 
     parsed.puntos = puntosIA;
