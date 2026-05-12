@@ -2708,17 +2708,13 @@ async function abrirMapaEdicionPantalla() {
       if (spinner) spinner.style.display = 'none';
       if (hint) {
         hint.style.display = 'block';
-        hint.innerHTML = `👆 Toca para añadir punto`;
+        // Debug temporal: mostrar info de puntos
+        hint.innerHTML = conCoords.length > 0
+          ? `👆 Toca para añadir punto · ${conCoords.length} puntos cargados`
+          : `👆 Toca para añadir punto · puntosEdicion:${puntosEdicion.length} sinCoords:${puntosEdicion.filter(p=>!p.lat).length}`;
       }
       if (conCoords.length > 0) {
-        // Dibujar línea de recorrido
-        const coordsLinea = conCoords.map(p => [p.lat, p.lng]);
-        L.polyline(coordsLinea, {
-          color: '#E8471C', weight: 2.5, opacity: 0.6,
-          dashArray: '6,8', lineJoin: 'round'
-        }).addTo(mapEditFullInstance);
-
-        const bounds = L.latLngBounds(coordsLinea);
+        const bounds = L.latLngBounds(conCoords.map(p => [p.lat, p.lng]));
         if (bounds.isValid()) {
           setTimeout(() => {
             mapEditFullInstance.invalidateSize();
@@ -3383,7 +3379,7 @@ Autor: ${autor}`;
 
   try {
     // Paso 1: generar itinerario
-    const data = await apiCall({ model:'claude-sonnet-4-20250514', max_tokens:6000, messages:[{role:'user',content:prompt}] });
+    const data = await apiCall({ model:'claude-sonnet-4-20250514', max_tokens:4000, messages:[{role:'user',content:prompt}] });
     const txt = data.content.map(c=>c.text||'').join('');
     const jsonMatch = txt.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('La IA no devolvió JSON válido');
