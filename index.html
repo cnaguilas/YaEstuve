@@ -1097,24 +1097,37 @@ html, body {
 .punto-item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   background: var(--card);
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   margin-bottom: 8px;
   border: 1px solid var(--border);
 }
-.punto-item-icon { font-size: 1.2rem; flex-shrink: 0; }
-.punto-item-info { flex: 1; min-width: 0; }
+.punto-item-icon { font-size: 1.3rem; flex-shrink: 0; cursor: pointer; }
+.punto-item-info { flex: 1; min-width: 0; cursor: pointer; }
 .punto-item-nombre { font-size: 0.88rem; font-weight: 600; }
 .punto-item-tipo { font-size: 0.72rem; color: var(--muted); }
+.punto-item-actions { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+.punto-item-btn {
+  width: 26px; height: 26px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+  padding: 0;
+}
+.punto-item-btn:disabled { opacity: 0.3; cursor: default; }
 .punto-item-del {
-  width: 28px; height: 28px;
+  width: 26px; height: 26px;
   background: #fee;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   flex-shrink: 0;
   border: none;
 }
@@ -1871,14 +1884,18 @@ function renderDias() {
       <div class="dia-edit-items" id="itemsDia${ji}">
         ${(j.items||[]).map((item, ii) => `
           <div class="item-edit-row">
-            <span class="item-edit-icon">${iconoTipo(item.tipo)}</span>
+            <span class="item-edit-icon" onclick="cambiarIconoItem(${ji},${ii})" style="cursor:pointer" title="Cambiar icono">${iconoTipo(item.tipo)}</span>
             <div class="item-edit-fields">
               <input class="item-edit-nombre" type="text" value="${(item.nombre||'').replace(/"/g,'&quot;')}" 
                 placeholder="Nombre" oninput="actualizarItem(${ji},${ii},'nombre',this.value)">
               <textarea class="item-edit-desc" placeholder="Descripción" 
                 oninput="actualizarItem(${ji},${ii},'desc',this.value)">${item.desc||''}</textarea>
             </div>
-            <button class="item-edit-del" onclick="eliminarItem(${ji},${ii})">✕</button>
+            <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0">
+              <button onclick="moverItem(${ji},${ii},-1)" style="width:24px;height:24px;background:var(--bg);border:1px solid var(--border);border-radius:5px;font-size:0.7rem;cursor:pointer" ${ii===0?'disabled':''}>↑</button>
+              <button onclick="moverItem(${ji},${ii},1)" style="width:24px;height:24px;background:var(--bg);border:1px solid var(--border);border-radius:5px;font-size:0.7rem;cursor:pointer" ${ii===(j.items||[]).length-1?'disabled':''}>↓</button>
+              <button class="item-edit-del" onclick="eliminarItem(${ji},${ii})">✕</button>
+            </div>
           </div>
         `).join('')}
         <button class="dia-edit-add" onclick="añadirPuntoDesde(${ji})" style="color:var(--primary);border-color:var(--primary);margin-bottom:4px">📍 Añadir punto (con mapa)</button>
@@ -1915,6 +1932,22 @@ function eliminarItem(ji, ii) {
   itinerarioGenerado.jornadas[ji].items.splice(ii, 1);
   guardarJornadasEnFirebase();
   renderDias();
+}
+
+function moverItem(ji, ii, dir) {
+  const items = itinerarioGenerado?.jornadas?.[ji]?.items;
+  if (!items) return;
+  const jj = ii + dir;
+  if (jj < 0 || jj >= items.length) return;
+  [items[ii], items[jj]] = [items[jj], items[ii]];
+  guardarJornadasEnFirebase();
+  renderDias();
+}
+
+function cambiarIconoItem(ji, ii) {
+  window._cambiarIconoJornada = { ji, ii };
+  window._cambiarIconoIndex = undefined;
+  document.getElementById('puntoMenu').classList.add('active');
 }
 
 function añadirDia() {
@@ -2194,7 +2227,20 @@ function seleccionarTipoPunto(tipo) {
   tipoPuntoSeleccionado = tipo;
   document.getElementById('puntoMenu').classList.remove('active');
 
-  // Si venimos de cambiarIconoPunto, solo cambiar el tipo
+  // Si venimos de cambiarIconoItem (lista de días)
+  if (window._cambiarIconoJornada !== undefined) {
+    const { ji, ii } = window._cambiarIconoJornada;
+    window._cambiarIconoJornada = undefined;
+    if (itinerarioGenerado?.jornadas?.[ji]?.items?.[ii]) {
+      itinerarioGenerado.jornadas[ji].items[ii].tipo = tipo;
+      guardarJornadasEnFirebase();
+      renderDias();
+      mostrarToast(`${TIPOS_CONFIG[tipo]?.icon || ''} Icono cambiado`);
+    }
+    return;
+  }
+
+  // Si venimos de cambiarIconoPunto (lista de puntos del mapa)
   if (window._cambiarIconoIndex !== undefined) {
     const i = window._cambiarIconoIndex;
     window._cambiarIconoIndex = undefined;
@@ -2331,15 +2377,15 @@ function renderPuntos() {
   }
   lista.innerHTML = puntosEdicion.map((p,i) => {
     const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.visita;
-    return `<div class="punto-item" style="flex-wrap:wrap;gap:6px">
-      <span class="punto-item-icon" onclick="cambiarIconoPunto(${i})" title="Cambiar icono" style="cursor:pointer;font-size:1.3rem">${cfg.icon}</span>
-      <div class="punto-item-info" onclick="editarPunto(${i})" style="cursor:pointer">
+    return `<div class="punto-item">
+      <span class="punto-item-icon" onclick="cambiarIconoPunto(${i})">${cfg.icon}</span>
+      <div class="punto-item-info" onclick="editarPunto(${i})">
         <div class="punto-item-nombre">${p.nombre}</div>
-        <div class="punto-item-tipo">${cfg.label}${p.lat ? ' · 📍' : ' · sin mapa'}</div>
+        <div class="punto-item-tipo">${cfg.label}${p.lat ? ' · 📍' : ''}</div>
       </div>
-      <div style="display:flex;gap:4px;align-items:center">
-        <button onclick="moverPunto(${i},-1)" style="padding:4px 8px;background:var(--border);border:none;border-radius:6px;font-size:0.8rem;cursor:pointer" ${i===0?'disabled':''}>↑</button>
-        <button onclick="moverPunto(${i},1)" style="padding:4px 8px;background:var(--border);border:none;border-radius:6px;font-size:0.8rem;cursor:pointer" ${i===puntosEdicion.length-1?'disabled':''}>↓</button>
+      <div class="punto-item-actions">
+        <button class="punto-item-btn" onclick="moverPunto(${i},-1)" ${i===0?'disabled':''}>↑</button>
+        <button class="punto-item-btn" onclick="moverPunto(${i},1)" ${i===puntosEdicion.length-1?'disabled':''}>↓</button>
         <button class="punto-item-del" onclick="eliminarPunto(${i})">✕</button>
       </div>
     </div>`;
