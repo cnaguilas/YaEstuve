@@ -2065,15 +2065,20 @@ function abrirEdicion() {
     <div onclick="toggleTipo(this,'${t}')" class="cat-chip ${(it.tipo||[]).includes(t)?'active':''}">${t}</div>
   `).join('');
 
-  // Puntos existentes desde jornadas
+  // Puntos existentes desde jornadas, con coords de itinerarioGenerado.puntos si las hay
   puntosEdicion = [];
+  const puntosConCoords = it.puntos || [];
   (it.jornadas||[]).forEach(j => {
     (j.items||[]).forEach(item => {
+      // Buscar coords en it.puntos por nombre
+      const pMatch = puntosConCoords.find(p => p && p.nombre === item.nombre);
       puntosEdicion.push({
         tipo: item.tipo,
         nombre: item.nombre,
         desc: item.desc,
-        lat: null, lng: null
+        dia: j.dia,
+        lat: pMatch?.lat || null,
+        lng: pMatch?.lng || null
       });
     });
   });
