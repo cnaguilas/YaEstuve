@@ -2193,6 +2193,19 @@ function cancelarMenuPunto() {
 function seleccionarTipoPunto(tipo) {
   tipoPuntoSeleccionado = tipo;
   document.getElementById('puntoMenu').classList.remove('active');
+
+  // Si venimos de cambiarIconoPunto, solo cambiar el tipo
+  if (window._cambiarIconoIndex !== undefined) {
+    const i = window._cambiarIconoIndex;
+    window._cambiarIconoIndex = undefined;
+    if (puntosEdicion[i]) {
+      puntosEdicion[i].tipo = tipo;
+      renderPuntos();
+      mostrarToast(`${TIPOS_CONFIG[tipo]?.icon || ''} Icono cambiado`);
+    }
+    return;
+  }
+
   const cfg = TIPOS_CONFIG[tipo];
   document.getElementById('puntoFormTitulo').textContent = `${cfg.icon} ${cfg.label}`;
   document.getElementById('p-nombre').value = '';
@@ -2318,15 +2331,36 @@ function renderPuntos() {
   }
   lista.innerHTML = puntosEdicion.map((p,i) => {
     const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.visita;
-    return `<div class="punto-item">
-      <span class="punto-item-icon">${cfg.icon}</span>
-      <div class="punto-item-info">
+    return `<div class="punto-item" style="flex-wrap:wrap;gap:6px">
+      <span class="punto-item-icon" onclick="cambiarIconoPunto(${i})" title="Cambiar icono" style="cursor:pointer;font-size:1.3rem">${cfg.icon}</span>
+      <div class="punto-item-info" onclick="editarPunto(${i})" style="cursor:pointer">
         <div class="punto-item-nombre">${p.nombre}</div>
-        <div class="punto-item-tipo">${cfg.label}${p.lat ? ' · 📍 En mapa' : ''}</div>
+        <div class="punto-item-tipo">${cfg.label}${p.lat ? ' · 📍' : ' · sin mapa'}</div>
       </div>
-      <button class="punto-item-del" onclick="eliminarPunto(${i})">✕</button>
+      <div style="display:flex;gap:4px;align-items:center">
+        <button onclick="moverPunto(${i},-1)" style="padding:4px 8px;background:var(--border);border:none;border-radius:6px;font-size:0.8rem;cursor:pointer" ${i===0?'disabled':''}>↑</button>
+        <button onclick="moverPunto(${i},1)" style="padding:4px 8px;background:var(--border);border:none;border-radius:6px;font-size:0.8rem;cursor:pointer" ${i===puntosEdicion.length-1?'disabled':''}>↓</button>
+        <button class="punto-item-del" onclick="eliminarPunto(${i})">✕</button>
+      </div>
     </div>`;
   }).join('');
+}
+
+function moverPunto(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= puntosEdicion.length) return;
+  [puntosEdicion[i], puntosEdicion[j]] = [puntosEdicion[j], puntosEdicion[i]];
+  renderPuntos();
+  mostrarToast(dir === -1 ? '⬆️ Punto subido' : '⬇️ Punto bajado');
+}
+
+function cambiarIconoPunto(i) {
+  const p = puntosEdicion[i];
+  if (!p) return;
+  tipoPuntoSeleccionado = p.tipo;
+  // Abrir menú de tipos para cambiar solo el icono
+  window._cambiarIconoIndex = i;
+  document.getElementById('puntoMenu').classList.add('active');
 }
 
 function eliminarPunto(i) {
