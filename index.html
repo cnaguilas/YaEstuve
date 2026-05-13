@@ -1930,8 +1930,29 @@ function eliminarDia(ji) {
 function eliminarItem(ji, ii) {
   if (!itinerarioGenerado?.jornadas?.[ji]?.items) return;
   itinerarioGenerado.jornadas[ji].items.splice(ii, 1);
+  sincronizarPuntosEdicion();
   guardarJornadasEnFirebase();
   renderDias();
+}
+
+function sincronizarPuntosEdicion() {
+  // Reconstruir puntosEdicion desde jornadas manteniendo las coords existentes
+  const coordsMap = {};
+  puntosEdicion.forEach(p => { if (p.lat) coordsMap[p.nombre] = { lat: p.lat, lng: p.lng }; });
+  puntosEdicion = [];
+  (itinerarioGenerado?.jornadas || []).forEach(j => {
+    (j.items || []).forEach(item => {
+      const coords = coordsMap[item.nombre] || {};
+      puntosEdicion.push({
+        tipo: item.tipo || 'visita',
+        nombre: item.nombre,
+        desc: item.desc || '',
+        dia: j.dia,
+        lat: coords.lat || null,
+        lng: coords.lng || null
+      });
+    });
+  });
 }
 
 function moverItem(ji, ii, dir) {
@@ -1940,6 +1961,7 @@ function moverItem(ji, ii, dir) {
   const jj = ii + dir;
   if (jj < 0 || jj >= items.length) return;
   [items[ii], items[jj]] = [items[jj], items[ii]];
+  sincronizarPuntosEdicion();
   guardarJornadasEnFirebase();
   renderDias();
 }
@@ -2233,6 +2255,7 @@ function seleccionarTipoPunto(tipo) {
     window._cambiarIconoJornada = undefined;
     if (itinerarioGenerado?.jornadas?.[ji]?.items?.[ii]) {
       itinerarioGenerado.jornadas[ji].items[ii].tipo = tipo;
+      sincronizarPuntosEdicion();
       guardarJornadasEnFirebase();
       renderDias();
       mostrarToast(`${TIPOS_CONFIG[tipo]?.icon || ''} Icono cambiado`);
