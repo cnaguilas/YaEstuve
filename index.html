@@ -1557,6 +1557,18 @@ html, body {
   <div class="screen-body">
     <div id="perfilMisViajes"></div>
 
+    <div style="margin-top:20px;background:white;border-radius:16px;padding:16px;border:1.5px solid var(--border)">
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;margin-bottom:4px">🤖 Clave API (IA)</div>
+      <div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px">Necesaria para generar viajes con IA. Consíguela gratis en <b>console.anthropic.com</b>. Se guarda solo en tu dispositivo.</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="password" id="apiKeyInput" placeholder="sk-ant-..." 
+          style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:0.82rem;outline:none;background:var(--bg)"
+          oninput="actualizarEstadoApiKey()">
+        <button onclick="guardarApiKey()" style="padding:10px 16px;background:var(--ink);color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer">Guardar</button>
+      </div>
+      <div id="apiKeyEstado" style="font-size:0.75rem;margin-top:8px;color:var(--muted)"></div>
+    </div>
+
     <div style="margin-top:16px">
       <button id="perfilLogoutBtn" onclick="cerrarSesion()" style="width:100%;padding:14px;background:white;color:#e8471c;border:1.5px solid #e8471c;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;display:none">Cerrar sesión</button>
       <button id="perfilLoginBtn" onclick="abrirLoginSheet()" style="width:100%;padding:14px;background:var(--primary);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer">Iniciar sesión</button>
@@ -2718,9 +2730,16 @@ async function infoConIA(nombre, destino) {
   el.textContent = '✨ Buscando info...';
 
   try {
-    const r = await fetch('/api/claude', {
+    const apiKey = localStorage.getItem('ye_api_key') || '';
+    if (!apiKey) { el.textContent = 'Añade tu clave API en Perfil para ver info.'; return; }
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 200,
@@ -3490,15 +3509,33 @@ async function generarConIA() {
 Descripción: ${desc}
 Autor: ${autor}`;
 
+  const apiKey = localStorage.getItem('ye_api_key') || '';
+  if (!apiKey) {
+    loadEl.style.display = 'none';
+    document.getElementById('iaResultado').style.display = 'block';
+    document.getElementById('iaResultado').innerHTML = `<div style="text-align:center;padding:20px">
+      <p style="font-size:1.5rem">🔑</p>
+      <p style="font-weight:600;margin-bottom:8px">Necesitas una clave API</p>
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:16px">Ve a Perfil → Clave API y añade tu clave de Anthropic para usar la IA.</p>
+      <button onclick="navegarA('screenPerfil')" style="padding:10px 20px;background:var(--primary);color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">Ir a Perfil</button>
+    </div>`;
+    return;
+  }
+
   const apiCall = async (body) => {
     for (let i = 0; i < 3; i++) {
       if (i > 0) {
         loadEl.innerHTML = `<div class="spinner"></div><p>Reintentando (${i+1}/3)...</p>`;
         await new Promise(r => setTimeout(r, 2000));
       }
-      const r = await fetch('/api/claude', {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
         body: JSON.stringify(body)
       });
       const data = await r.json();
@@ -3802,7 +3839,39 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// ── BOTÓN INSTALAR ──
+// ── API KEY ──
+function guardarApiKey() {
+  const val = document.getElementById('apiKeyInput')?.value?.trim() || '';
+  if (!val.startsWith('sk-ant-')) { mostrarToast('⚠️ Formato incorrecto (sk-ant-...)'); return; }
+  localStorage.setItem('ye_api_key', val);
+  mostrarToast('✅ Clave API guardada');
+  actualizarEstadoApiKey();
+}
+
+function actualizarEstadoApiKey() {
+  const el = document.getElementById('apiKeyEstado');
+  const input = document.getElementById('apiKeyInput');
+  if (!el || !input) return;
+  const val = input.value.trim();
+  if (val.startsWith('sk-ant-') && val.length > 20) {
+    el.textContent = '✅ Clave válida';
+    el.style.color = '#388E3C';
+  } else if (val.length > 0) {
+    el.textContent = '⚠️ Debe empezar por sk-ant-';
+    el.style.color = '#E65100';
+  } else {
+    const saved = localStorage.getItem('ye_api_key');
+    el.textContent = saved ? '✅ Clave guardada' : '⚠️ Sin clave — IA no disponible';
+    el.style.color = saved ? '#388E3C' : '#E65100';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('ye_api_key');
+  const input = document.getElementById('apiKeyInput');
+  if (saved && input) input.value = saved;
+  actualizarEstadoApiKey();
+});
 let _installPrompt = null;
 
 window.addEventListener('beforeinstallprompt', e => {
