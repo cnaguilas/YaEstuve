@@ -3356,9 +3356,7 @@ async function generarConIA() {
   document.getElementById('iaResultado').style.display = 'none';
 
   const prompt = `Eres un asistente que estructura itinerarios de viaje. Devuelve SOLO un objeto JSON válido sin texto ni markdown:
-{"titulo":"...","destino":"...","emoji":"...","lat":0.0,"lng":0.0,"color":"#hex","dias":0,"tipo":["Mochilero|Familiar|Pareja|Lujo|Aventura|Cultural|Relax|Naturaleza"],"presupuesto":"~XXX€/persona","resumen":"2-3 frases","jornadas":[{"dia":1,"lugar":"...","items":[{"tipo":"hotel|restaurante|visita|tip|transporte|atraccion|bar|playa|monumento|museo|parque|fotografia|compras|deporte|avion|barco|tren|templo|castillo|gastronomia|pdi|paseo|bici|coche","nombre":"...","desc":"...","lat":0.000000,"lng":0.000000}]}]}
-IMPORTANTE: En cada item incluye "lat" y "lng" con coordenadas GPS reales y precisas del lugar. Si no sabes las exactas, usa las del centro de la ciudad. Nunca pongas 0,0.
-En "lat"/"lng" del objeto raíz pon las coordenadas del destino principal.
+{"titulo":"...","destino":"...","emoji":"...","color":"#hex","dias":0,"tipo":["Mochilero|Familiar|Pareja|Lujo|Aventura|Cultural|Relax|Naturaleza"],"presupuesto":"~XXX€/persona","resumen":"2-3 frases","jornadas":[{"dia":1,"lugar":"...","items":[{"tipo":"hotel|restaurante|visita|tip|transporte|atraccion|bar|playa|monumento|museo|parque|fotografia|compras|deporte|avion|barco|tren|templo|castillo|gastronomia|pdi","nombre":"...","desc":"..."}]}]}
 Descripción: ${desc}
 Autor: ${autor}`;
 
@@ -3382,8 +3380,8 @@ Autor: ${autor}`;
   };
 
   try {
-    // Paso 1: generar itinerario
-    const data = await apiCall({ model:'claude-sonnet-4-20250514', max_tokens:6000, messages:[{role:'user',content:prompt}] });
+    // Paso 1: generar itinerario (prompt sin coords, más rápido)
+    const data = await apiCall({ model:'claude-sonnet-4-20250514', max_tokens:3000, messages:[{role:'user',content:prompt}] });
     const txt = data.content.map(c=>c.text||'').join('');
     const jsonMatch = txt.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('La IA no devolvió JSON válido');
@@ -3392,52 +3390,45 @@ Autor: ${autor}`;
     parsed.id = Date.now();
     parsed.destinoKey = parsed.destino.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,'_');
 
-    // Paso 2: extraer coordenadas directamente del JSON generado
+    // Paso 2: coordenadas con OpenStreetMap Nominatim (gratis, sin API key)
     loadEl.innerHTML = '<div class="spinner"></div><p>Localizando puntos en el mapa...</p>';
     let puntosIA = [];
+    const items = [];
     (parsed.jornadas||[]).forEach(j => {
       (j.items||[]).forEach(item => {
-        const lat = parseFloat(item.lat);
-        const lng = parseFloat(item.lng);
-        const tieneCoords = !isNaN(lat) && !isNaN(lng) && Math.abs(lat) > 0.01 && Math.abs(lng) > 0.01;
         if (!['tip','avion','barco','tren','metro','tranvia','transporte'].includes(item.tipo)) {
-          puntosIA.push({
-            tipo: item.tipo || 'visita',
-            nombre: item.nombre,
-            desc: item.desc || '',
-            dia: j.dia,
-            lat: tieneCoords ? lat : null,
-            lng: tieneCoords ? lng : null
-          });
+          items.push({ tipo: item.tipo||'visita', nombre: item.nombre, desc: item.desc||'', dia: j.dia });
         }
       });
     });
-    // Fallback: si el JSON no trajo coords, hacer segunda llamada
-    const sinCoords = puntosIA.filter(p => !p.lat);
-    if (sinCoords.length > 0 && puntosIA.length > 0) {
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      loadEl.innerHTML = `<div class="spinner"></div><p>Localizando ${i+1}/${items.length}...</p>`;
       try {
-        const promptCoords = `Devuelve SOLO un array JSON con coordenadas GPS precisas. Sin texto, sin backticks:
-[{"nombre":"nombre","lat":00.000000,"lng":00.000000}]
-Lugares en ${parsed.destino}: ${sinCoords.map(l=>l.nombre).join(' | ')}`;
-        const d2 = await apiCall({ model:'claude-sonnet-4-20250514', max_tokens:2000, messages:[{role:'user',content:promptCoords}] });
-        const txt2 = (d2.content||[]).map(c=>c.text||'').join('');
-        const arrMatch = txt2.match(/\[[\s\S]*\]/);
-        if (arrMatch) {
-          const coords = JSON.parse(arrMatch[0]);
-          const norm = s => s ? s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim() : '';
-          puntosIA.forEach(p => {
-            if (!p.lat) {
-              const c = coords.find(c2 => norm(c2.nombre) === norm(p.nombre))
-                     || coords.find(c2 => norm(p.nombre).includes(norm(c2.nombre)) || norm(c2.nombre).includes(norm(p.nombre)));
-              if (c && Math.abs(parseFloat(c.lat)) > 0.01) {
-                p.lat = parseFloat(c.lat);
-                p.lng = parseFloat(c.lng);
-              }
-            }
-          });
-        }
-      } catch(e2) { console.warn('Coords fallback failed:', e2); }
+        const q = encodeURIComponent(`${item.nombre}, ${parsed.destino}`);
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, {
+          headers: { 'Accept-Language': 'es' }
+        });
+        const geoData = await r.json();
+        puntosIA.push({
+          tipo: item.tipo, nombre: item.nombre, desc: item.desc, dia: item.dia,
+          lat: geoData[0] ? parseFloat(geoData[0].lat) : null,
+          lng: geoData[0] ? parseFloat(geoData[0].lon) : null
+        });
+      } catch(e) {
+        puntosIA.push({ tipo: item.tipo, nombre: item.nombre, desc: item.desc, dia: item.dia, lat: null, lng: null });
+      }
+      if (i < items.length - 1) await new Promise(r => setTimeout(r, 350));
     }
+
+    // Coordenadas del destino
+    try {
+      const q = encodeURIComponent(parsed.destino);
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);
+      const geoData = await r.json();
+      if (geoData[0]) { parsed.lat = parseFloat(geoData[0].lat); parsed.lng = parseFloat(geoData[0].lon); }
+    } catch(e) {}
 
     parsed.puntos = puntosIA;
     puntosEdicion = puntosIA.slice();
