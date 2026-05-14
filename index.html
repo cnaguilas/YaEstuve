@@ -2135,7 +2135,7 @@ function abrirEdicion() {
   // Reconstruir puntosEdicion desde jornadas con coords de it.puntos
   // Si ya hay coords en memoria (recien generados por IA), conservarlos
   const puntosConCoords = it.puntos || [];
-  const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+  const norm = s => (s||'').toLowerCase().replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').replace(/[ñ]/g,'n').trim();
   const reconstruidos = [];
   (it.jornadas||[]).forEach(j => {
     (j.items||[]).forEach(item => {
