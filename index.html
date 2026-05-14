@@ -2144,14 +2144,14 @@ function abrirEdicion() {
     <div onclick="toggleTipo(this,'${t}')" class="cat-chip ${(it.tipo||[]).includes(t)?'active':''}">${t}</div>
   `).join('');
 
-  // Puntos existentes desde jornadas, con coords de itinerarioGenerado.puntos si las hay
-  puntosEdicion = [];
+  // Reconstruir puntosEdicion desde jornadas con coords de it.puntos
   const puntosConCoords = it.puntos || [];
+  const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+  const puntosReconstruidos = [];
   (it.jornadas||[]).forEach(j => {
     (j.items||[]).forEach(item => {
-      // Buscar coords en it.puntos por nombre
-      const pMatch = puntosConCoords.find(p => p && p.nombre === item.nombre);
-      puntosEdicion.push({
+      const pMatch = puntosConCoords.find(p => p && (p.nombre === item.nombre || norm(p.nombre) === norm(item.nombre)));
+      puntosReconstruidos.push({
         tipo: item.tipo,
         nombre: item.nombre,
         desc: item.desc,
@@ -2161,7 +2161,12 @@ function abrirEdicion() {
       });
     });
   });
+  // Usar reconstruidos si tienen coords, si no conservar los que ya estaban en memoria
+  const recConCoords = puntosReconstruidos.filter(p => p.lat).length;
+  const memConCoords = puntosEdicion.filter(p => p && p.lat).length;
+  puntosEdicion = recConCoords > 0 ? puntosReconstruidos : (memConCoords > 0 ? puntosEdicion : puntosReconstruidos);
 
+  console.log('abrirEdicion: puntosEdicion=', puntosEdicion.length, 'con coords=', puntosEdicion.filter(p=>p.lat).length, 'it.puntos=', (it.puntos||[]).length);
   renderPuntos();
   cambiarTab('tabInfo');
   navegarDetalle('screenEditar');
