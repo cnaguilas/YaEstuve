@@ -1976,6 +1976,18 @@ function moverItem(ji, ii, dir) {
   sincronizarPuntosEdicion();
   guardarJornadasEnFirebase();
   renderDias();
+  // Redibujar línea de recorrido en el mapa si está abierto
+  if (mapEditFullInstance) {
+    mapEditFullInstance.eachLayer(layer => {
+      if (layer instanceof L.Polyline || (layer instanceof L.Marker && layer.options.interactive === false)) {
+        mapEditFullInstance.removeLayer(layer);
+      }
+    });
+    const coords = puntosEdicion.filter(p => p && p.lat && p.lng).map(p => [p.lat, p.lng]);
+    if (coords.length > 1) {
+      L.polyline(coords, { color:'#E8471C', weight:2.5, opacity:0.6, dashArray:'6,8', lineJoin:'round' }).addTo(mapEditFullInstance);
+    }
+  }
 }
 
 function cambiarIconoItem(ji, ii) {
