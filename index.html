@@ -1976,18 +1976,6 @@ function moverItem(ji, ii, dir) {
   sincronizarPuntosEdicion();
   guardarJornadasEnFirebase();
   renderDias();
-  // Redibujar línea de recorrido en el mapa si está abierto
-  if (mapEditFullInstance) {
-    mapEditFullInstance.eachLayer(layer => {
-      if (layer instanceof L.Polyline || (layer instanceof L.Marker && layer.options.interactive === false)) {
-        mapEditFullInstance.removeLayer(layer);
-      }
-    });
-    const coords = puntosEdicion.filter(p => p && p.lat && p.lng).map(p => [p.lat, p.lng]);
-    if (coords.length > 1) {
-      L.polyline(coords, { color:'#E8471C', weight:2.5, opacity:0.6, dashArray:'6,8', lineJoin:'round' }).addTo(mapEditFullInstance);
-    }
-  }
 }
 
 function cambiarIconoItem(ji, ii) {
@@ -2144,29 +2132,28 @@ function abrirEdicion() {
     <div onclick="toggleTipo(this,'${t}')" class="cat-chip ${(it.tipo||[]).includes(t)?'active':''}">${t}</div>
   `).join('');
 
-  // Reconstruir puntosEdicion desde jornadas con coords de it.puntos
-  const puntosConCoords = it.puntos || [];
-  const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
-  const puntosReconstruidos = [];
-  (it.jornadas||[]).forEach(j => {
-    (j.items||[]).forEach(item => {
-      const pMatch = puntosConCoords.find(p => p && (p.nombre === item.nombre || norm(p.nombre) === norm(item.nombre)));
-      puntosReconstruidos.push({
-        tipo: item.tipo,
-        nombre: item.nombre,
-        desc: item.desc,
-        dia: j.dia,
-        lat: pMatch?.lat || null,
-        lng: pMatch?.lng || null
+  // Puntos existentes desde jornadas, con coords de itinerarioGenerado.puntos si las hay
+  // Si puntosEdicion ya tiene coords (recien generados por IA), usarlos directamente
+  const yaHayCoords = puntosEdicion.filter(p => p && p.lat).length > 0;
+  if (!yaHayCoords) {
+    puntosEdicion = [];
+    const puntosConCoords = it.puntos || [];
+    const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+    (it.jornadas||[]).forEach(j => {
+      (j.items||[]).forEach(item => {
+        const pMatch = puntosConCoords.find(p => p && (norm(p.nombre) === norm(item.nombre)));
+        puntosEdicion.push({
+          tipo: item.tipo,
+          nombre: item.nombre,
+          desc: item.desc,
+          dia: j.dia,
+          lat: pMatch?.lat || null,
+          lng: pMatch?.lng || null
+        });
       });
     });
-  });
-  // Usar reconstruidos si tienen coords, si no conservar los que ya estaban en memoria
-  const recConCoords = puntosReconstruidos.filter(p => p.lat).length;
-  const memConCoords = puntosEdicion.filter(p => p && p.lat).length;
-  puntosEdicion = recConCoords > 0 ? puntosReconstruidos : (memConCoords > 0 ? puntosEdicion : puntosReconstruidos);
+  }
 
-  console.log('abrirEdicion: puntosEdicion=', puntosEdicion.length, 'con coords=', puntosEdicion.filter(p=>p.lat).length, 'it.puntos=', (it.puntos||[]).length);
   renderPuntos();
   cambiarTab('tabInfo');
   navegarDetalle('screenEditar');
@@ -2449,19 +2436,6 @@ function moverPunto(i, dir) {
   if (j < 0 || j >= puntosEdicion.length) return;
   [puntosEdicion[i], puntosEdicion[j]] = [puntosEdicion[j], puntosEdicion[i]];
   renderPuntos();
-  // Redibujar línea de recorrido en el mapa si está abierto
-  if (mapEditFullInstance) {
-    // Eliminar líneas y flechas anteriores (no los markers)
-    mapEditFullInstance.eachLayer(layer => {
-      if (layer instanceof L.Polyline || (layer instanceof L.Marker && layer.options.interactive === false)) {
-        mapEditFullInstance.removeLayer(layer);
-      }
-    });
-    const coords = puntosEdicion.filter(p => p && p.lat && p.lng).map(p => [p.lat, p.lng]);
-    if (coords.length > 1) {
-      L.polyline(coords, { color:'#E8471C', weight:2.5, opacity:0.6, dashArray:'6,8', lineJoin:'round' }).addTo(mapEditFullInstance);
-    }
-  }
   mostrarToast(dir === -1 ? '⬆️ Punto subido' : '⬇️ Punto bajado');
 }
 
@@ -2802,10 +2776,9 @@ async function abrirMapaEdicionPantalla() {
       mapEditFullInstance = null;
     }
 
-    // Cargar puntos frescos de Firebase solo si puntosEdicion está vacío
-    // (si hay puntos en memoria, son más frescos que Firebase)
+    // Cargar puntos frescos de Firebase si hay fbId
     const fbId = itinerarioGenerado?.fbId;
-    if (fbId && puntosEdicion.filter(p => p && p.lat && p.lng).length === 0) {
+    if (fbId) {
       try {
         const r = await fetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`);
         const puntosFirebase = await r.json();
@@ -2819,13 +2792,14 @@ async function abrirMapaEdicionPantalla() {
     // Calcular centro a partir de los puntos con coordenadas
     const ptsConCoords = puntosEdicion.filter(p => p && p.lat && p.lng);
     let lat = 40, lng = -3;
-    // 1. Preferir la media de los puntos (más preciso que las coords del destino)
-    if (ptsConCoords.length > 0) {
+    // 1. Usar coords del itinerario si las tiene
+    if (it?.lat && Math.abs(it.lat) > 0.01) { lat = it.lat; lng = it.lng; }
+    // 2. Si no, usar la media de los puntos
+    else if (ptsConCoords.length > 0) {
       lat = ptsConCoords.reduce((s,p) => s + p.lat, 0) / ptsConCoords.length;
       lng = ptsConCoords.reduce((s,p) => s + p.lng, 0) / ptsConCoords.length;
     }
-    // 2. Si no hay puntos, usar coords del itinerario
-    else if (it?.lat && Math.abs(it.lat) > 0.01) { lat = it.lat; lng = it.lng; }
+    console.log('Mapa centro:', lat, lng, '| puntos con coords:', ptsConCoords.length, '| total puntosEdicion:', puntosEdicion.length);
     mapEditFullInstance = L.map('mapEditFull', { center:[lat,lng], zoom:13, zoomControl:false });
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(mapEditFullInstance);
     L.control.zoom({ position:'topright' }).addTo(mapEditFullInstance);
