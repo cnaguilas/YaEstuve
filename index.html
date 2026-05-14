@@ -2132,27 +2132,20 @@ function abrirEdicion() {
     <div onclick="toggleTipo(this,'${t}')" class="cat-chip ${(it.tipo||[]).includes(t)?'active':''}">${t}</div>
   `).join('');
 
-  // Reconstruir puntosEdicion desde jornadas con coords de it.puntos
-  // Si ya hay coords en memoria (recien generados por IA), conservarlos
-  const puntosConCoords = it.puntos || [];
-  const norm = s => (s||'').toLowerCase().replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').replace(/[ñ]/g,'n').trim();
-  const reconstruidos = [];
-  (it.jornadas||[]).forEach(j => {
-    (j.items||[]).forEach(item => {
-      const pMatch = puntosConCoords.find(p => p && norm(p.nombre) === norm(item.nombre));
-      reconstruidos.push({
-        tipo: item.tipo, nombre: item.nombre, desc: item.desc, dia: j.dia,
-        lat: pMatch?.lat || null, lng: pMatch?.lng || null
+  // Conservar puntosEdicion si ya tiene coords (generados por IA o edición previa)
+  // Solo reconstruir desde jornadas si está completamente vacío
+  if (puntosEdicion.filter(p => p && p.lat).length === 0) {
+    puntosEdicion = [];
+    (it.jornadas||[]).forEach(j => {
+      (j.items||[]).forEach(item => {
+        const pMatch = (it.puntos||[]).find(p => p && p.nombre === item.nombre);
+        puntosEdicion.push({
+          tipo: item.tipo, nombre: item.nombre, desc: item.desc, dia: j.dia,
+          lat: pMatch?.lat || null, lng: pMatch?.lng || null
+        });
       });
     });
-  });
-  // Usar reconstruidos si tienen coords; si no, conservar los de memoria (IA recien generada)
-  if (reconstruidos.filter(p=>p.lat).length > 0) {
-    puntosEdicion = reconstruidos;
-  } else if (puntosEdicion.filter(p=>p&&p.lat).length === 0) {
-    puntosEdicion = reconstruidos;
   }
-  // Si puntosEdicion ya tenia coords (IA), se conservan tal cual
 
   renderPuntos();
   cambiarTab('tabInfo');
