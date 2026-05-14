@@ -3577,22 +3577,51 @@ Autor: ${autor}`;
       });
     });
 
+    // Coordenadas de fallback del destino (para puntos que Nominatim no encuentre)
+    let fallbackLat = null, fallbackLng = null;
+    try {
+      const qd = encodeURIComponent(parsed.destino);
+      const rd = await fetch(`https://nominatim.openstreetmap.org/search?q=${qd}&format=json&limit=1`);
+      const gd = await rd.json();
+      if (gd[0]) { fallbackLat = parseFloat(gd[0].lat); fallbackLng = parseFloat(gd[0].lon); }
+    } catch(e) {}
+
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       loadEl.innerHTML = `<div class="spinner"></div><p>Localizando ${i+1}/${items.length}...</p>`;
       try {
-        const q = encodeURIComponent(`${item.nombre}, ${parsed.destino}`);
-        const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, {
+        // Intento 1: nombre + destino
+        const q1 = encodeURIComponent(`${item.nombre}, ${parsed.destino}`);
+        const r1 = await fetch(`https://nominatim.openstreetmap.org/search?q=${q1}&format=json&limit=1`, {
           headers: { 'Accept-Language': 'es' }
         });
-        const geoData = await r.json();
-        puntosIA.push({
-          tipo: item.tipo, nombre: item.nombre, desc: item.desc, dia: item.dia,
-          lat: geoData[0] ? parseFloat(geoData[0].lat) : null,
-          lng: geoData[0] ? parseFloat(geoData[0].lon) : null
-        });
+        const geoData1 = await r1.json();
+        let lat = geoData1[0] ? parseFloat(geoData1[0].lat) : null;
+        let lng = geoData1[0] ? parseFloat(geoData1[0].lon) : null;
+
+        // Intento 2: solo el nombre
+        if (!lat) {
+          await new Promise(r => setTimeout(r, 200));
+          const q2 = encodeURIComponent(item.nombre);
+          const r2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1`, {
+            headers: { 'Accept-Language': 'es' }
+          });
+          const geoData2 = await r2.json();
+          lat = geoData2[0] ? parseFloat(geoData2[0].lat) : null;
+          lng = geoData2[0] ? parseFloat(geoData2[0].lon) : null;
+        }
+
+        // Fallback: usar coords del destino con pequeño offset aleatorio
+        if (!lat && fallbackLat) {
+          const offset = () => (Math.random() - 0.5) * 0.04;
+          lat = fallbackLat + offset();
+          lng = fallbackLng + offset();
+        }
+
+        puntosIA.push({ tipo: item.tipo, nombre: item.nombre, desc: item.desc, dia: item.dia, lat, lng });
       } catch(e) {
-        puntosIA.push({ tipo: item.tipo, nombre: item.nombre, desc: item.desc, dia: item.dia, lat: null, lng: null });
+        puntosIA.push({ tipo: item.tipo, nombre: item.nombre, desc: item.desc, dia: item.dia,
+          lat: fallbackLat, lng: fallbackLng });
       }
       if (i < items.length - 1) await new Promise(r => setTimeout(r, 350));
     }
