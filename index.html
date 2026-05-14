@@ -2797,9 +2797,10 @@ async function abrirMapaEdicionPantalla() {
       mapEditFullInstance = null;
     }
 
-    // Cargar puntos frescos de Firebase si hay fbId
+    // Cargar puntos frescos de Firebase solo si puntosEdicion está vacío
+    // (si hay puntos en memoria, son más frescos que Firebase)
     const fbId = itinerarioGenerado?.fbId;
-    if (fbId) {
+    if (fbId && puntosEdicion.filter(p => p && p.lat && p.lng).length === 0) {
       try {
         const r = await fetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`);
         const puntosFirebase = await r.json();
