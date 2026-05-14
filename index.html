@@ -3502,6 +3502,10 @@ async function generarConIA() {
   const desc = document.getElementById('f-descripcion').value.trim();
   if (!autor || !desc) { mostrarToast('⚠️ Rellena tu nombre y el viaje'); return; }
 
+  // Limpiar estado anterior completamente
+  puntosEdicion = [];
+  itinerarioGenerado = null;
+
   irPaso(2);
   const loadEl = document.getElementById('iaLoading');
   loadEl.style.display = 'flex';
