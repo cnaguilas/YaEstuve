@@ -2132,27 +2132,27 @@ function abrirEdicion() {
     <div onclick="toggleTipo(this,'${t}')" class="cat-chip ${(it.tipo||[]).includes(t)?'active':''}">${t}</div>
   `).join('');
 
-  // Puntos existentes desde jornadas, con coords de itinerarioGenerado.puntos si las hay
-  // Si puntosEdicion ya tiene coords (recien generados por IA), usarlos directamente
-  const yaHayCoords = puntosEdicion.filter(p => p && p.lat).length > 0;
-  if (!yaHayCoords) {
-    puntosEdicion = [];
-    const puntosConCoords = it.puntos || [];
-    const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
-    (it.jornadas||[]).forEach(j => {
-      (j.items||[]).forEach(item => {
-        const pMatch = puntosConCoords.find(p => p && (norm(p.nombre) === norm(item.nombre)));
-        puntosEdicion.push({
-          tipo: item.tipo,
-          nombre: item.nombre,
-          desc: item.desc,
-          dia: j.dia,
-          lat: pMatch?.lat || null,
-          lng: pMatch?.lng || null
-        });
+  // Reconstruir puntosEdicion desde jornadas con coords de it.puntos
+  // Si ya hay coords en memoria (recien generados por IA), conservarlos
+  const puntosConCoords = it.puntos || [];
+  const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+  const reconstruidos = [];
+  (it.jornadas||[]).forEach(j => {
+    (j.items||[]).forEach(item => {
+      const pMatch = puntosConCoords.find(p => p && norm(p.nombre) === norm(item.nombre));
+      reconstruidos.push({
+        tipo: item.tipo, nombre: item.nombre, desc: item.desc, dia: j.dia,
+        lat: pMatch?.lat || null, lng: pMatch?.lng || null
       });
     });
+  });
+  // Usar reconstruidos si tienen coords; si no, conservar los de memoria (IA recien generada)
+  if (reconstruidos.filter(p=>p.lat).length > 0) {
+    puntosEdicion = reconstruidos;
+  } else if (puntosEdicion.filter(p=>p&&p.lat).length === 0) {
+    puntosEdicion = reconstruidos;
   }
+  // Si puntosEdicion ya tenia coords (IA), se conservan tal cual
 
   renderPuntos();
   cambiarTab('tabInfo');
