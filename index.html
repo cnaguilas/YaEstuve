@@ -2147,6 +2147,7 @@ function abrirEdicion() {
     });
   }
 
+  alert('DEBUG: ' + puntosEdicion.length + ' puntos, con coords: ' + puntosEdicion.filter(p=>p&&p.lat).length);
   renderPuntos();
   cambiarTab('tabInfo');
   navegarDetalle('screenEditar');
