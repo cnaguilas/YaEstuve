@@ -3503,7 +3503,7 @@ function crearManualmente() {
     titulo: 'Mi viaje',
     destino: '',
     emoji: '📍',
-    lat: 40, lng: -3,
+    lat: null, lng: null,
     color: '#E8471C',
     dias: 1,
     tipo: [],
@@ -3702,6 +3702,9 @@ async function publicarViaje() {
   // Recoger cambios de edición si estamos en pantalla editar
   it.titulo = document.getElementById('e-titulo')?.value || it.titulo;
   it.destino = document.getElementById('e-destino')?.value || it.destino;
+
+  // Verificar destino obligatorio
+  if (!it.destino?.trim()) { mostrarToast('⚠️ Escribe el destino del viaje'); return; }
   it.dias = parseInt(document.getElementById('e-dias')?.value) || it.dias;
   it.presupuesto = document.getElementById('e-presupuesto')?.value || it.presupuesto;
   it.resumen = document.getElementById('e-resumen')?.value || it.resumen;
