@@ -3740,6 +3740,7 @@ async function publicarViaje() {
         }
       }
       destinos[key].itinerarios.push(it);
+      if (destinos[key].lat) añadirPinMundial(key, destinos[key]);
       mostrarToast('✅ ¡Viaje publicado!');
     }
 
@@ -3768,7 +3769,13 @@ async function cargarDeFirebase() {
       const key = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_');
       if (!key) return;
       if (!destinos[key]) {
-        destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||40, lng:it.lng||0, color:it.color||'#C4522A', itinerarios:[] };
+        destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
+        if (!destinos[key].lat) {
+          fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(it.destino)}&format=json&limit=1`)
+            .then(r=>r.json()).then(g=>{
+              if (g[0]) { destinos[key].lat=parseFloat(g[0].lat); destinos[key].lng=parseFloat(g[0].lon); añadirPinMundial(key, destinos[key]); }
+            }).catch(()=>{});
+        }
       }
       const esNuevo = !destinos[key].itinerarios.find(i => i.id === it.id || i.fbId === it.fbId);
       if (esNuevo) {
