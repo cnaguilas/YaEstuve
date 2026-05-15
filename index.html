@@ -3726,7 +3726,18 @@ async function publicarViaje() {
       it.fbId = data.name;
 
       if (!destinos[key]) {
-        destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||40, lng:it.lng||0, color:it.color||'#C4522A', itinerarios:[] };
+        destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
+        // Si no hay coords, buscarlas por Nominatim
+        if (!destinos[key].lat) {
+          fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(it.destino)}&format=json&limit=1`)
+            .then(r=>r.json()).then(g=>{
+              if (g[0]) {
+                destinos[key].lat = parseFloat(g[0].lat);
+                destinos[key].lng = parseFloat(g[0].lon);
+                añadirPinMundial(key, destinos[key]);
+              }
+            }).catch(()=>{});
+        }
       }
       destinos[key].itinerarios.push(it);
       mostrarToast('✅ ¡Viaje publicado!');
