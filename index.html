@@ -3173,7 +3173,7 @@ function abrirDestino(key) {
         <div class="it-dias">${it.dias} días</div>
       </div>
       <div class="it-autor">Por <strong>${it.autor}</strong></div>
-      <div class="it-tags">${it.tipo.map(t=>`<span class="it-tag">${t}</span>`).join('')}</div>
+      <div class="it-tags">${(it.tipo||[]).map(t=>`<span class="it-tag">${t}</span>`).join('')}</div>
       <div class="it-presupuesto">💰 <strong>${it.presupuesto}</strong></div>`;
     card.onclick = () => abrirItinerario(key, it.id);
     body.appendChild(card);
@@ -4004,7 +4004,10 @@ async function confirmarYPublicar() {
   // Destino = nombre de la primera ciudad confirmada o el destino original
   const primeraCiudad = ciudades.find(c=>c?.nombre);
   if (primeraCiudad) itinerarioGenerado.destino = primeraCiudad.nombre;
-  itinerarioGenerado.destinoKey = 'viaje_' + Date.now();
+  // destinoKey basado en el nombre del destino real para agrupar bien
+  const destinoNorm = (itinerarioGenerado.destino||'viaje').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').slice(0,40);
+  itinerarioGenerado.destinoKey = destinoNorm + '_' + Date.now();
 
   // Asignar puntos y abrir edición
   puntosEdicion = puntosIA;
