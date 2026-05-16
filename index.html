@@ -2248,14 +2248,20 @@ function buscarEnModalDestino(q) {
   box.innerHTML = '<p style="padding:12px;color:#888">Buscando...</p>';
   _modalTimer = setTimeout(async () => {
     try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&addressdetails=1`, {headers:{'Accept-Language':'es'}});
+      const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=es`);
       const data = await r.json();
-      if (!data.length) { box.innerHTML = '<p style="padding:12px;color:#888">Sin resultados</p>'; return; }
-      box.innerHTML = data.map(d => `
-        <div onclick="seleccionarDestinoModal('${d.display_name.replace(/'/g,"\'")}',${d.lat},${d.lon})"
+      const features = data?.features || [];
+      if (!features.length) { box.innerHTML = '<p style="padding:12px;color:#888">Sin resultados</p>'; return; }
+      box.innerHTML = features.map(f => {
+        const p = f.properties;
+        const lat = f.geometry.coordinates[1];
+        const lng = f.geometry.coordinates[0];
+        const nombre = [p.name, p.city, p.state, p.country].filter(Boolean).join(', ');
+        return `<div onclick="seleccionarDestinoModal('${nombre.replace(/'/g,"\\'")}',${lat},${lng})"
           style="padding:12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:0.9rem">
-          📍 ${d.display_name}
-        </div>`).join('');
+          📍 ${nombre}
+        </div>`;
+      }).join('');
     } catch(e) { box.innerHTML = '<p style="padding:12px;color:#888">Error al buscar</p>'; }
   }, 500);
 }
@@ -2279,15 +2285,20 @@ function buscarDestinoEdicion(q) {
   if (!q || q.length < 3) { box.style.display='none'; return; }
   _destTimer = setTimeout(async () => {
     try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=1`, { headers:{'Accept-Language':'es'} });
+      const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=es`);
       const data = await r.json();
-      if (!data.length) { box.style.display='none'; return; }
+      const features = data?.features || [];
+      if (!features.length) { box.style.display='none'; return; }
       box.style.display = 'block';
-      box.innerHTML = data.map(d => `
-        <div onclick="seleccionarDestinoEdicion('${d.display_name.replace(/'/g,"\'")}',${d.lat},${d.lon})"
+      box.innerHTML = features.map(f => {
+        const p = f.properties;
+        const lat = f.geometry.coordinates[1];
+        const lng = f.geometry.coordinates[0];
+        const nombre = [p.name, p.city, p.state, p.country].filter(Boolean).join(', ');
+        return `<div onclick="seleccionarDestinoEdicion('${nombre.replace(/'/g,"\\'")}',${lat},${lng})"
           style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:0.85rem"
-          onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">${d.display_name}</div>
-      `).join('');
+          onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">${nombre}</div>`;
+      }).join('');
     } catch(e) { box.style.display='none'; }
   }, 400);
 }
@@ -3355,19 +3366,22 @@ async function buscarLugarMapa(q) {
   if (!q || q.length < 2) { resultsEl.style.display = 'none'; return; }
   _busquedaMapaTimer = setTimeout(async () => {
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=1`, {
-        headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuveApp/1.0' }
-      });
+      // Photon: entiende español, sin límite de peticiones, resultados muy precisos
+      const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=es`);
       const data = await res.json();
-      if (!data.length) {
+      const features = data?.features || [];
+      if (!features.length) {
         resultsEl.innerHTML = '<div style="padding:14px;text-align:center;color:var(--muted);font-size:0.85rem">Sin resultados</div>';
         resultsEl.style.display = 'block';
         return;
       }
-      resultsEl.innerHTML = data.map(r => {
-        const nombre = r.display_name.split(',').slice(0,2).join(', ');
-        const detalle = r.display_name.split(',').slice(2,4).join(', ');
-        return `<div onclick="seleccionarLugarMapa(${r.lat},${r.lon},'${nombre.replace(/'/g,"\\'")}',event)"
+      resultsEl.innerHTML = features.map(f => {
+        const p = f.properties;
+        const lat = f.geometry.coordinates[1];
+        const lng = f.geometry.coordinates[0];
+        const nombre = p.name || p.street || q;
+        const detalle = [p.city, p.state, p.country].filter(Boolean).join(', ');
+        return `<div onclick="seleccionarLugarMapa(${lat},${lng},'${nombre.replace(/'/g,"\\'")}',event)"
           style="padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:10px;font-family:'Mulish',sans-serif">
           <span style="font-size:1rem;flex-shrink:0">📍</span>
           <div style="min-width:0">
@@ -3671,15 +3685,23 @@ async function generarConIA() {
     return;
   }
 
-  const prompt = `Eres un asistente de viajes. El usuario describe su viaje y debes estructurarlo en JSON.
+  const prompt = `Eres un asistente de viajes experto en geografía mundial. El usuario describe su viaje y debes estructurarlo en JSON con coordenadas GPS precisas.
 
 Descripción: "${desc}"
 
-Devuelve SOLO este JSON (sin texto extra):
+IMPORTANTE sobre las coordenadas:
+- Debes incluir "lat" y "lng" para CADA lugar (coordenadas GPS reales y precisas).
+- Usa tus conocimientos geográficos para dar coordenadas exactas de monumentos, restaurantes, hoteles, playas, etc.
+- Si no estás seguro de un lugar concreto, usa las coordenadas del centro de la ciudad.
+- Las coordenadas deben ser números decimales (ej: 41.3851, 2.1734).
+
+Devuelve SOLO este JSON (sin texto extra, sin markdown):
 {
   "titulo": "Título atractivo del viaje",
   "destino": "Ciudad/región principal, País",
-  "dias": número de días,
+  "lat": coordenada_latitud_destino_principal,
+  "lng": coordenada_longitud_destino_principal,
+  "dias": número_de_días,
   "presupuesto": "~XX€/persona",
   "resumen": "2-3 frases describiendo el viaje",
   "emoji": "emoji representativo",
@@ -3687,8 +3709,16 @@ Devuelve SOLO este JSON (sin texto extra):
     {
       "dia": 1,
       "lugar": "Ciudad del día",
+      "lat": coordenada_latitud_ciudad,
+      "lng": coordenada_longitud_ciudad,
       "items": [
-        {"tipo": "monumento|restaurante|hotel|atraccion|playa|mirador|museo|parque|iglesia|bar|compras|parking|visita|tip", "nombre": "Nombre exacto del lugar", "desc": "descripción breve"}
+        {
+          "tipo": "monumento|restaurante|hotel|atraccion|playa|mirador|museo|parque|iglesia|bar|compras|parking|visita|tip",
+          "nombre": "Nombre del lugar en español",
+          "desc": "descripción breve",
+          "lat": coordenada_latitud_lugar_exacto,
+          "lng": coordenada_longitud_lugar_exacto
+        }
       ]
     }
   ]
@@ -3719,7 +3749,7 @@ Devuelve SOLO este JSON (sin texto extra):
   };
 
   try {
-    const data = await apiCall({ model:'claude-sonnet-4-20250514', max_tokens:3000, messages:[{role:'user',content:prompt}] });
+    const data = await apiCall({ model:'claude-sonnet-4-20250514', max_tokens:4000, messages:[{role:'user',content:prompt}] });
     const txt = data.content.map(c=>c.text||'').join('');
     const jsonMatch = txt.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('La IA no devolvió JSON válido');
@@ -3826,21 +3856,25 @@ function buscarCiudadValidacion(ji) {
   sugs.style.display = 'block';
   sugs.innerHTML = '<div style="padding:10px;color:#888;font-size:0.85rem">Buscando...</div>';
 
-  fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=1`, {
-    headers: {'Accept-Language': 'es'}
-  })
+  fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=es`)
   .then(r => r.json())
   .then(data => {
-    if (!data.length) {
+    const features = data?.features || [];
+    if (!features.length) {
       sugs.innerHTML = '<div style="padding:10px;color:#888;font-size:0.85rem">Sin resultados</div>';
       return;
     }
-    sugs.innerHTML = data.map(d => `
-      <div onclick="seleccionarCiudadValidacion(${ji}, '${d.display_name.replace(/'/g,"\'")}', ${d.lat}, ${d.lon})"
+    sugs.innerHTML = features.map(f => {
+      const p = f.properties;
+      const lat = f.geometry.coordinates[1];
+      const lng = f.geometry.coordinates[0];
+      const nombre = [p.name, p.city, p.state, p.country].filter(Boolean).join(', ');
+      return `<div onclick="seleccionarCiudadValidacion(${ji}, '${nombre.replace(/'/g,"\\'")}', ${lat}, ${lng})"
         style="padding:10px;cursor:pointer;border-bottom:1px solid var(--border);font-size:0.85rem"
         onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">
-        📍 ${d.display_name}
-      </div>`).join('');
+        📍 ${nombre}
+      </div>`;
+    }).join('');
   })
   .catch(() => { sugs.innerHTML = '<div style="padding:10px;color:#888">Error al buscar</div>'; });
 }
@@ -3870,21 +3904,25 @@ function buscarLugarValidacion(ji, ii) {
   sugs.style.display = 'block';
   sugs.innerHTML = '<div style="padding:8px;color:#888;font-size:0.8rem">Buscando...</div>';
 
-  fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(nombre + ', ' + ciudad)}&format=json&limit=4`, {
-    headers: {'Accept-Language': 'es'}
-  })
+  fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(nombre + ' ' + ciudad)}&limit=4&lang=es`)
   .then(r => r.json())
   .then(data => {
-    if (!data.length) {
+    const features = data?.features || [];
+    if (!features.length) {
       sugs.innerHTML = '<div style="padding:8px;color:#888;font-size:0.8rem">Sin resultados — se usará la ubicación de la ciudad</div>';
       return;
     }
-    sugs.innerHTML = data.map(d => `
-      <div onclick="seleccionarLugarValidacion(${ji},${ii},${d.lat},${d.lon},'${d.display_name.replace(/'/g,"\'")}')"
+    sugs.innerHTML = features.map(f => {
+      const p = f.properties;
+      const lat = f.geometry.coordinates[1];
+      const lng = f.geometry.coordinates[0];
+      const etiqueta = [p.name, p.city, p.country].filter(Boolean).join(', ');
+      return `<div onclick="seleccionarLugarValidacion(${ji},${ii},${lat},${lng},'${etiqueta.replace(/'/g,"\\'")}')"
         style="padding:8px;cursor:pointer;border-bottom:1px solid var(--border);font-size:0.8rem"
         onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">
-        📍 ${d.display_name}
-      </div>`).join('');
+        📍 ${etiqueta}
+      </div>`;
+    }).join('');
   })
   .catch(() => { sugs.innerHTML = '<div style="padding:8px;color:#888">Error al buscar</div>'; });
 }
@@ -3926,60 +3964,31 @@ async function confirmarYPublicar() {
   loadEl.innerHTML = '<div class="spinner"></div><p>Localizando puntos en el mapa...</p>';
 
   const jornadas = itinerarioGenerado.jornadas || [];
-  const ciudades = window._validacionCiudades || [];
   let puntosIA = [];
+
+  loadEl.innerHTML = '<div class="spinner"></div><p>Construyendo el mapa...</p>';
 
   for (let ji = 0; ji < jornadas.length; ji++) {
     const j = jornadas[ji];
-    // Coords de la ciudad: usar las confirmadas o buscarlas
-    let ciudadLat = ciudades[ji]?.lat || null;
-    let ciudadLng = ciudades[ji]?.lng || null;
+    // Coords de la ciudad vienen directamente de la IA
+    const ciudadLat = j.lat || null;
+    const ciudadLng = j.lng || null;
 
-    if (!ciudadLat) {
-      try {
-        const ciudadInput = document.getElementById(`val-ciudad-${ji}`);
-        const ciudadNombre = (ciudadInput?.value || j.lugar || '').trim();
-        const qc = encodeURIComponent(ciudadNombre);
-        const rc = await fetch(`https://nominatim.openstreetmap.org/search?q=${qc}&format=json&limit=1`);
-        const gc = await rc.json();
-        if (gc[0]) { ciudadLat = parseFloat(gc[0].lat); ciudadLng = parseFloat(gc[0].lon); }
-      } catch(e) {}
-    }
-
-    // Geocodificar cada lugar de la jornada
     for (let ii = 0; ii < (j.items||[]).length; ii++) {
       const item = j.items[ii];
       if (['tip','avion','barco','tren','metro','tranvia','transporte'].includes(item.tipo)) continue;
 
-      loadEl.innerHTML = `<div class="spinner"></div><p>Localizando ${item.nombre}...</p>`;
+      // Las coords vienen de la IA directamente
+      // Si el usuario las corrigió manualmente en la validación, usar esas
+      let lat = item._lat || item.lat || null;
+      let lng = item._lng || item.lng || null;
 
-      let lat = null, lng = null;
-      try {
-        // Buscar "lugar, ciudad"
-        const q1 = encodeURIComponent(`${item.nombre}, ${j.lugar}`);
-        const r1 = await fetch(`https://nominatim.openstreetmap.org/search?q=${q1}&format=json&limit=3`, { headers:{'Accept-Language':'es'} });
-        const g1 = await r1.json();
-
-        // Filtrar por proximidad a la ciudad
-        if (ciudadLat) {
-          const cercano = g1.find(g => Math.abs(parseFloat(g.lat)-ciudadLat)<1 && Math.abs(parseFloat(g.lon)-ciudadLng)<1);
-          if (cercano) { lat = parseFloat(cercano.lat); lng = parseFloat(cercano.lon); }
-          else if (g1[0]) { lat = parseFloat(g1[0].lat); lng = parseFloat(g1[0].lon); }
-        } else if (g1[0]) {
-          lat = parseFloat(g1[0].lat); lng = parseFloat(g1[0].lon);
-        }
-      } catch(e) {}
-
-      // Fallback: offset de la ciudad
+      // Fallback: usar coords de la ciudad con pequeño offset para no apilar
       if (!lat && ciudadLat) {
-        const offset = () => (Math.random()-0.5)*0.015;
+        const offset = () => (Math.random()-0.5)*0.008;
         lat = ciudadLat + offset();
         lng = ciudadLng + offset();
       }
-
-      // Usar coords confirmadas por el usuario si las hay
-      const latFinal = item._lat || lat;
-      const lngFinal = item._lng || lng;
 
       puntosIA.push({
         id: newPuntoId(),
@@ -3987,23 +3996,21 @@ async function confirmarYPublicar() {
         nombre: item.nombre,
         desc: item.desc || '',
         dia: j.dia,
-        lat: latFinal,
-        lng: lngFinal
+        lat,
+        lng
       });
-
-      await new Promise(r => setTimeout(r, 300));
     }
   }
 
-  // Coordenadas del destino principal (media de ciudades confirmadas)
-  const ciudadesConCoords = ciudades.filter(c => c?.lat);
-  if (ciudadesConCoords.length > 0) {
-    itinerarioGenerado.lat = ciudadesConCoords.reduce((s,c)=>s+c.lat,0) / ciudadesConCoords.length;
-    itinerarioGenerado.lng = ciudadesConCoords.reduce((s,c)=>s+c.lng,0) / ciudadesConCoords.length;
+  // Coordenadas del destino principal — vienen directamente de la IA
+  // Si no vienen en el raíz, usar la media de las jornadas
+  if (!itinerarioGenerado.lat) {
+    const jornadasConCoords = jornadas.filter(j => j.lat);
+    if (jornadasConCoords.length > 0) {
+      itinerarioGenerado.lat = jornadasConCoords.reduce((s,j)=>s+j.lat,0) / jornadasConCoords.length;
+      itinerarioGenerado.lng = jornadasConCoords.reduce((s,j)=>s+j.lng,0) / jornadasConCoords.length;
+    }
   }
-  // Destino = nombre de la primera ciudad confirmada o el destino original
-  const primeraCiudad = ciudades.find(c=>c?.nombre);
-  if (primeraCiudad) itinerarioGenerado.destino = primeraCiudad.nombre;
   // destinoKey basado en el nombre del destino real para agrupar bien
   const destinoNorm = (itinerarioGenerado.destino||'viaje').toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').slice(0,40);
@@ -4112,11 +4119,12 @@ async function publicarViaje() {
         destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
         // Si no hay coords, buscarlas por Nominatim
         if (!destinos[key].lat) {
-          fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(it.destino)}&format=json&limit=1`)
+          fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`)
             .then(r=>r.json()).then(g=>{
-              if (g[0]) {
-                destinos[key].lat = parseFloat(g[0].lat);
-                destinos[key].lng = parseFloat(g[0].lon);
+              const f = g?.features?.[0];
+              if (f) {
+                destinos[key].lat = f.geometry.coordinates[1];
+                destinos[key].lng = f.geometry.coordinates[0];
                 añadirPinMundial(key, destinos[key]);
               }
             }).catch(()=>{});
@@ -4154,9 +4162,10 @@ async function cargarDeFirebase() {
       if (!destinos[key]) {
         destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
         if (!destinos[key].lat) {
-          fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(it.destino)}&format=json&limit=1`)
+          fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`)
             .then(r=>r.json()).then(g=>{
-              if (g[0]) { destinos[key].lat=parseFloat(g[0].lat); destinos[key].lng=parseFloat(g[0].lon); añadirPinMundial(key, destinos[key]); }
+              const f = g?.features?.[0];
+              if (f) { destinos[key].lat=f.geometry.coordinates[1]; destinos[key].lng=f.geometry.coordinates[0]; añadirPinMundial(key, destinos[key]); }
             }).catch(()=>{});
         }
       }
