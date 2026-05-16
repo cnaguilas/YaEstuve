@@ -1282,49 +1282,27 @@ html, body {
       <button class="btn-secondary" onclick="crearManualmente()" style="display:flex;align-items:center;justify-content:center;gap:6px">✏️ Crear el viaje yo mismo</button>
     </div>
 
-    <!-- Paso 2 -->
+    <!-- Paso 2: IA procesando -->
     <div class="paso" id="paso2">
-      <h2>Revisa y retoca ✏️</h2>
-      <p>La IA ha estructurado tu viaje. Cambia lo que quieras.</p>
-
       <div class="ia-loading" id="iaLoading">
         <div class="spinner"></div>
         <p>Estructurando tu viaje...</p>
       </div>
-
-      <div class="ia-resultado" id="iaResultado">
-        <div class="form-group">
-          <label>Título</label>
-          <input type="text" id="r-titulo">
-        </div>
-        <div class="form-group">
-          <label>Destino</label>
-          <input type="text" id="r-destino">
-        </div>
-        <div class="form-group">
-          <label>Días</label>
-          <input type="number" id="r-dias" min="1">
-        </div>
-        <div class="form-group">
-          <label>Presupuesto / persona</label>
-          <input type="text" id="r-presupuesto">
-        </div>
-        <div class="form-group">
-          <label>Resumen</label>
-          <textarea id="r-resumen" style="min-height:80px"></textarea>
-        </div>
-        <button class="btn-primary" onclick="irPaso(3)">Continuar →</button>
-        <button class="btn-secondary" onclick="irPaso(1)">← Volver a escribir</button>
+      <div id="iaError" style="display:none;text-align:center;padding:20px">
+        <p style="color:var(--primary)">😔 Algo salió mal</p>
+        <button class="btn-secondary" onclick="irPaso(1)">← Volver a intentarlo</button>
       </div>
     </div>
 
-    <!-- Paso 3 -->
+    <!-- Paso 3: Validación ciudad por ciudad -->
     <div class="paso" id="paso3">
-      <h2>¡Casi listo! ✨</h2>
-      <p>La IA ha estructurado tu viaje. Ahora puedes añadir puntos en el mapa, fotos y más detalles.</p>
-      <div class="resumen-card" id="resumenCard"></div>
-      <button class="btn-primary" onclick="itinerarioGenerado.puntos=puntosEdicion.slice();abrirEdicion()">✏️ Añadir detalles y publicar</button>
-      <button class="btn-secondary" onclick="irPaso(2)">← Editar resumen</button>
+      <h2>Confirma tu viaje 📍</h2>
+      <p style="color:#888;font-size:0.9rem">Revisa cada día. Toca la ciudad para ajustar su ubicación exacta.</p>
+      <div id="validacionDias"></div>
+      <div style="margin-top:20px">
+        <button class="btn-primary" onclick="confirmarYPublicar()">✅ Todo correcto → Publicar</button>
+        <button class="btn-secondary" onclick="irPaso(1)">← Volver a escribir</button>
+      </div>
     </div>
 
   </div>
@@ -3670,33 +3648,51 @@ async function generarConIA() {
   const desc = document.getElementById('f-descripcion').value.trim();
   if (!autor || !desc) { mostrarToast('⚠️ Rellena tu nombre y el viaje'); return; }
 
-  // Limpiar estado anterior completamente
+  // Limpiar estado anterior
   puntosEdicion = [];
   itinerarioGenerado = null;
+  state.viajeActual = null;
 
   irPaso(2);
+
   const loadEl = document.getElementById('iaLoading');
-  loadEl.style.display = 'flex';
-  loadEl.innerHTML = '<div class="spinner"></div><p>Estructurando tu viaje...</p>';
-  document.getElementById('iaResultado').style.display = 'none';
+  loadEl.style.display = 'block';
+  document.getElementById('iaError').style.display = 'none';
 
-  const prompt = `Eres un asistente que estructura itinerarios de viaje. Devuelve SOLO un objeto JSON válido sin texto ni markdown:
-{"titulo":"...","destino":"...","emoji":"...","color":"#hex","dias":0,"tipo":["Mochilero|Familiar|Pareja|Lujo|Aventura|Cultural|Relax|Naturaleza"],"presupuesto":"~XXX€/persona","resumen":"2-3 frases","jornadas":[{"dia":1,"lugar":"...","items":[{"tipo":"hotel|restaurante|visita|tip|transporte|atraccion|bar|playa|monumento|museo|parque|fotografia|compras|deporte|avion|barco|tren|templo|castillo|gastronomia|pdi","nombre":"...","desc":"..."}]}]}
-Descripción: ${desc}
-Autor: ${autor}`;
-
-  const apiKey = localStorage.getItem('ye_api_key') || '';
+  const apiKey = localStorage.getItem('ye_api_key');
   if (!apiKey) {
     loadEl.style.display = 'none';
-    document.getElementById('iaResultado').style.display = 'block';
-    document.getElementById('iaResultado').innerHTML = `<div style="text-align:center;padding:20px">
+    document.getElementById('iaError').style.display = 'block';
+    document.getElementById('iaError').innerHTML = `
       <p style="font-size:1.5rem">🔑</p>
       <p style="font-weight:600;margin-bottom:8px">Necesitas una clave API</p>
-      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:16px">Ve a Perfil → Clave API y añade tu clave de Anthropic para usar la IA.</p>
-      <button onclick="navegarA('screenPerfil')" style="padding:10px 20px;background:var(--primary);color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">Ir a Perfil</button>
-    </div>`;
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:16px">Ve a Perfil → Clave API y añade tu clave de Anthropic.</p>
+      <button onclick="navegarA('screenPerfil')" style="padding:10px 20px;background:var(--primary);color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">Ir a Perfil</button>`;
     return;
   }
+
+  const prompt = `Eres un asistente de viajes. El usuario describe su viaje y debes estructurarlo en JSON.
+
+Descripción: "${desc}"
+
+Devuelve SOLO este JSON (sin texto extra):
+{
+  "titulo": "Título atractivo del viaje",
+  "destino": "Ciudad/región principal, País",
+  "dias": número de días,
+  "presupuesto": "~XX€/persona",
+  "resumen": "2-3 frases describiendo el viaje",
+  "emoji": "emoji representativo",
+  "jornadas": [
+    {
+      "dia": 1,
+      "lugar": "Ciudad del día",
+      "items": [
+        {"tipo": "monumento|restaurante|hotel|atraccion|playa|mirador|museo|parque|iglesia|bar|compras|parking|visita|tip", "nombre": "Nombre exacto del lugar", "desc": "descripción breve"}
+      ]
+    }
+  ]
+}`;
 
   const apiCall = async (body) => {
     for (let i = 0; i < 3; i++) {
@@ -3723,7 +3719,6 @@ Autor: ${autor}`;
   };
 
   try {
-    // Paso 1: generar itinerario (prompt sin coords, más rápido)
     const data = await apiCall({ model:'claude-sonnet-4-20250514', max_tokens:3000, messages:[{role:'user',content:prompt}] });
     const txt = data.content.map(c=>c.text||'').join('');
     const jsonMatch = txt.match(/\{[\s\S]*\}/);
@@ -3731,110 +3726,247 @@ Autor: ${autor}`;
     const parsed = JSON.parse(jsonMatch[0]);
     parsed.autor = autor;
     parsed.id = Date.now();
-    parsed.destinoKey = parsed.destino.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,'_');
+    parsed.destinoKey = 'viaje_' + Date.now();
 
-    // Paso 2: coordenadas con OpenStreetMap Nominatim (gratis, sin API key)
-    loadEl.innerHTML = '<div class="spinner"></div><p>Localizando puntos en el mapa...</p>';
-    let puntosIA = [];
-    const items = [];
-    (parsed.jornadas||[]).forEach(j => {
-      (j.items||[]).forEach(item => {
-        if (!['tip','avion','barco','tren','metro','tranvia','transporte'].includes(item.tipo)) {
-          items.push({ tipo: item.tipo||'visita', nombre: item.nombre, desc: item.desc||'', dia: j.dia });
-        }
-      });
-    });
-
-    // Coordenadas de fallback del destino (para puntos que Nominatim no encuentre)
-    let fallbackLat = null, fallbackLng = null;
-    try {
-      const qd = encodeURIComponent(parsed.destino);
-      const rd = await fetch(`https://nominatim.openstreetmap.org/search?q=${qd}&format=json&limit=1`);
-      const gd = await rd.json();
-      if (gd[0]) { fallbackLat = parseFloat(gd[0].lat); fallbackLng = parseFloat(gd[0].lon); }
-    } catch(e) {}
-
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      loadEl.innerHTML = `<div class="spinner"></div><p>Localizando ${i+1}/${items.length}...</p>`;
-      try {
-        // Intento 1: nombre + destino
-        const q1 = encodeURIComponent(`${item.nombre}, ${parsed.destino}`);
-        const r1 = await fetch(`https://nominatim.openstreetmap.org/search?q=${q1}&format=json&limit=1`, {
-          headers: { 'Accept-Language': 'es' }
-        });
-        const geoData1 = await r1.json();
-        let lat = geoData1[0] ? parseFloat(geoData1[0].lat) : null;
-        let lng = geoData1[0] ? parseFloat(geoData1[0].lon) : null;
-
-        // Intento 2: solo el nombre, pero validar que esté cerca del destino
-        if (!lat && fallbackLat) {
-          await new Promise(r => setTimeout(r, 200));
-          const q2 = encodeURIComponent(item.nombre);
-          const r2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=3`, {
-            headers: { 'Accept-Language': 'es' }
-          });
-          const geoData2 = await r2.json();
-          // Filtrar resultados que estén a menos de 2 grados del destino
-          const cercano = geoData2.find(g => {
-            const dlat = Math.abs(parseFloat(g.lat) - fallbackLat);
-            const dlng = Math.abs(parseFloat(g.lon) - fallbackLng);
-            return dlat < 2 && dlng < 2;
-          });
-          if (cercano) {
-            lat = parseFloat(cercano.lat);
-            lng = parseFloat(cercano.lon);
-          }
-        }
-
-        // Fallback: usar coords del destino con pequeño offset aleatorio
-        if (!lat && fallbackLat) {
-          const offset = () => (Math.random() - 0.5) * 0.02;
-          lat = fallbackLat + offset();
-          lng = fallbackLng + offset();
-        }
-
-        puntosIA.push({ tipo: item.tipo, nombre: item.nombre, desc: item.desc, dia: item.dia, lat, lng });
-      } catch(e) {
-        puntosIA.push({ tipo: item.tipo, nombre: item.nombre, desc: item.desc, dia: item.dia,
-          lat: fallbackLat, lng: fallbackLng });
-      }
-      if (i < items.length - 1) await new Promise(r => setTimeout(r, 350));
-    }
-
-    // Coordenadas del destino
-    try {
-      const q = encodeURIComponent(parsed.destino);
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);
-      const geoData = await r.json();
-      if (geoData[0]) { parsed.lat = parseFloat(geoData[0].lat); parsed.lng = parseFloat(geoData[0].lon); }
-    } catch(e) {}
-
-    parsed.puntos = puntosIA;
-    // Asignar IDs únicos a todos los puntos
-    puntosIA.forEach(p => { if (!p.id) p.id = newPuntoId(); });
-    puntosEdicion = puntosIA.slice();
+    // Guardar itinerario generado y pasar al paso de validación
     itinerarioGenerado = parsed;
-    itinerarioGenerado.puntos = puntosEdicion;
-    // Sincronizar estado central
     state.viajeActual = itinerarioGenerado;
-    state._dirty = false;
-
-    document.getElementById('r-titulo').value = parsed.titulo||'';
-    document.getElementById('r-destino').value = parsed.destino||'';
-    document.getElementById('r-dias').value = parsed.dias||'';
-    document.getElementById('r-presupuesto').value = parsed.presupuesto||'';
-    document.getElementById('r-resumen').value = parsed.resumen||'';
 
     loadEl.style.display = 'none';
-    document.getElementById('iaResultado').style.display = 'block';
-    if (puntosIA.length > 0) mostrarToast(`✨ Listo — ${puntosIA.length} puntos añadidos al mapa`);
+    renderValidacionDias(parsed);
+    irPaso(3);
+
   } catch(e) {
     console.error('Error IA:', e);
-    loadEl.innerHTML = `<p style="color:#e8471c;margin-bottom:16px">😔 ${e.message}</p>
+    loadEl.style.display = 'none';
+    document.getElementById('iaError').style.display = 'block';
+    document.getElementById('iaError').innerHTML = `
+      <p style="color:var(--primary);margin-bottom:16px">😔 ${e.message}</p>
       <button class="btn-secondary" onclick="irPaso(1)">← Volver a intentarlo</button>`;
   }
 }
+
+// ══ NUEVO FLUJO DE VALIDACIÓN ══════════════════════════════
+// Renderiza el formulario de validación día por día
+function renderValidacionDias(parsed) {
+  const container = document.getElementById('validacionDias');
+  if (!container) return;
+
+  // Cabecera del viaje
+  let html = `
+    <div style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:16px">
+      <div style="font-size:1.1rem;font-weight:700">${parsed.emoji||'📍'} ${parsed.titulo}</div>
+      <div style="font-size:0.85rem;color:#888;margin-top:4px">${parsed.dias} días · ${parsed.presupuesto}</div>
+      <div style="font-size:0.85rem;margin-top:6px">${parsed.resumen}</div>
+    </div>`;
+
+  // Un bloque por jornada
+  (parsed.jornadas||[]).forEach((j, ji) => {
+    html += `
+    <div style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="background:var(--primary);color:white;padding:3px 10px;border-radius:20px;font-size:0.8rem;font-weight:700">DÍA ${j.dia}</span>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:0.75rem;color:#888;font-weight:600;text-transform:uppercase">Ciudad</label>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
+          <input id="val-ciudad-${ji}" value="${j.lugar||''}" placeholder="Ciudad del día..."
+            style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--bg)">
+          <button onclick="buscarCiudadValidacion(${ji})" 
+            style="background:var(--primary);color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:1rem">📍</button>
+        </div>
+        <div id="val-ciudad-coords-${ji}" style="font-size:0.75rem;color:green;margin-top:3px;display:none">✅ Ubicación confirmada</div>
+        <div id="val-ciudad-sugs-${ji}" style="background:white;border:1px solid var(--border);border-radius:8px;margin-top:4px;display:none;max-height:150px;overflow-y:auto;z-index:99;position:relative"></div>
+      </div>
+      <div>
+        <label style="font-size:0.75rem;color:#888;font-weight:600;text-transform:uppercase">Lugares</label>
+        <div id="val-lugares-${ji}" style="margin-top:6px">`;
+
+    (j.items||[]).forEach((item, ii) => {
+      html += `
+          <div id="val-item-${ji}-${ii}" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:1.2rem">${iconoTipo(item.tipo)}</span>
+            <span style="flex:1;font-size:0.9rem">${item.nombre}</span>
+            <button onclick="eliminarItemValidacion(${ji},${ii})" 
+              style="background:none;border:none;color:#ccc;font-size:1rem;cursor:pointer;padding:4px">✕</button>
+          </div>`;
+    });
+
+    html += `
+        </div>
+        <button onclick="añadirLugarValidacion(${ji})" 
+          style="margin-top:8px;background:none;border:1px dashed var(--border);width:100%;padding:8px;border-radius:8px;color:#888;cursor:pointer;font-size:0.85rem">+ Añadir lugar</button>
+      </div>
+    </div>`;
+  });
+
+  container.innerHTML = html;
+
+  // Guardar datos de ciudades (lat/lng) — se llenarán al confirmar
+  window._validacionCiudades = (parsed.jornadas||[]).map(j => ({
+    nombre: j.lugar,
+    lat: null,
+    lng: null
+  }));
+}
+
+// Buscar ciudad con Nominatim al pulsar 📍
+let _valCiudadTimer = null;
+function buscarCiudadValidacion(ji) {
+  const input = document.getElementById(`val-ciudad-${ji}`);
+  const q = input?.value?.trim();
+  if (!q) return;
+
+  const sugs = document.getElementById(`val-ciudad-sugs-${ji}`);
+  sugs.style.display = 'block';
+  sugs.innerHTML = '<div style="padding:10px;color:#888;font-size:0.85rem">Buscando...</div>';
+
+  fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=1`, {
+    headers: {'Accept-Language': 'es'}
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (!data.length) {
+      sugs.innerHTML = '<div style="padding:10px;color:#888;font-size:0.85rem">Sin resultados</div>';
+      return;
+    }
+    sugs.innerHTML = data.map(d => `
+      <div onclick="seleccionarCiudadValidacion(${ji}, '${d.display_name.replace(/'/g,"\'")}', ${d.lat}, ${d.lon})"
+        style="padding:10px;cursor:pointer;border-bottom:1px solid var(--border);font-size:0.85rem"
+        onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">
+        📍 ${d.display_name}
+      </div>`).join('');
+  })
+  .catch(() => { sugs.innerHTML = '<div style="padding:10px;color:#888">Error al buscar</div>'; });
+}
+
+function seleccionarCiudadValidacion(ji, nombre, lat, lng) {
+  document.getElementById(`val-ciudad-${ji}`).value = nombre;
+  document.getElementById(`val-ciudad-sugs-${ji}`).style.display = 'none';
+  document.getElementById(`val-ciudad-coords-${ji}`).style.display = 'block';
+
+  if (!window._validacionCiudades) window._validacionCiudades = [];
+  window._validacionCiudades[ji] = { nombre, lat: parseFloat(lat), lng: parseFloat(lng) };
+
+  // Actualizar en itinerarioGenerado
+  if (itinerarioGenerado?.jornadas?.[ji]) {
+    itinerarioGenerado.jornadas[ji].lugar = nombre;
+  }
+  mostrarToast('📍 Ciudad confirmada');
+}
+
+function eliminarItemValidacion(ji, ii) {
+  const el = document.getElementById(`val-item-${ji}-${ii}`);
+  if (el) el.remove();
+  if (itinerarioGenerado?.jornadas?.[ji]?.items) {
+    itinerarioGenerado.jornadas[ji].items.splice(ii, 1);
+  }
+}
+
+function añadirLugarValidacion(ji) {
+  const nombre = prompt('Nombre del lugar:');
+  if (!nombre?.trim()) return;
+  if (!itinerarioGenerado?.jornadas?.[ji]) return;
+  itinerarioGenerado.jornadas[ji].items.push({ tipo: 'visita', nombre: nombre.trim(), desc: '' });
+  renderValidacionDias(itinerarioGenerado);
+}
+
+// Al confirmar: geocodificar ciudades confirmadas y construir puntos
+async function confirmarYPublicar() {
+  if (!itinerarioGenerado) return;
+
+  const loadEl = document.getElementById('iaLoading');
+  irPaso(2);
+  loadEl.style.display = 'block';
+  loadEl.innerHTML = '<div class="spinner"></div><p>Localizando puntos en el mapa...</p>';
+
+  const jornadas = itinerarioGenerado.jornadas || [];
+  const ciudades = window._validacionCiudades || [];
+  let puntosIA = [];
+
+  for (let ji = 0; ji < jornadas.length; ji++) {
+    const j = jornadas[ji];
+    // Coords de la ciudad: usar las confirmadas o buscarlas
+    let ciudadLat = ciudades[ji]?.lat || null;
+    let ciudadLng = ciudades[ji]?.lng || null;
+
+    if (!ciudadLat) {
+      try {
+        const qc = encodeURIComponent(document.getElementById(`val-ciudad-${ji}`)?.value || j.lugar || '');
+        const rc = await fetch(`https://nominatim.openstreetmap.org/search?q=${qc}&format=json&limit=1`);
+        const gc = await rc.json();
+        if (gc[0]) { ciudadLat = parseFloat(gc[0].lat); ciudadLng = parseFloat(gc[0].lon); }
+      } catch(e) {}
+    }
+
+    // Geocodificar cada lugar de la jornada
+    for (let ii = 0; ii < (j.items||[]).length; ii++) {
+      const item = j.items[ii];
+      if (['tip','avion','barco','tren','metro','tranvia','transporte'].includes(item.tipo)) continue;
+
+      loadEl.innerHTML = `<div class="spinner"></div><p>Localizando ${item.nombre}...</p>`;
+
+      let lat = null, lng = null;
+      try {
+        // Buscar "lugar, ciudad"
+        const q1 = encodeURIComponent(`${item.nombre}, ${j.lugar}`);
+        const r1 = await fetch(`https://nominatim.openstreetmap.org/search?q=${q1}&format=json&limit=3`, { headers:{'Accept-Language':'es'} });
+        const g1 = await r1.json();
+
+        // Filtrar por proximidad a la ciudad
+        if (ciudadLat) {
+          const cercano = g1.find(g => Math.abs(parseFloat(g.lat)-ciudadLat)<1 && Math.abs(parseFloat(g.lon)-ciudadLng)<1);
+          if (cercano) { lat = parseFloat(cercano.lat); lng = parseFloat(cercano.lon); }
+          else if (g1[0]) { lat = parseFloat(g1[0].lat); lng = parseFloat(g1[0].lon); }
+        } else if (g1[0]) {
+          lat = parseFloat(g1[0].lat); lng = parseFloat(g1[0].lon);
+        }
+      } catch(e) {}
+
+      // Fallback: offset de la ciudad
+      if (!lat && ciudadLat) {
+        const offset = () => (Math.random()-0.5)*0.015;
+        lat = ciudadLat + offset();
+        lng = ciudadLng + offset();
+      }
+
+      puntosIA.push({
+        id: newPuntoId(),
+        tipo: item.tipo || 'visita',
+        nombre: item.nombre,
+        desc: item.desc || '',
+        dia: j.dia,
+        lat, lng
+      });
+
+      await new Promise(r => setTimeout(r, 300));
+    }
+  }
+
+  // Coordenadas del destino principal (media de ciudades confirmadas)
+  const ciudadesConCoords = ciudades.filter(c => c?.lat);
+  if (ciudadesConCoords.length > 0) {
+    itinerarioGenerado.lat = ciudadesConCoords.reduce((s,c)=>s+c.lat,0) / ciudadesConCoords.length;
+    itinerarioGenerado.lng = ciudadesConCoords.reduce((s,c)=>s+c.lng,0) / ciudadesConCoords.length;
+  }
+  // Destino = nombre de la primera ciudad confirmada o el destino original
+  const primeraCiudad = ciudades.find(c=>c?.nombre);
+  if (primeraCiudad) itinerarioGenerado.destino = primeraCiudad.nombre;
+  itinerarioGenerado.destinoKey = 'viaje_' + Date.now();
+
+  // Asignar puntos y abrir edición
+  puntosEdicion = puntosIA;
+  itinerarioGenerado.puntos = puntosEdicion;
+  state.viajeActual = itinerarioGenerado;
+  state.viajeActual.puntos = puntosEdicion;
+  state._dirty = false;
+
+  loadEl.style.display = 'none';
+  mostrarToast(`✨ ${puntosIA.length} puntos localizados`);
+  itinerarioGenerado.puntos = puntosEdicion.slice();
+  abrirEdicion();
+}
+
 
 function rellenarResumen() {
   if (!itinerarioGenerado) return;
