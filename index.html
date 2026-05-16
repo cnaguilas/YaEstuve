@@ -1983,10 +1983,26 @@ function moverItem(ji, ii, dir) {
   if (jj < 0 || jj >= items.length) return;
   [items[ii], items[jj]] = [items[jj], items[ii]];
   sincronizarPuntosEdicion();
+  // Reordenar puntosEdicion según el nuevo orden de jornadas
+  const puntosOrdenados = [];
+  (itinerarioGenerado?.jornadas||[]).forEach(j => {
+    (j.items||[]).forEach(item => {
+      const p = puntosEdicion.find(x => x.nombre === item.nombre);
+      if (p) puntosOrdenados.push(p);
+    });
+  });
+  if (puntosOrdenados.length > 0) {
+    puntosEdicion = puntosOrdenados;
+    if (state.viajeActual) state.viajeActual.puntos = puntosEdicion;
+  }
   state._dirty = true;
   guardarJornadasEnFirebase();
   renderDias();
-  if (mapEditFullInstance) _redibujarLineaMapa();
+  if (mapEditFullInstance) {
+    mapEditFullInstance.eachLayer(l => { if (l instanceof L.Marker) mapEditFullInstance.removeLayer(l); });
+    renderPuntosEnMapa();
+    _redibujarLineaMapa();
+  }
 }
 
 function cambiarIconoItem(ji, ii) {
