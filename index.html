@@ -2978,9 +2978,13 @@ async function abrirMapaEdicionPantalla() {
 
     conCoords.forEach(p => {
       const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.visita;
+      // Pin aproximado: fondo amarillo punteado para avisar al usuario
+      const bgAprox = p.aproximado
+        ? 'background:rgba(255,200,0,0.25);border:2px dashed #f5a623;border-radius:50%;padding:2px;'
+        : '';
       const icon = L.divIcon({
         className: '',
-        html: `<div style="font-size:1.6rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">${cfg.icon}</div>`,
+        html: `<div style="${bgAprox}font-size:1.6rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">${cfg.icon}</div>`,
         iconSize: [32,32], iconAnchor: [16,16]
       });
       const marker = L.marker([p.lat, p.lng], { icon, draggable: true }).addTo(mapEditFullInstance);
@@ -3006,6 +3010,7 @@ async function abrirMapaEdicionPantalla() {
       marker.bindPopup(`
         <div style="font-family:'Mulish',sans-serif;min-width:160px">
           <b style="font-size:0.9rem">${cfg.icon} ${p.nombre}</b>
+          ${p.aproximado ? `<div style="font-size:0.72rem;color:#f5a623;font-weight:700;margin-top:4px">⚠️ Ubicación aproximada — arrastra para corregir</div>` : ''}
           ${p.desc ? `<p style="font-size:0.78rem;color:#666;margin:4px 0">${p.desc}</p>` : ''}
           <div style="display:flex;gap:8px;margin-top:8px">
             <button onclick="editarPunto(${idx})" style="flex:1;padding:6px;background:#E8471C;color:white;border:none;border-radius:8px;font-size:0.75rem;cursor:pointer">✏️ Editar</button>
@@ -3758,13 +3763,11 @@ Devuelve SOLO este JSON (sin texto extra, sin markdown):
     parsed.id = Date.now();
     parsed.destinoKey = 'viaje_' + Date.now();
 
-    // Guardar itinerario generado y pasar al paso de validación
+    // Guardar itinerario y construir puntos directamente (sin pantalla de validación)
     itinerarioGenerado = parsed;
     state.viajeActual = itinerarioGenerado;
 
-    loadEl.style.display = 'none';
-    renderValidacionDias(parsed);
-    irPaso(3);
+    await construirPuntosDesdeIA(parsed, loadEl);
 
   } catch(e) {
     console.error('Error IA:', e);
@@ -3954,23 +3957,16 @@ function añadirLugarValidacion(ji) {
   renderValidacionDias(itinerarioGenerado);
 }
 
-// Al confirmar: geocodificar ciudades confirmadas y construir puntos
-async function confirmarYPublicar() {
-  if (!itinerarioGenerado) return;
-
-  const loadEl = document.getElementById('iaLoading');
-  irPaso(2);
-  loadEl.style.display = 'block';
-  loadEl.innerHTML = '<div class="spinner"></div><p>Localizando puntos en el mapa...</p>';
-
-  const jornadas = itinerarioGenerado.jornadas || [];
-  let puntosIA = [];
-
+// Construye los puntos del mapa a partir del JSON de la IA y abre la edición
+async function construirPuntosDesdeIA(parsed, loadEl) {
   loadEl.innerHTML = '<div class="spinner"></div><p>Construyendo el mapa...</p>';
+
+  const jornadas = parsed.jornadas || [];
+  let puntosIA = [];
+  let sinCoords = []; // puntos que usan fallback
 
   for (let ji = 0; ji < jornadas.length; ji++) {
     const j = jornadas[ji];
-    // Coords de la ciudad vienen directamente de la IA
     const ciudadLat = j.lat || null;
     const ciudadLng = j.lng || null;
 
@@ -3978,16 +3974,17 @@ async function confirmarYPublicar() {
       const item = j.items[ii];
       if (['tip','avion','barco','tren','metro','tranvia','transporte'].includes(item.tipo)) continue;
 
-      // Las coords vienen de la IA directamente
-      // Si el usuario las corrigió manualmente en la validación, usar esas
       let lat = item._lat || item.lat || null;
       let lng = item._lng || item.lng || null;
+      let esAproximado = false;
 
-      // Fallback: usar coords de la ciudad con pequeño offset para no apilar
+      // Fallback: coords de la ciudad con offset pequeño
       if (!lat && ciudadLat) {
         const offset = () => (Math.random()-0.5)*0.008;
         lat = ciudadLat + offset();
         lng = ciudadLng + offset();
+        esAproximado = true;
+        sinCoords.push(item.nombre);
       }
 
       puntosIA.push({
@@ -3997,7 +3994,8 @@ async function confirmarYPublicar() {
         desc: item.desc || '',
         dia: j.dia,
         lat,
-        lng
+        lng,
+        aproximado: esAproximado  // flag para aviso visual
       });
     }
   }
@@ -4024,9 +4022,28 @@ async function confirmarYPublicar() {
   state._dirty = false;
 
   loadEl.style.display = 'none';
-  mostrarToast(`✨ ${puntosIA.length} puntos localizados`);
+
+  // Aviso si hay pins aproximados que el usuario deberá colocar manualmente
+  if (sinCoords.length > 0) {
+    setTimeout(() => {
+      mostrarToast(`⚠️ ${sinCoords.length} punto${sinCoords.length > 1 ? 's' : ''} sin ubicación exacta — colócalos en el mapa`);
+    }, 800);
+  } else {
+    mostrarToast(`✨ ${puntosIA.length} puntos localizados`);
+  }
+
   itinerarioGenerado.puntos = puntosEdicion.slice();
+  irPaso(1); // reset wizard para próxima vez
   abrirEdicion();
+}
+
+// Mantener confirmarYPublicar como alias por si hay referencias en el HTML
+async function confirmarYPublicar() {
+  if (!itinerarioGenerado) return;
+  const loadEl = document.getElementById('iaLoading');
+  irPaso(2);
+  loadEl.style.display = 'block';
+  await construirPuntosDesdeIA(itinerarioGenerado, loadEl);
 }
 
 
