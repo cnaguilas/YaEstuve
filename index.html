@@ -1816,8 +1816,13 @@ async function editarViajeFirebase(fbId) {
     const it = await r.json();
     it.fbId = fbId;
     itinerarioGenerado = it;
-    // Cargar puntos y jornadas frescos de Firebase
+    // Asegurar IDs en puntos existentes
+    (it.puntos || []).forEach(p => { if (!p.id) p.id = newPuntoId(); });
     puntosEdicion = (it.puntos || []).slice();
+    // Sincronizar estado central
+    state.viajeActual = itinerarioGenerado;
+    state.viajeActual.puntos = puntosEdicion;
+    state._dirty = false;
     // Cargar jornadas frescas si existen en Firebase
     try {
       const rj = await fetch(`${FB_URL}/itinerarios/${fbId}/jornadas.json`);
@@ -1978,8 +1983,10 @@ function moverItem(ji, ii, dir) {
   if (jj < 0 || jj >= items.length) return;
   [items[ii], items[jj]] = [items[jj], items[ii]];
   sincronizarPuntosEdicion();
+  state._dirty = true;
   guardarJornadasEnFirebase();
   renderDias();
+  if (mapEditFullInstance) _redibujarLineaMapa();
 }
 
 function cambiarIconoItem(ji, ii) {
@@ -2100,6 +2107,37 @@ const TIPOS_CONFIG = {
   parapente:   { icon: '🪂', label: 'Parapente',        color: '#7B1FA2' },
 };
 
+// ═══════════════════════════════════════════════
+// ESTADO CENTRAL - ÚNICA FUENTE DE VERDAD
+// ═══════════════════════════════════════════════
+const state = {
+  viajeActual: null,  // el itinerario que se está editando
+  _dirty: false,      // hay cambios sin guardar en Firebase
+};
+
+// Actualizar un punto por ID sin reconstruir el array
+function updatePuntoById(id, cambios) {
+  if (!state.viajeActual?.puntos) return;
+  const p = state.viajeActual.puntos.find(x => x.id === id);
+  if (p) Object.assign(p, cambios);
+  puntosEdicion = state.viajeActual.puntos;
+  state._dirty = true;
+}
+
+// Generar ID único para cada punto
+function newPuntoId() {
+  return 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6);
+}
+
+// Sincronizar estado central con itinerarioGenerado (compatibilidad)
+function syncState() {
+  if (!itinerarioGenerado) return;
+  // Asegurar que todos los puntos tienen ID
+  (itinerarioGenerado.puntos || []).forEach(p => { if (!p.id) p.id = newPuntoId(); });
+  state.viajeActual = itinerarioGenerado;
+  puntosEdicion = state.viajeActual.puntos || [];
+}
+
 let puntosEdicion = [];
 let tipoPuntoSeleccionado = null;
 let latLngPunto = null;
@@ -2136,22 +2174,9 @@ function abrirEdicion() {
     <div onclick="toggleTipo(this,'${t}')" class="cat-chip ${(it.tipo||[]).includes(t)?'active':''}">${t}</div>
   `).join('');
 
-  // Conservar puntosEdicion si ya tiene coords (generados por IA o edición previa)
-  // Solo reconstruir desde jornadas si está completamente vacío
-  if (puntosEdicion.filter(p => p && p.lat).length === 0) {
-    puntosEdicion = [];
-    (it.jornadas||[]).forEach(j => {
-      (j.items||[]).forEach(item => {
-        const pMatch = (it.puntos||[]).find(p => p && p.nombre === item.nombre);
-        puntosEdicion.push({
-          tipo: item.tipo, nombre: item.nombre, desc: item.desc, dia: j.dia,
-          lat: pMatch?.lat || null, lng: pMatch?.lng || null
-        });
-      });
-    });
-  }
+  // Usar estado central como fuente de verdad
+  syncState();
 
-  alert('DEBUG: ' + puntosEdicion.length + ' puntos, con coords: ' + puntosEdicion.filter(p=>p&&p.lat).length);
   renderPuntos();
   cambiarTab('tabInfo');
   navegarDetalle('screenEditar');
@@ -2396,6 +2421,7 @@ async function guardarPunto() {
     : null;
 
   const punto = {
+    id: editIndex !== undefined ? (puntosEdicion[editIndex]?.id || newPuntoId()) : newPuntoId(),
     tipo: tipoPuntoSeleccionado,
     nombre,
     desc,
@@ -2515,8 +2541,24 @@ function moverPunto(i, dir) {
   const j = i + dir;
   if (j < 0 || j >= puntosEdicion.length) return;
   [puntosEdicion[i], puntosEdicion[j]] = [puntosEdicion[j], puntosEdicion[i]];
+  // Sincronizar con estado central
+  if (state.viajeActual) state.viajeActual.puntos = puntosEdicion;
+  state._dirty = true;
   renderPuntos();
+  // Redibujar línea en mapa si está abierto
+  if (mapEditFullInstance) _redibujarLineaMapa();
   mostrarToast(dir === -1 ? '⬆️ Punto subido' : '⬇️ Punto bajado');
+}
+
+function _redibujarLineaMapa() {
+  if (!mapEditFullInstance) return;
+  mapEditFullInstance.eachLayer(layer => {
+    if (layer instanceof L.Polyline) mapEditFullInstance.removeLayer(layer);
+  });
+  const coords = puntosEdicion.filter(p => p?.lat && p?.lng).map(p => [p.lat, p.lng]);
+  if (coords.length > 1) {
+    L.polyline(coords, { color:'#E8471C', weight:2.5, opacity:0.6, dashArray:'6,8' }).addTo(mapEditFullInstance);
+  }
 }
 
 function cambiarIconoPunto(i) {
@@ -2530,21 +2572,15 @@ function cambiarIconoPunto(i) {
 
 function eliminarPunto(i) {
   puntosEdicion.splice(i, 1);
+  // Sincronizar con estado central
+  if (state.viajeActual) state.viajeActual.puntos = puntosEdicion;
+  state._dirty = true;
   renderPuntos();
-  // Guardar en Firebase
-  const fbId = itinerarioGenerado?.fbId;
-  if (fbId) {
-    fetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`, {
-      method: 'PUT',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(puntosEdicion.filter(p => p && p.tipo))
-    }).catch(()=>{});
-  }
-  // Recargar mapa
+  // Redibujar mapa sin destruirlo
   if (mapEditFullInstance) {
-    mapEditFullInstance.remove();
-    mapEditFullInstance = null;
-    setTimeout(() => abrirMapaEdicionPantalla(), 100);
+    mapEditFullInstance.eachLayer(l => { if (l instanceof L.Marker || l instanceof L.Polyline) mapEditFullInstance.removeLayer(l); });
+    renderPuntosEnMapa();
+    _redibujarLineaMapa();
   }
   mostrarToast('🗑️ Punto eliminado');
 }
@@ -2856,14 +2892,18 @@ async function abrirMapaEdicionPantalla() {
       mapEditFullInstance = null;
     }
 
-    // Cargar puntos frescos de Firebase si hay fbId
+    // Usar estado central como fuente de verdad
     const fbId = itinerarioGenerado?.fbId;
-    if (fbId) {
+    if (state.viajeActual?.puntos?.filter(p=>p?.lat).length > 0) {
+      puntosEdicion = state.viajeActual.puntos;
+    } else if (fbId) {
       try {
         const r = await fetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`);
         const puntosFirebase = await r.json();
         if (Array.isArray(puntosFirebase) && puntosFirebase.length > 0) {
           puntosEdicion = puntosFirebase.filter(p => p && p.tipo);
+          puntosEdicion.forEach(p => { if (!p.id) p.id = newPuntoId(); });
+          if (state.viajeActual) state.viajeActual.puntos = puntosEdicion;
         }
       } catch(e) { console.log('No se pudieron cargar puntos de Firebase', e); }
     }
@@ -2925,6 +2965,10 @@ async function abrirMapaEdicionPantalla() {
         const ll = e.target.getLatLng();
         p.lat = ll.lat;
         p.lng = ll.lng;
+        // Guardar en estado central inmediatamente
+        if (p.id) updatePuntoById(p.id, { lat: ll.lat, lng: ll.lng });
+        if (state.viajeActual) state.viajeActual.puntos = puntosEdicion;
+        state._dirty = true;
         redibujarLinea();
         mapEditFullInstance.dragging.enable();
         mostrarToast(`📍 ${p.nombre} movido`);
@@ -3572,6 +3616,10 @@ function crearManualmente() {
     links: { vuelos:[], enlaces:[], tours:[] }
   };
   puntosEdicion = [];
+  // Inicializar estado central para viaje nuevo
+  state.viajeActual = itinerarioGenerado;
+  state.viajeActual.puntos = [];
+  state._dirty = false;
   fotosBase64 = [];
   navegarA('screenSubir', null);
   setTimeout(() => abrirEdicion(), 100);
@@ -3715,8 +3763,14 @@ Autor: ${autor}`;
     } catch(e) {}
 
     parsed.puntos = puntosIA;
+    // Asignar IDs únicos a todos los puntos
+    puntosIA.forEach(p => { if (!p.id) p.id = newPuntoId(); });
     puntosEdicion = puntosIA.slice();
     itinerarioGenerado = parsed;
+    itinerarioGenerado.puntos = puntosEdicion;
+    // Sincronizar estado central
+    state.viajeActual = itinerarioGenerado;
+    state._dirty = false;
 
     document.getElementById('r-titulo').value = parsed.titulo||'';
     document.getElementById('r-destino').value = parsed.destino||'';
@@ -3767,6 +3821,11 @@ async function publicarViaje() {
   it.autorEmail = usuarioActual?.email || null;
   it.autorNombre = usuarioActual?.displayName || it.autor || 'Anónimo';
   fotosBase64 = [];
+
+  // Sincronizar puntos desde estado central antes de publicar
+  if (state.viajeActual?.puntos?.length > 0) {
+    it.puntos = state.viajeActual.puntos;
+  }
 
   // Si es edición, cargar puntos frescos de Firebase para no machacarlos
   if (it.fbId) {
