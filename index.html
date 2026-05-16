@@ -2377,8 +2377,20 @@ function seleccionarTipoPunto(tipo) {
     if (itinerarioGenerado?.jornadas?.[ji]?.items?.[ii]) {
       itinerarioGenerado.jornadas[ji].items[ii].tipo = tipo;
       sincronizarPuntosEdicion();
+      // Actualizar tipo en estado central por nombre
+      const nombre = itinerarioGenerado.jornadas[ji].items[ii].nombre;
+      if (state.viajeActual?.puntos) {
+        const p = state.viajeActual.puntos.find(x => x.nombre === nombre);
+        if (p) p.tipo = tipo;
+      }
+      state._dirty = true;
       guardarJornadasEnFirebase();
       renderDias();
+      // Redibujar markers en mapa si está abierto
+      if (mapEditFullInstance) {
+        mapEditFullInstance.eachLayer(l => { if (l instanceof L.Marker) mapEditFullInstance.removeLayer(l); });
+        renderPuntosEnMapa();
+      }
       mostrarToast(`${TIPOS_CONFIG[tipo]?.icon || ''} Icono cambiado`);
     }
     return;
@@ -2390,7 +2402,14 @@ function seleccionarTipoPunto(tipo) {
     window._cambiarIconoIndex = undefined;
     if (puntosEdicion[i]) {
       puntosEdicion[i].tipo = tipo;
+      if (state.viajeActual?.puntos?.[i]) state.viajeActual.puntos[i].tipo = tipo;
+      state._dirty = true;
       renderPuntos();
+      // Redibujar markers en mapa si está abierto
+      if (mapEditFullInstance) {
+        mapEditFullInstance.eachLayer(l => { if (l instanceof L.Marker) mapEditFullInstance.removeLayer(l); });
+        renderPuntosEnMapa();
+      }
       mostrarToast(`${TIPOS_CONFIG[tipo]?.icon || ''} Icono cambiado`);
     }
     return;
