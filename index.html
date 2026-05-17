@@ -1281,7 +1281,6 @@ html, body {
     </div>
 
     <!-- Paso 3: reservado para uso futuro -->
-    <div class="paso" id="paso3"></div>
 
   </div>
 </div>
@@ -1913,23 +1912,28 @@ function eliminarItem(ji, ii) {
 }
 
 function sincronizarPuntosEdicion() {
-  // Reconstruir puntosEdicion desde jornadas manteniendo las coords existentes
-  const coordsMap = {};
-  puntosEdicion.forEach(p => { if (p.lat) coordsMap[p.nombre] = { lat: p.lat, lng: p.lng }; });
+  // Preservar coords e IDs de los puntos existentes
+  const mapaExistente = {};
+  puntosEdicion.forEach(p => {
+    if (p.nombre) mapaExistente[p.nombre] = p;
+  });
   puntosEdicion = [];
   (itinerarioGenerado?.jornadas || []).forEach(j => {
     (j.items || []).forEach(item => {
-      const coords = coordsMap[item.nombre] || {};
+      const existente = mapaExistente[item.nombre] || {};
       puntosEdicion.push({
-        tipo: item.tipo || 'visita',
+        id: existente.id || item.id || newPuntoId(),
+        tipo: item.tipo || existente.tipo || 'visita',
         nombre: item.nombre,
-        desc: item.desc || '',
+        desc: item.desc || existente.desc || '',
         dia: j.dia,
-        lat: coords.lat || null,
-        lng: coords.lng || null
+        lat: existente.lat || item.lat || null,
+        lng: existente.lng || item.lng || null
       });
     });
   });
+  // Sincronizar con estado central
+  if (state.viajeActual) state.viajeActual.puntos = puntosEdicion;
 }
 
 function moverItem(ji, ii, dir) {
