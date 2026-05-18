@@ -3327,29 +3327,11 @@ async function buscarLugarMapa(q) {
   const resultsEl = document.getElementById('mapaEditResults');
   if (!q || q.length < 2) { resultsEl.style.display = 'none'; return; }
   _busquedaMapaTimer = setTimeout(async () => {
-    trtry {
-      // Intentar Photon primero, fallback a Nominatim si falla
-      let features = [];
-      try {
-        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=es`, {
-          headers: { 'User-Agent': 'YaEstuve/1.0 (yaestuve3.netlify.app)' }
-        });
-        const data = await res.json();
-        features = data?.features || [];
-      } catch(e2) {}
-
-      // Fallback a Nominatim si Photon no dio resultados
-      if (!features.length) {
-        const res2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=1`, {
-          headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' }
-        });
-        const data2 = await res2.json();
-        features = (data2 || []).map(d => ({
-          geometry: { coordinates: [parseFloat(d.lon), parseFloat(d.lat)] },
-          properties: { name: d.display_name.split(',')[0], city: d.display_name.split(',').slice(1,3).join(',') }
-        }));
-      }
-
+    try {
+      // Photon: entiende español, sin límite de peticiones, resultados muy precisos
+      const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=es`);
+      const data = await res.json();
+      const features = data?.features || [];
       if (!features.length) {
         resultsEl.innerHTML = '<div style="padding:14px;text-align:center;color:var(--muted);font-size:0.85rem">Sin resultados</div>';
         resultsEl.style.display = 'block';
@@ -3361,7 +3343,7 @@ async function buscarLugarMapa(q) {
         const lng = f.geometry.coordinates[0];
         const nombre = p.name || p.street || q;
         const detalle = [p.city, p.state, p.country].filter(Boolean).join(', ');
-        return `<div onclick="seleccionarLugarMapa(${lat},${lng},'${nombre.replace(/'/g,"\'")}',event)"
+        return `<div onclick="seleccionarLugarMapa(${lat},${lng},'${nombre.replace(/'/g,"\\'")}',event)"
           style="padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:10px;font-family:'Mulish',sans-serif">
           <span style="font-size:1rem;flex-shrink:0">📍</span>
           <div style="min-width:0">
