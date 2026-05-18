@@ -3653,8 +3653,11 @@ Descripción: "${desc}"
 IMPORTANTE sobre las coordenadas:
 - Debes incluir "lat" y "lng" para CADA lugar (coordenadas GPS reales y precisas).
 - Usa tus conocimientos geográficos para dar coordenadas exactas de monumentos, restaurantes, hoteles, playas, etc.
-- Si no estás seguro de un lugar concreto, usa las coordenadas del centro de la ciudad.
+- Para parques naturales, playas, faros, miradores y zonas costeras: usa coordenadas MUY precisas del punto exacto, no del centro de la zona. Por ejemplo, el Faro de Cabo de Gata está en 36.7267, -2.1902; la Playa de Mónsul en 36.7225, -2.0583; la Playa de los Genoveses en 36.7433, -2.0817.
+- Para restaurantes y negocios locales poco conocidos: usa las coordenadas del pueblo o zona donde están ubicados.
+- Si no estás seguro de un lugar concreto, usa las coordenadas del centro del municipio más cercano, nunca inventes coordenadas que puedan caer en el mar.
 - Las coordenadas deben ser números decimales (ej: 41.3851, 2.1734).
+- NUNCA pongas coordenadas en el mar para lugares que están en tierra.
 
 Devuelve SOLO este JSON (sin texto extra, sin markdown):
 {
@@ -4055,7 +4058,7 @@ function mostrarPantallaHome() {
 renderHome();
 cargarDeFirebase();
 
-// Comprobar sesión guardada
+// Comprobar sesión guardada y mostrar pantalla inicial
 const sesionGuardada = localStorage.getItem('ye_user');
 if (sesionGuardada) {
   try {
@@ -4065,6 +4068,10 @@ if (sesionGuardada) {
     localStorage.removeItem('ye_user');
   }
 }
+
+// ── ARRANQUE: mostrar la primera pantalla ───────────────────────────────────
+// Sin esta llamada todas las pantallas quedan ocultas y la app no sale del splash
+navegarA('screenHome', 'navHome');
 
 // ── PWA SERVICE WORKER — desregistrar si existe para limpiar caché ──
 if ('serviceWorker' in navigator) {
