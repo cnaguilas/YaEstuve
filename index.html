@@ -1738,7 +1738,7 @@ async function cargarMisViajes() {
 
     const misViajes = Object.entries(data)
       .filter(([k,v]) => v.autorUid === usuarioActual.uid || v.autorEmail === usuarioActual.email)
-      .map(([k,v]) => ({...v, fbId: k}));
+      .map(([k,v]) => ({...v, fbId: k, id: k}));
 
     if (!misViajes.length) {
       container.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:0.85rem;padding:20px">Aún no has subido viajes ✈️</p>';
@@ -3148,7 +3148,7 @@ function abrirDestino(key) {
       <div class="it-autor">Por <strong>${it.autor}</strong></div>
       <div class="it-tags">${(it.tipo||[]).map(t=>`<span class="it-tag">${t}</span>`).join('')}</div>
       <div class="it-presupuesto">💰 <strong>${it.presupuesto}</strong></div>`;
-    card.onclick = () => abrirItinerario(key, it.id);
+    card.onclick = () => abrirItinerario(key, it.fbId || it.id);
     body.appendChild(card);
   });
   navegarDetalle('screenLista');
@@ -3157,7 +3157,10 @@ function abrirDestino(key) {
 // ══ DETALLE ══════════════════════════════════
 function abrirItinerario(key, id) {
   const d = destinos[key];
-  const it = d.itinerarios.find(i => i.id === id || i.fbId === id);
+  if (!d) { mostrarToast('❌ Destino no encontrado'); return; }
+  // Buscar por id, fbId, o coger el primero si solo hay uno
+  const it = d.itinerarios.find(i => i.id === id || i.fbId === id) || d.itinerarios[0];
+  if (!it) { mostrarToast('❌ Itinerario no encontrado'); return; }
 
   // Hero fotos
   const heroFotos = document.getElementById('heroFotos');
@@ -3328,10 +3331,24 @@ async function buscarLugarMapa(q) {
   if (!q || q.length < 2) { resultsEl.style.display = 'none'; return; }
   _busquedaMapaTimer = setTimeout(async () => {
     try {
-      // Photon: entiende español, sin límite de peticiones, resultados muy precisos
-      const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=es`);
-      const data = await res.json();
-      const features = data?.features || [];
+      let features = [];
+      try {
+        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=es`, {
+          headers: { 'User-Agent': 'YaEstuve/1.0' }
+        });
+        const data = await res.json();
+        features = data?.features || [];
+      } catch(e2) {}
+      if (!features.length) {
+        const res2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=1`, {
+          headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' }
+        });
+        const data2 = await res2.json();
+        features = (data2 || []).map(d => ({
+          geometry: { coordinates: [parseFloat(d.lon), parseFloat(d.lat)] },
+          properties: { name: d.display_name.split(',')[0], city: d.display_name.split(',').slice(1,3).join(','), country: '' }
+        }));
+      }
       if (!features.length) {
         resultsEl.innerHTML = '<div style="padding:14px;text-align:center;color:var(--muted);font-size:0.85rem">Sin resultados</div>';
         resultsEl.style.display = 'block';
@@ -3343,7 +3360,7 @@ async function buscarLugarMapa(q) {
         const lng = f.geometry.coordinates[0];
         const nombre = p.name || p.street || q;
         const detalle = [p.city, p.state, p.country].filter(Boolean).join(', ');
-        return `<div onclick="seleccionarLugarMapa(${lat},${lng},'${nombre.replace(/'/g,"\\'")}',event)"
+        return `<div onclick="seleccionarLugarMapa(${lat},${lng},'${nombre.replace(/'/g,"\'")}',event)"
           style="padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:10px;font-family:'Mulish',sans-serif">
           <span style="font-size:1rem;flex-shrink:0">📍</span>
           <div style="min-width:0">
@@ -3910,6 +3927,12 @@ async function publicarViaje() {
       });
       const data = await r.json();
       it.fbId = data.name;
+      // Guardar fbId dentro del objeto en Firebase para que el lookup funcione siempre
+      await fetch(`${FB_URL}/itinerarios/${it.fbId}/fbId.json`, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(it.fbId)
+      });
 
       if (!destinos[key]) {
         destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
@@ -3952,7 +3975,9 @@ async function cargarDeFirebase() {
     const r = await fetch(`${FB_URL}/itinerarios.json`);
     const data = await r.json();
     if (!data) return;
-    Object.values(data).forEach(it => {
+    Object.entries(data).forEach(([fbKey, it]) => {
+      // Asegurar que el fbId siempre está presente (viajes viejos pueden no tenerlo)
+      if (!it.fbId) it.fbId = fbKey;
       const key = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_');
       if (!key) return;
       if (!destinos[key]) {
@@ -3965,7 +3990,7 @@ async function cargarDeFirebase() {
             }).catch(()=>{});
         }
       }
-      const esNuevo = !destinos[key].itinerarios.find(i => i.id === it.id || i.fbId === it.fbId);
+      const esNuevo = !destinos[key].itinerarios.find(i => i.fbId === it.fbId);
       if (esNuevo) {
         it.fotos = it.fotos || [];
         it.puntos = it.puntos || [];
