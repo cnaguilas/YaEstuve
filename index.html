@@ -3759,26 +3759,57 @@ Devuelve SOLO este JSON (sin texto extra, sin markdown):
 // Renderiza el formulario de validación día por día
 
 // Construye los puntos del mapa a partir del JSON de la IA y abre la edición
-// Busca coords exactas en OSM/Nominatim para un lugar dado el nombre y la ciudad
-async function buscarCoordsOSM(nombre, ciudad, latRef, lngRef) {
+// Mapa de tipos de la app → clases OSM para búsqueda más precisa
+const OSM_TIPOS = {
+  monumento: ['historic=monument','historic=ruins','historic=archaeological_site','historic=castle','historic=memorial','tourism=attraction'],
+  museo:     ['tourism=museum','amenity=arts_centre'],
+  iglesia:   ['amenity=place_of_worship','historic=church','building=church','building=cathedral'],
+  restaurante: ['amenity=restaurant','amenity=cafe'],
+  bar:       ['amenity=bar','amenity=pub'],
+  mirador:   ['tourism=viewpoint'],
+  atraccion: ['tourism=attraction','leisure=park','tourism=theme_park'],
+  visita:    ['tourism=attraction','historic=monument','tourism=museum'],
+  compras:   ['shop=mall','landuse=retail','highway=pedestrian'],
+  playa:     ['natural=beach'],
+  parque:    ['leisure=park','leisure=nature_reserve'],
+};
+
+// Busca coords exactas en OSM usando Nominatim con tipo específico
+async function buscarCoordsOSM(nombre, ciudad, latRef, lngRef, tipo) {
+  const clases = OSM_TIPOS[tipo] || [];
+
+  // Intento 1: búsqueda con tipo específico OSM
+  for (const clase of clases) {
+    try {
+      const [key, val] = clase.split('=');
+      const q = encodeURIComponent(nombre);
+      const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1&countrycodes=&viewbox=${lngRef-0.3},${latRef+0.3},${lngRef+0.3},${latRef-0.3}&bounded=1`;
+      const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' } });
+      const data = await r.json();
+      // Filtrar por tipo OSM y proximidad
+      const match = data.find(d =>
+        (d.type === val || d.class === key) &&
+        Math.abs(parseFloat(d.lat) - latRef) < 0.4 &&
+        Math.abs(parseFloat(d.lon) - lngRef) < 0.4
+      );
+      if (match) return { lat: parseFloat(match.lat), lng: parseFloat(match.lon) };
+    } catch(e) {}
+    await new Promise(r => setTimeout(r, 100));
+  }
+
+  // Intento 2: búsqueda libre con nombre + ciudad dentro del viewbox
   try {
     const q = encodeURIComponent(`${nombre}, ${ciudad}`);
-    const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1`, {
-      headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' }
-    });
+    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1&viewbox=${lngRef-0.3},${latRef+0.3},${lngRef+0.3},${latRef-0.3}&bounded=1`;
+    const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' } });
     const data = await r.json();
-    if (!data.length) return null;
-    // Filtrar por proximidad a la ciudad (máx 0.5 grados ~55km)
     const cercano = data.find(d =>
-      Math.abs(parseFloat(d.lat) - latRef) < 0.5 &&
-      Math.abs(parseFloat(d.lon) - lngRef) < 0.5
-    ) || data[0];
-    // Solo aceptar si está cerca de la ciudad
-    if (Math.abs(parseFloat(cercano.lat) - latRef) < 0.8 &&
-        Math.abs(parseFloat(cercano.lon) - lngRef) < 0.8) {
-      return { lat: parseFloat(cercano.lat), lng: parseFloat(cercano.lon) };
-    }
+      Math.abs(parseFloat(d.lat) - latRef) < 0.4 &&
+      Math.abs(parseFloat(d.lon) - lngRef) < 0.4
+    );
+    if (cercano) return { lat: parseFloat(cercano.lat), lng: parseFloat(cercano.lon) };
   } catch(e) {}
+
   return null;
 }
 
@@ -3806,7 +3837,7 @@ async function construirPuntosDesdeIA(parsed, loadEl) {
       // Intentar mejorar coords con OSM para monumentos, museos, restaurantes...
       if (lat && ciudadLat && ['monumento','museo','iglesia','restaurante','bar','mirador','atraccion','visita','compras','parking'].includes(item.tipo)) {
         loadEl.innerHTML = `<div class="spinner"></div><p>Localizando ${item.nombre}...</p>`;
-        const coords = await buscarCoordsOSM(item.nombre, j.lugar, ciudadLat, ciudadLng);
+        const coords = await buscarCoordsOSM(item.nombre, j.lugar, ciudadLat, ciudadLng, item.tipo);
         if (coords) {
           lat = coords.lat;
           lng = coords.lng;
