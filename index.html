@@ -10,9 +10,6 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="YaEstuve">
   <link rel="apple-touch-icon" href="/icon-192.png">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>YaEstuve</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Mulish:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -215,7 +212,6 @@ html, body {
   box-shadow: 0 2px 12px rgba(0,0,0,0.06);
   border: 1px solid var(--border);
   transition: transform 0.15s, box-shadow 0.15s;
-  active-scale: 0.97;
 }
 .destino-card:active { transform: scale(0.97); }
 
@@ -246,12 +242,6 @@ html, body {
   font-size: 1.15rem;
   font-weight: 700;
   margin-bottom: 4px;
-}
-
-.card-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
 }
 
 .card-count {
@@ -642,7 +632,6 @@ html, body {
 @keyframes spin { to { transform: rotate(360deg); } }
 .ia-loading p { font-size: 0.88rem; color: var(--muted); }
 
-.ia-resultado { display: none; }
 
 .resumen-card {
   background: var(--card);
@@ -1033,7 +1022,6 @@ html, body {
 }
 .punto-menu-title {
   font-family: 'Syne', sans-serif;
-  font-size: 1rem;
   font-weight: 700;
   text-align: center;
   margin-bottom: 16px;
@@ -1175,7 +1163,6 @@ html, body {
 </div>
 
 <!-- ══ PANTALLA HOME ══ -->
-<!-- ══ PANTALLA HOME ══ -->
 <div class="screen active" id="screenHome">
   <div class="home-header">
     <div class="home-logo">Ya<span>Estuve</span></div>
@@ -1212,6 +1199,7 @@ html, body {
   <div class="nav-bar">
     <button class="back-btn" onclick="goBack()">←</button>
     <div class="nav-title"></div>
+    <button onclick="compartirViaje()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:7px 14px;border-radius:50px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;display:flex;align-items:center;gap:5px;flex-shrink:0">⬆️ Compartir</button>
   </div>
   <div class="detalle-hero">
     <div class="hero-fotos" id="heroFotos"></div>
@@ -1230,7 +1218,10 @@ html, body {
       </div>
       <span style="font-size:1.4rem">💰</span>
     </div>
-    <button id="btnVerMapa" onclick="" style="width:100%;padding:12px;background:var(--ink);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:8px">🗺️ Ver en mapa</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <button id="btnVerMapa" onclick="" style="padding:12px;background:var(--ink);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">🗺️ Ver mapa</button>
+      <button onclick="descargarPDF()" style="padding:12px;background:var(--primary);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">📄 Descargar PDF</button>
+    </div>
     <div id="detalleLinks" style="margin-bottom:16px"></div>
     <div id="detalleDias"></div>
   </div>
@@ -1255,7 +1246,6 @@ html, body {
     <div class="paso-indicator">
       <div class="paso-dot active" id="dot1"></div>
       <div class="paso-dot" id="dot2"></div>
-      <div class="paso-dot" id="dot3"></div>
     </div>
 
     <!-- Paso 1 -->
@@ -1294,16 +1284,7 @@ html, body {
       </div>
     </div>
 
-    <!-- Paso 3: Validación ciudad por ciudad -->
-    <div class="paso" id="paso3">
-      <h2>Confirma tu viaje 📍</h2>
-      <p style="color:#888;font-size:0.9rem">Revisa cada día. Toca la ciudad para ajustar su ubicación exacta.</p>
-      <div id="validacionDias"></div>
-      <div style="margin-top:20px">
-        <button class="btn-primary" onclick="confirmarYPublicar()">✅ Todo correcto → Publicar</button>
-        <button class="btn-secondary" onclick="irPaso(1)">← Volver a escribir</button>
-      </div>
-    </div>
+    <!-- Paso 3: reservado para uso futuro -->
 
   </div>
 </div>
@@ -1761,7 +1742,7 @@ async function cargarMisViajes() {
 
     const misViajes = Object.entries(data)
       .filter(([k,v]) => v.autorUid === usuarioActual.uid || v.autorEmail === usuarioActual.email)
-      .map(([k,v]) => ({...v, fbId: k}));
+      .map(([k,v]) => ({...v, fbId: k, id: k}));
 
     if (!misViajes.length) {
       container.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:0.85rem;padding:20px">Aún no has subido viajes ✈️</p>';
@@ -1935,23 +1916,28 @@ function eliminarItem(ji, ii) {
 }
 
 function sincronizarPuntosEdicion() {
-  // Reconstruir puntosEdicion desde jornadas manteniendo las coords existentes
-  const coordsMap = {};
-  puntosEdicion.forEach(p => { if (p.lat) coordsMap[p.nombre] = { lat: p.lat, lng: p.lng }; });
+  // Preservar coords e IDs de los puntos existentes
+  const mapaExistente = {};
+  puntosEdicion.forEach(p => {
+    if (p.nombre) mapaExistente[p.nombre] = p;
+  });
   puntosEdicion = [];
   (itinerarioGenerado?.jornadas || []).forEach(j => {
     (j.items || []).forEach(item => {
-      const coords = coordsMap[item.nombre] || {};
+      const existente = mapaExistente[item.nombre] || {};
       puntosEdicion.push({
-        tipo: item.tipo || 'visita',
+        id: existente.id || item.id || newPuntoId(),
+        tipo: item.tipo || existente.tipo || 'visita',
         nombre: item.nombre,
-        desc: item.desc || '',
+        desc: item.desc || existente.desc || '',
         dia: j.dia,
-        lat: coords.lat || null,
-        lng: coords.lng || null
+        lat: existente.lat || item.lat || null,
+        lng: existente.lng || item.lng || null
       });
     });
   });
+  // Sincronizar con estado central
+  if (state.viajeActual) state.viajeActual.puntos = puntosEdicion;
 }
 
 function moverItem(ji, ii, dir) {
@@ -1960,19 +1946,8 @@ function moverItem(ji, ii, dir) {
   const jj = ii + dir;
   if (jj < 0 || jj >= items.length) return;
   [items[ii], items[jj]] = [items[jj], items[ii]];
+  // Una sola reconstrucción de puntosEdicion preservando coords existentes
   sincronizarPuntosEdicion();
-  // Reordenar puntosEdicion según el nuevo orden de jornadas
-  const puntosOrdenados = [];
-  (itinerarioGenerado?.jornadas||[]).forEach(j => {
-    (j.items||[]).forEach(item => {
-      const p = puntosEdicion.find(x => x.nombre === item.nombre);
-      if (p) puntosOrdenados.push(p);
-    });
-  });
-  if (puntosOrdenados.length > 0) {
-    puntosEdicion = puntosOrdenados;
-    if (state.viajeActual) state.viajeActual.puntos = puntosEdicion;
-  }
   state._dirty = true;
   guardarJornadasEnFirebase();
   renderDias();
@@ -1984,8 +1959,8 @@ function moverItem(ji, ii, dir) {
 }
 
 function cambiarIconoItem(ji, ii) {
-  window._cambiarIconoJornada = { ji, ii };
-  window._cambiarIconoIndex = undefined;
+  _cambiarIconoJornada = { ji, ii };
+  _cambiarIconoIndex = undefined;
   document.getElementById('puntoMenu').classList.add('active');
 }
 
@@ -2001,7 +1976,7 @@ function añadirDia() {
 
 function añadirPuntoDesde(ji) {
   // Guardar el día al que se asociará el punto
-  window._puntoParaDia = ji;
+  _puntoParaDia = ji;
   abrirMapaEdicionPantalla();
 }
 
@@ -2341,6 +2316,8 @@ function iniciarMapaEdicion() {
 
 function renderPuntosEnMapa() {
   if (!mapEditInstance) return;
+  // Limpiar markers existentes antes de redibujar
+  mapEditInstance.eachLayer(l => { if (l instanceof L.Marker) mapEditInstance.removeLayer(l); });
   puntosEdicion.forEach(p => {
     if (p.lat && p.lng) {
       const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.visita;
@@ -2368,7 +2345,7 @@ function cerrarMenuPunto(e) {
 function cancelarMenuPunto() {
   document.getElementById('puntoMenu').classList.remove('active');
   latLngPunto = null; // limpiar coordenada para no marcar nada
-  window._puntoParaDia = undefined;
+  _puntoParaDia = undefined;
 }
 
 function seleccionarTipoPunto(tipo) {
@@ -2376,9 +2353,9 @@ function seleccionarTipoPunto(tipo) {
   document.getElementById('puntoMenu').classList.remove('active');
 
   // Si venimos de cambiarIconoItem (lista de días)
-  if (window._cambiarIconoJornada !== undefined) {
-    const { ji, ii } = window._cambiarIconoJornada;
-    window._cambiarIconoJornada = undefined;
+  if (_cambiarIconoJornada !== undefined) {
+    const { ji, ii } = _cambiarIconoJornada;
+    _cambiarIconoJornada = undefined;
     if (itinerarioGenerado?.jornadas?.[ji]?.items?.[ii]) {
       itinerarioGenerado.jornadas[ji].items[ii].tipo = tipo;
       sincronizarPuntosEdicion();
@@ -2402,9 +2379,9 @@ function seleccionarTipoPunto(tipo) {
   }
 
   // Si venimos de cambiarIconoPunto (lista de puntos del mapa)
-  if (window._cambiarIconoIndex !== undefined) {
-    const i = window._cambiarIconoIndex;
-    window._cambiarIconoIndex = undefined;
+  if (_cambiarIconoIndex !== undefined) {
+    const i = _cambiarIconoIndex;
+    _cambiarIconoIndex = undefined;
     if (puntosEdicion[i]) {
       puntosEdicion[i].tipo = tipo;
       if (state.viajeActual?.puntos?.[i]) state.viajeActual.puntos[i].tipo = tipo;
@@ -2424,7 +2401,11 @@ function seleccionarTipoPunto(tipo) {
   document.getElementById('puntoFormTitulo').textContent = `${cfg.icon} ${cfg.label}`;
   document.getElementById('p-nombre').value = '';
   document.getElementById('p-desc').value = '';
-  document.getElementById('puntoForm').classList.add('active');
+  const formEl2 = document.getElementById('puntoForm');
+  // Guardar las coords en el form para que no se pierdan si latLngPunto se limpia
+  formEl2._latLng = latLngPunto ? { lat: latLngPunto.lat, lng: latLngPunto.lng } : null;
+  delete formEl2._editIndex;
+  formEl2.classList.add('active');
 }
 
 function cerrarFormPunto(e) {
@@ -2440,8 +2421,8 @@ async function guardarPunto() {
   const formEl = document.getElementById('puntoForm');
   const editIndex = formEl._editIndex;
 
-  const diaDelPunto = (window._puntoParaDia !== undefined && itinerarioGenerado?.jornadas)
-    ? (itinerarioGenerado.jornadas[window._puntoParaDia]?.dia || null)
+  const diaDelPunto = (_puntoParaDia !== undefined && itinerarioGenerado?.jornadas)
+    ? (itinerarioGenerado.jornadas[_puntoParaDia]?.dia || null)
     : null;
 
   const punto = {
@@ -2449,8 +2430,8 @@ async function guardarPunto() {
     tipo: tipoPuntoSeleccionado,
     nombre,
     desc,
-    lat: editIndex !== undefined ? puntosEdicion[editIndex]?.lat : (latLngPunto?.lat || null),
-    lng: editIndex !== undefined ? puntosEdicion[editIndex]?.lng : (latLngPunto?.lng || null),
+    lat: editIndex !== undefined ? puntosEdicion[editIndex]?.lat : (formEl._latLng?.lat || latLngPunto?.lat || null),
+    lng: editIndex !== undefined ? puntosEdicion[editIndex]?.lng : (formEl._latLng?.lng || latLngPunto?.lng || null),
     dia: editIndex !== undefined ? (puntosEdicion[editIndex]?.dia || null) : diaDelPunto
   };
 
@@ -2465,8 +2446,8 @@ async function guardarPunto() {
   } else {
     puntosEdicion.push(punto);
     // Si viene de un día específico, añadirlo como item del día con tipo e icono
-    if (window._puntoParaDia !== undefined && itinerarioGenerado?.jornadas) {
-      const ji = window._puntoParaDia;
+    if (_puntoParaDia !== undefined && itinerarioGenerado?.jornadas) {
+      const ji = _puntoParaDia;
       if (itinerarioGenerado.jornadas[ji]) {
         itinerarioGenerado.jornadas[ji].items.push({
           tipo: punto.tipo,
@@ -2501,14 +2482,16 @@ async function guardarPunto() {
         }
         mostrarToast('✅ Punto añadido al Día ' + itinerarioGenerado.jornadas[ji].dia);
       }
-      delete window._puntoParaDia;
+      delete _puntoParaDia;
       goBack();
       setTimeout(() => cambiarTab('tabDias'), 200);
+      return; // evitar doble guardado en Firebase
     }
   }
 
   if (!formEl.classList.contains('active')) return; // ya se cerró arriba
   formEl.classList.remove('active');
+  formEl._latLng = null;
   latLngPunto = null;
   renderPuntos();
 
@@ -2523,7 +2506,7 @@ async function guardarPunto() {
     }).catch(() => {});
   }
 
-  // Añadir al mapa
+  // Añadir al mapa con marker arrastrable
   if (punto.lat && mapEditFullInstance) {
     const cfg = TIPOS_CONFIG[punto.tipo] || TIPOS_CONFIG.visita;
     const icon = L.divIcon({
@@ -2531,8 +2514,30 @@ async function guardarPunto() {
       html: `<div style="font-size:1.6rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">${cfg.icon}</div>`,
       iconSize: [32,32], iconAnchor: [16,16]
     });
-    L.marker([punto.lat, punto.lng], {icon}).addTo(mapEditFullInstance)
-      .bindPopup(`<b>${cfg.icon} ${punto.nombre}</b><br><small>${punto.desc||''}</small>`);
+    const marker = L.marker([punto.lat, punto.lng], {icon, draggable: true}).addTo(mapEditFullInstance);
+    marker.bindPopup(`<b>${cfg.icon} ${punto.nombre}</b><br><small>${punto.desc||''}</small>`);
+    marker.on('dragend', e => {
+      const ll = e.target.getLatLng();
+      punto.lat = ll.lat;
+      punto.lng = ll.lng;
+      updatePuntoById(punto.id, { lat: ll.lat, lng: ll.lng });
+      state._dirty = true;
+      _redibujarLineaMapa();
+    });
+    _redibujarLineaMapa();
+  }
+
+  // Si hay jornadas y el punto viene del mapa (no de un día), añadirlo al día 1
+  if (itinerarioGenerado?.jornadas?.length > 0 && _puntoParaDia === undefined) {
+    itinerarioGenerado.jornadas[0].items = itinerarioGenerado.jornadas[0].items || [];
+    itinerarioGenerado.jornadas[0].items.push({
+      tipo: punto.tipo,
+      nombre: punto.nombre,
+      desc: punto.desc,
+      lat: punto.lat,
+      lng: punto.lng
+    });
+    guardarJornadasEnFirebase();
   }
 
   mostrarToast('✅ Punto guardado');
@@ -2566,8 +2571,7 @@ function moverPunto(i, dir) {
   if (j < 0 || j >= puntosEdicion.length) return;
   [puntosEdicion[i], puntosEdicion[j]] = [puntosEdicion[j], puntosEdicion[i]];
   // Sincronizar con estado central
-  if (state.viajeActual) state.viajeActual.puntos = puntosEdicion;
-  state._dirty = true;
+    state._dirty = true;
   renderPuntos();
   // Redibujar línea en mapa si está abierto
   if (mapEditFullInstance) _redibujarLineaMapa();
@@ -2590,14 +2594,14 @@ function cambiarIconoPunto(i) {
   if (!p) return;
   tipoPuntoSeleccionado = p.tipo;
   // Abrir menú de tipos para cambiar solo el icono
-  window._cambiarIconoIndex = i;
+  _cambiarIconoIndex = i;
   document.getElementById('puntoMenu').classList.add('active');
 }
 
 function eliminarPunto(i) {
   puntosEdicion.splice(i, 1);
   // Sincronizar con estado central
-  if (state.viajeActual) state.viajeActual.puntos = puntosEdicion;
+  if (state.viajeActual) state.viajeActual.puntos = puntosEdicion.slice();
   state._dirty = true;
   renderPuntos();
   // Redibujar mapa con pequeño delay para evitar race condition
@@ -2610,6 +2614,16 @@ function eliminarPunto(i) {
       renderPuntosEnMapa();
       _redibujarLineaMapa();
     }, 50);
+  }
+  // Guardar en Firebase inmediatamente para que publicarViaje tenga datos actualizados
+  const fbId = itinerarioGenerado?.fbId;
+  if (fbId) {
+    const puntosLimpios = puntosEdicion.filter(p => p && p.tipo);
+    fetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(puntosLimpios)
+    }).catch(() => {});
   }
   mostrarToast('🗑️ Punto eliminado');
 }
@@ -2653,26 +2667,9 @@ function renderFotosEditar() {
 function procesarFotosEditar(input) {
   const files = Array.from(input.files);
   input.value = '';
-  let loaded = 0;
-  files.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const max = 800;
-        let w = img.width, h = img.height;
-        if (w > max) { h = h * max / w; w = max; }
-        canvas.width = w; canvas.height = h;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        const b64 = canvas.toDataURL('image/jpeg', 0.72);
-        fotosBase64.push(b64);
-        loaded++;
-        if (loaded === files.length) renderFotosEditar();
-      };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
+  Promise.all(files.map(comprimirFoto)).then(b64s => {
+    fotosBase64.push(...b64s);
+    renderFotosEditar();
   });
 }
 
@@ -2739,9 +2736,9 @@ async function verEnMapa(key, id) {
       // Construir filtro de días
       const diasBar = document.getElementById('diasFiltroBar');
       const diasUnicos = [...new Set(puntos.filter(p=>p.lat&&p.dia).map(p=>p.dia))].sort((a,b)=>a-b);
-      window._verMapaIt = it;
-      window._verMapaD = d;
-      window._verMapaDestino = destino;
+      _verMapaIt = it;
+      _verMapaD = d;
+      _verMapaDestino = destino;
 
       if (diasUnicos.length > 1) {
         diasBar.style.display = 'block';
@@ -2766,9 +2763,9 @@ async function verEnMapa(key, id) {
 }
 
 function filtrarDiasMapa(dia) {
-  const it = window._verMapaIt;
-  const d = window._verMapaD;
-  const destino = window._verMapaDestino;
+  const it = _verMapaIt;
+  const d = _verMapaD;
+  const destino = _verMapaDestino;
   if (!it || !mapVerInstance) return;
 
   // Actualizar botones activos
@@ -2932,8 +2929,7 @@ async function abrirMapaEdicionPantalla() {
         if (Array.isArray(puntosFirebase) && puntosFirebase.length > 0) {
           puntosEdicion = puntosFirebase.filter(p => p && p.tipo);
           puntosEdicion.forEach(p => { if (!p.id) p.id = newPuntoId(); });
-          if (state.viajeActual) state.viajeActual.puntos = puntosEdicion;
-        }
+                  }
       } catch(e) { console.log('No se pudieron cargar puntos de Firebase', e); }
     }
 
@@ -2957,6 +2953,9 @@ async function abrirMapaEdicionPantalla() {
     // Pinchar en el mapa para añadir punto
     mapEditFullInstance.on('click', e => {
       latLngPunto = e.latlng;
+      // Limpiar flags de cambio de icono para que se abra el form de nuevo punto
+      _cambiarIconoIndex = undefined;
+      _cambiarIconoJornada = undefined;
       abrirMenuPunto();
     });
 
@@ -3000,8 +2999,7 @@ async function abrirMapaEdicionPantalla() {
         p.lng = ll.lng;
         // Guardar en estado central inmediatamente
         if (p.id) updatePuntoById(p.id, { lat: ll.lat, lng: ll.lng });
-        if (state.viajeActual) state.viajeActual.puntos = puntosEdicion;
-        state._dirty = true;
+                state._dirty = true;
         redibujarLinea();
         mapEditFullInstance.dragging.enable();
         mostrarToast(`📍 ${p.nombre} movido`);
@@ -3049,25 +3047,27 @@ function cerrarMapaEdicion() {
   renderPuntos();
 }
 
-// Sobrescribir guardarPunto para añadir al mapa completo también
-const _guardarPuntoOriginal = guardarPunto;
 // ══ NAVEGACIÓN ══════════════════════════════════
+// ══ ESTADO GLOBAL ══════════════════════════════
 const navHistory = ['screenHome'];
 let mapaIniciado = false;
 let itinerarioGenerado = null;
 let fotosBase64 = [];
 
-function procesarFotos(input) {
-  const files = Array.from(input.files);
-  fotosBase64 = [];
-  const preview = document.getElementById('fotoPreview');
-  const placeholder = document.getElementById('fotoPlaceholder');
-  preview.innerHTML = '';
-  
-  files.forEach(file => {
+// Variables de estado que antes vivían en window._xxx
+let _puntoParaDia = null;        // día al que asociar un punto nuevo
+let _cambiarIconoIndex = null;   // índice en puntosEdicion al cambiar icono
+let _cambiarIconoJornada = null; // {ji, ii} al cambiar icono desde jornadas
+let _validacionCiudades = [];    // coords de ciudades en validación (legacy, se mantiene por compatibilidad)
+let _verMapaIt = null;           // itinerario activo en screenVerMapa
+let _verMapaD = null;            // destino activo en screenVerMapa
+let _verMapaDestino = '';        // nombre destino activo en screenVerMapa
+
+// Comprime una imagen a base64 (max 800px, jpeg 0.72)
+function comprimirFoto(file) {
+  return new Promise(resolve => {
     const reader = new FileReader();
     reader.onload = e => {
-      // Comprimir
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
@@ -3076,16 +3076,27 @@ function procesarFotos(input) {
         if (w > max) { h = h * max / w; w = max; }
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        const b64 = canvas.toDataURL('image/jpeg', 0.72);
-        fotosBase64.push(b64);
-        const thumb = document.createElement('img');
-        thumb.src = b64;
-        preview.appendChild(thumb);
-        placeholder.style.display = 'none';
+        resolve(canvas.toDataURL('image/jpeg', 0.72));
       };
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
+  });
+}
+
+function procesarFotos(input) {
+  const files = Array.from(input.files);
+  fotosBase64 = [];
+  const preview = document.getElementById('fotoPreview');
+  const placeholder = document.getElementById('fotoPlaceholder');
+  preview.innerHTML = '';
+  files.forEach(async file => {
+    const b64 = await comprimirFoto(file);
+    fotosBase64.push(b64);
+    const thumb = document.createElement('img');
+    thumb.src = b64;
+    preview.appendChild(thumb);
+    placeholder.style.display = 'none';
   });
 }
 
@@ -3102,13 +3113,6 @@ function navegarA(screenId, navId) {
   document.getElementById(screenId).classList.add('active');
   navHistory.length = 0;
   navHistory.push(screenId);
-
-  // Mostrar/ocultar nav
-  if (screenId === 'screenAuth') {
-    
-  } else {
-    
-  }
 
   // Nav activo
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -3191,7 +3195,7 @@ function abrirDestino(key) {
       <div class="it-autor">Por <strong>${it.autor}</strong></div>
       <div class="it-tags">${(it.tipo||[]).map(t=>`<span class="it-tag">${t}</span>`).join('')}</div>
       <div class="it-presupuesto">💰 <strong>${it.presupuesto}</strong></div>`;
-    card.onclick = () => abrirItinerario(key, it.id);
+    card.onclick = () => abrirItinerario(key, it.fbId || it.id);
     body.appendChild(card);
   });
   navegarDetalle('screenLista');
@@ -3200,7 +3204,10 @@ function abrirDestino(key) {
 // ══ DETALLE ══════════════════════════════════
 function abrirItinerario(key, id) {
   const d = destinos[key];
-  const it = d.itinerarios.find(i => i.id === id || i.fbId === id);
+  if (!d) { mostrarToast('❌ Destino no encontrado'); return; }
+  // Buscar por id, fbId, o coger el primero si solo hay uno
+  const it = d.itinerarios.find(i => i.id === id || i.fbId === id) || d.itinerarios[0];
+  if (!it) { mostrarToast('❌ Itinerario no encontrado'); return; }
 
   // Hero fotos
   const heroFotos = document.getElementById('heroFotos');
@@ -3293,6 +3300,7 @@ function abrirItinerario(key, id) {
     detalleLinksEl.innerHTML = '';
   }
 
+  _viajeCompartido = it;
   navegarDetalle('screenDetalle');
 }
 
@@ -3371,10 +3379,24 @@ async function buscarLugarMapa(q) {
   if (!q || q.length < 2) { resultsEl.style.display = 'none'; return; }
   _busquedaMapaTimer = setTimeout(async () => {
     try {
-      // Photon: entiende español, sin límite de peticiones, resultados muy precisos
-      const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=es`);
-      const data = await res.json();
-      const features = data?.features || [];
+      let features = [];
+      try {
+        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=es`, {
+          headers: { 'User-Agent': 'YaEstuve/1.0' }
+        });
+        const data = await res.json();
+        features = data?.features || [];
+      } catch(e2) {}
+      if (!features.length) {
+        const res2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=1`, {
+          headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' }
+        });
+        const data2 = await res2.json();
+        features = (data2 || []).map(d => ({
+          geometry: { coordinates: [parseFloat(d.lon), parseFloat(d.lat)] },
+          properties: { name: d.display_name.split(',')[0], city: d.display_name.split(',').slice(1,3).join(','), country: '' }
+        }));
+      }
       if (!features.length) {
         resultsEl.innerHTML = '<div style="padding:14px;text-align:center;color:var(--muted);font-size:0.85rem">Sin resultados</div>';
         resultsEl.style.display = 'block';
@@ -3386,7 +3408,7 @@ async function buscarLugarMapa(q) {
         const lng = f.geometry.coordinates[0];
         const nombre = p.name || p.street || q;
         const detalle = [p.city, p.state, p.country].filter(Boolean).join(', ');
-        return `<div onclick="seleccionarLugarMapa(${lat},${lng},'${nombre.replace(/'/g,"\\'")}',event)"
+        return `<div onclick="seleccionarLugarMapa(${lat},${lng},'${nombre.replace(/'/g,"\'")}',event)"
           style="padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:10px;font-family:'Mulish',sans-serif">
           <span style="font-size:1rem;flex-shrink:0">📍</span>
           <div style="min-width:0">
@@ -3627,7 +3649,6 @@ function irPaso(n) {
   document.querySelectorAll('.paso-dot').forEach((d,i) => {
     d.classList.toggle('active', i < n);
   });
-  if (n === 3) rellenarResumen();
 }
 
 function crearManualmente() {
@@ -3697,8 +3718,11 @@ Descripción: "${desc}"
 IMPORTANTE sobre las coordenadas:
 - Debes incluir "lat" y "lng" para CADA lugar (coordenadas GPS reales y precisas).
 - Usa tus conocimientos geográficos para dar coordenadas exactas de monumentos, restaurantes, hoteles, playas, etc.
-- Si no estás seguro de un lugar concreto, usa las coordenadas del centro de la ciudad.
+- Para parques naturales, playas, faros, miradores y zonas costeras: usa coordenadas MUY precisas del punto exacto, no del centro de la zona. Por ejemplo, el Faro de Cabo de Gata está en 36.7267, -2.1902; la Playa de Mónsul en 36.7225, -2.0583; la Playa de los Genoveses en 36.7433, -2.0817.
+- Para restaurantes y negocios locales poco conocidos: usa las coordenadas del pueblo o zona donde están ubicados.
+- Si no estás seguro de un lugar concreto, usa las coordenadas del centro del municipio más cercano, nunca inventes coordenadas que puedan caer en el mar.
 - Las coordenadas deben ser números decimales (ej: 41.3851, 2.1734).
+- NUNCA pongas coordenadas en el mar para lugares que están en tierra.
 
 Devuelve SOLO este JSON (sin texto extra, sin markdown):
 {
@@ -3781,189 +3805,69 @@ Devuelve SOLO este JSON (sin texto extra, sin markdown):
 
 // ══ NUEVO FLUJO DE VALIDACIÓN ══════════════════════════════
 // Renderiza el formulario de validación día por día
-function renderValidacionDias(parsed) {
-  const container = document.getElementById('validacionDias');
-  if (!container) return;
-
-  // Cabecera del viaje
-  let html = `
-    <div style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:16px">
-      <div style="font-size:1.1rem;font-weight:700">${parsed.emoji||'📍'} ${parsed.titulo}</div>
-      <div style="font-size:0.85rem;color:#888;margin-top:4px">${parsed.dias} días · ${parsed.presupuesto}</div>
-      <div style="font-size:0.85rem;margin-top:6px">${parsed.resumen}</div>
-    </div>`;
-
-  // Un bloque por jornada
-  (parsed.jornadas||[]).forEach((j, ji) => {
-    html += `
-    <div style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <span style="background:var(--primary);color:white;padding:3px 10px;border-radius:20px;font-size:0.8rem;font-weight:700">DÍA ${j.dia}</span>
-      </div>
-      <div style="margin-bottom:10px">
-        <label style="font-size:0.75rem;color:#888;font-weight:600;text-transform:uppercase">Ciudad</label>
-        <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
-          <input id="val-ciudad-${ji}" value="${j.lugar||''}" placeholder="Ciudad del día..."
-            style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--bg)">
-          <button onclick="buscarCiudadValidacion(${ji})" 
-            style="background:var(--primary);color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:1rem">📍</button>
-        </div>
-        <div id="val-ciudad-coords-${ji}" style="font-size:0.75rem;color:green;margin-top:3px;display:none">✅ Ubicación confirmada</div>
-        <div id="val-ciudad-sugs-${ji}" style="background:white;border:1px solid var(--border);border-radius:8px;margin-top:4px;display:none;max-height:150px;overflow-y:auto;z-index:99;position:relative"></div>
-      </div>
-      <div>
-        <label style="font-size:0.75rem;color:#888;font-weight:600;text-transform:uppercase">Lugares</label>
-        <div id="val-lugares-${ji}" style="margin-top:6px">`;
-
-    (j.items||[]).forEach((item, ii) => {
-      html += `
-          <div id="val-item-${ji}-${ii}" style="padding:6px 0;border-bottom:1px solid var(--border)">
-            <div style="display:flex;align-items:center;gap:8px">
-              <span style="font-size:1.2rem">${iconoTipo(item.tipo)}</span>
-              <span style="flex:1;font-size:0.9rem">${item.nombre}</span>
-              <button onclick="buscarLugarValidacion(${ji},${ii})"
-                style="background:none;border:none;color:var(--primary);font-size:0.9rem;cursor:pointer;padding:4px" title="Buscar ubicación">🔍</button>
-              <button onclick="eliminarItemValidacion(${ji},${ii})" 
-                style="background:none;border:none;color:#ccc;font-size:1rem;cursor:pointer;padding:4px">✕</button>
-            </div>
-            <div id="val-lugar-sugs-${ji}-${ii}" style="display:none;background:white;border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:140px;overflow-y:auto"></div>
-          </div>`;
-    });
-
-    html += `
-        </div>
-        <button onclick="añadirLugarValidacion(${ji})" 
-          style="margin-top:8px;background:none;border:1px dashed var(--border);width:100%;padding:8px;border-radius:8px;color:#888;cursor:pointer;font-size:0.85rem">+ Añadir lugar</button>
-      </div>
-    </div>`;
-  });
-
-  container.innerHTML = html;
-
-  // Guardar datos de ciudades (lat/lng) — se llenarán al confirmar
-  window._validacionCiudades = (parsed.jornadas||[]).map(j => ({
-    nombre: j.lugar,
-    lat: null,
-    lng: null
-  }));
-}
-
-// Buscar ciudad con Nominatim al pulsar 📍
-let _valCiudadTimer = null;
-function buscarCiudadValidacion(ji) {
-  const input = document.getElementById(`val-ciudad-${ji}`);
-  const q = input?.value?.trim();
-  if (!q) return;
-
-  const sugs = document.getElementById(`val-ciudad-sugs-${ji}`);
-  sugs.style.display = 'block';
-  sugs.innerHTML = '<div style="padding:10px;color:#888;font-size:0.85rem">Buscando...</div>';
-
-  fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=es`)
-  .then(r => r.json())
-  .then(data => {
-    const features = data?.features || [];
-    if (!features.length) {
-      sugs.innerHTML = '<div style="padding:10px;color:#888;font-size:0.85rem">Sin resultados</div>';
-      return;
-    }
-    sugs.innerHTML = features.map(f => {
-      const p = f.properties;
-      const lat = f.geometry.coordinates[1];
-      const lng = f.geometry.coordinates[0];
-      const nombre = [p.name, p.city, p.state, p.country].filter(Boolean).join(', ');
-      return `<div onclick="seleccionarCiudadValidacion(${ji}, '${nombre.replace(/'/g,"\\'")}', ${lat}, ${lng})"
-        style="padding:10px;cursor:pointer;border-bottom:1px solid var(--border);font-size:0.85rem"
-        onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">
-        📍 ${nombre}
-      </div>`;
-    }).join('');
-  })
-  .catch(() => { sugs.innerHTML = '<div style="padding:10px;color:#888">Error al buscar</div>'; });
-}
-
-function seleccionarCiudadValidacion(ji, nombre, lat, lng) {
-  document.getElementById(`val-ciudad-${ji}`).value = nombre;
-  document.getElementById(`val-ciudad-sugs-${ji}`).style.display = 'none';
-  document.getElementById(`val-ciudad-coords-${ji}`).style.display = 'block';
-
-  if (!window._validacionCiudades) window._validacionCiudades = [];
-  window._validacionCiudades[ji] = { nombre, lat: parseFloat(lat), lng: parseFloat(lng) };
-
-  // Actualizar en itinerarioGenerado
-  if (itinerarioGenerado?.jornadas?.[ji]) {
-    itinerarioGenerado.jornadas[ji].lugar = nombre;
-  }
-  mostrarToast('📍 Ciudad confirmada');
-}
-
-function buscarLugarValidacion(ji, ii) {
-  // Obtener nombre del item desde el DOM o del itinerario
-  const nombre = itinerarioGenerado?.jornadas?.[ji]?.items?.[ii]?.nombre || '';
-  const ciudad = document.getElementById(`val-ciudad-${ji}`)?.value || itinerarioGenerado?.jornadas?.[ji]?.lugar || '';
-  const sugs = document.getElementById(`val-lugar-sugs-${ji}-${ii}`);
-  if (!sugs) return;
-
-  sugs.style.display = 'block';
-  sugs.innerHTML = '<div style="padding:8px;color:#888;font-size:0.8rem">Buscando...</div>';
-
-  fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(nombre + ' ' + ciudad)}&limit=4&lang=es`)
-  .then(r => r.json())
-  .then(data => {
-    const features = data?.features || [];
-    if (!features.length) {
-      sugs.innerHTML = '<div style="padding:8px;color:#888;font-size:0.8rem">Sin resultados — se usará la ubicación de la ciudad</div>';
-      return;
-    }
-    sugs.innerHTML = features.map(f => {
-      const p = f.properties;
-      const lat = f.geometry.coordinates[1];
-      const lng = f.geometry.coordinates[0];
-      const etiqueta = [p.name, p.city, p.country].filter(Boolean).join(', ');
-      return `<div onclick="seleccionarLugarValidacion(${ji},${ii},${lat},${lng},'${etiqueta.replace(/'/g,"\\'")}')"
-        style="padding:8px;cursor:pointer;border-bottom:1px solid var(--border);font-size:0.8rem"
-        onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">
-        📍 ${etiqueta}
-      </div>`;
-    }).join('');
-  })
-  .catch(() => { sugs.innerHTML = '<div style="padding:8px;color:#888">Error al buscar</div>'; });
-}
-
-function seleccionarLugarValidacion(ji, ii, lat, lng, nombre) {
-  const sugs = document.getElementById(`val-lugar-sugs-${ji}-${ii}`);
-  if (sugs) sugs.style.display = 'none';
-  // Guardar coords en el item del itinerario
-  if (itinerarioGenerado?.jornadas?.[ji]?.items?.[ii]) {
-    itinerarioGenerado.jornadas[ji].items[ii]._lat = parseFloat(lat);
-    itinerarioGenerado.jornadas[ji].items[ii]._lng = parseFloat(lng);
-  }
-  mostrarToast('📍 Ubicación guardada');
-}
-
-function eliminarItemValidacion(ji, ii) {
-  const el = document.getElementById(`val-item-${ji}-${ii}`);
-  if (el) el.remove();
-  if (itinerarioGenerado?.jornadas?.[ji]?.items) {
-    itinerarioGenerado.jornadas[ji].items.splice(ii, 1);
-  }
-}
-
-function añadirLugarValidacion(ji) {
-  const nombre = prompt('Nombre del lugar:');
-  if (!nombre?.trim()) return;
-  if (!itinerarioGenerado?.jornadas?.[ji]) return;
-  itinerarioGenerado.jornadas[ji].items.push({ tipo: 'visita', nombre: nombre.trim(), desc: '' });
-  renderValidacionDias(itinerarioGenerado);
-}
 
 // Construye los puntos del mapa a partir del JSON de la IA y abre la edición
+// Mapa de tipos de la app → clases OSM para búsqueda más precisa
+const OSM_TIPOS = {
+  monumento: ['historic=monument','historic=ruins','historic=archaeological_site','historic=castle','historic=memorial','tourism=attraction'],
+  museo:     ['tourism=museum','amenity=arts_centre'],
+  iglesia:   ['amenity=place_of_worship','historic=church','building=church','building=cathedral'],
+  restaurante: ['amenity=restaurant','amenity=cafe'],
+  bar:       ['amenity=bar','amenity=pub'],
+  mirador:   ['tourism=viewpoint'],
+  atraccion: ['tourism=attraction','leisure=park','tourism=theme_park'],
+  visita:    ['tourism=attraction','historic=monument','tourism=museum'],
+  compras:   ['shop=mall','landuse=retail','highway=pedestrian'],
+  playa:     ['natural=beach'],
+  parque:    ['leisure=park','leisure=nature_reserve'],
+};
+
+// Busca coords exactas en OSM usando Nominatim con tipo específico
+async function buscarCoordsOSM(nombre, ciudad, latRef, lngRef, tipo) {
+  const clases = OSM_TIPOS[tipo] || [];
+
+  // Intento 1: búsqueda con tipo específico OSM
+  for (const clase of clases) {
+    try {
+      const [key, val] = clase.split('=');
+      const q = encodeURIComponent(nombre);
+      const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1&countrycodes=&viewbox=${lngRef-0.3},${latRef+0.3},${lngRef+0.3},${latRef-0.3}&bounded=1`;
+      const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' } });
+      const data = await r.json();
+      // Filtrar por tipo OSM y proximidad
+      const match = data.find(d =>
+        (d.type === val || d.class === key) &&
+        Math.abs(parseFloat(d.lat) - latRef) < 0.4 &&
+        Math.abs(parseFloat(d.lon) - lngRef) < 0.4
+      );
+      if (match) return { lat: parseFloat(match.lat), lng: parseFloat(match.lon) };
+    } catch(e) {}
+    await new Promise(r => setTimeout(r, 100));
+  }
+
+  // Intento 2: búsqueda libre con nombre + ciudad dentro del viewbox
+  try {
+    const q = encodeURIComponent(`${nombre}, ${ciudad}`);
+    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1&viewbox=${lngRef-0.3},${latRef+0.3},${lngRef+0.3},${latRef-0.3}&bounded=1`;
+    const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' } });
+    const data = await r.json();
+    const cercano = data.find(d =>
+      Math.abs(parseFloat(d.lat) - latRef) < 0.4 &&
+      Math.abs(parseFloat(d.lon) - lngRef) < 0.4
+    );
+    if (cercano) return { lat: parseFloat(cercano.lat), lng: parseFloat(cercano.lon) };
+  } catch(e) {}
+
+  return null;
+}
+
 async function construirPuntosDesdeIA(parsed, loadEl) {
   loadEl.innerHTML = '<div class="spinner"></div><p>Construyendo el mapa...</p>';
 
   const jornadas = parsed.jornadas || [];
   let puntosIA = [];
-  let sinCoords = []; // puntos que usan fallback
+  let sinCoords = [];
+  let mejorados = 0;
 
   for (let ji = 0; ji < jornadas.length; ji++) {
     const j = jornadas[ji];
@@ -3978,7 +3882,19 @@ async function construirPuntosDesdeIA(parsed, loadEl) {
       let lng = item._lng || item.lng || null;
       let esAproximado = false;
 
-      // Fallback: coords de la ciudad con offset pequeño
+      // Intentar mejorar coords con OSM para monumentos, museos, restaurantes...
+      if (lat && ciudadLat && ['monumento','museo','iglesia','restaurante','bar','mirador','atraccion','visita','compras','parking'].includes(item.tipo)) {
+        loadEl.innerHTML = `<div class="spinner"></div><p>Localizando ${item.nombre}...</p>`;
+        const coords = await buscarCoordsOSM(item.nombre, j.lugar, ciudadLat, ciudadLng, item.tipo);
+        if (coords) {
+          lat = coords.lat;
+          lng = coords.lng;
+          mejorados++;
+        }
+        await new Promise(r => setTimeout(r, 200)); // respetar límite Nominatim
+      }
+
+      // Fallback: coords de la ciudad con offset
       if (!lat && ciudadLat) {
         const offset = () => (Math.random()-0.5)*0.008;
         lat = ciudadLat + offset();
@@ -3995,13 +3911,12 @@ async function construirPuntosDesdeIA(parsed, loadEl) {
         dia: j.dia,
         lat,
         lng,
-        aproximado: esAproximado  // flag para aviso visual
+        aproximado: esAproximado
       });
     }
   }
 
   // Coordenadas del destino principal — vienen directamente de la IA
-  // Si no vienen en el raíz, usar la media de las jornadas
   if (!itinerarioGenerado.lat) {
     const jornadasConCoords = jornadas.filter(j => j.lat);
     if (jornadasConCoords.length > 0) {
@@ -4009,12 +3924,11 @@ async function construirPuntosDesdeIA(parsed, loadEl) {
       itinerarioGenerado.lng = jornadasConCoords.reduce((s,j)=>s+j.lng,0) / jornadasConCoords.length;
     }
   }
-  // destinoKey basado en el nombre del destino real para agrupar bien
+
   const destinoNorm = (itinerarioGenerado.destino||'viaje').toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').slice(0,40);
+    .normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_').slice(0,40);
   itinerarioGenerado.destinoKey = destinoNorm + '_' + Date.now();
 
-  // Asignar puntos y abrir edición
   puntosEdicion = puntosIA;
   itinerarioGenerado.puntos = puntosEdicion;
   state.viajeActual = itinerarioGenerado;
@@ -4023,21 +3937,20 @@ async function construirPuntosDesdeIA(parsed, loadEl) {
 
   loadEl.style.display = 'none';
 
-  // Aviso si hay pins aproximados que el usuario deberá colocar manualmente
   if (sinCoords.length > 0) {
     setTimeout(() => {
       mostrarToast(`⚠️ ${sinCoords.length} punto${sinCoords.length > 1 ? 's' : ''} sin ubicación exacta — colócalos en el mapa`);
     }, 800);
   } else {
-    mostrarToast(`✨ ${puntosIA.length} puntos localizados`);
+    mostrarToast(`✨ ${puntosIA.length} puntos localizados${mejorados > 0 ? ` (${mejorados} con coords exactas)` : ''}`);
   }
 
   itinerarioGenerado.puntos = puntosEdicion.slice();
-  irPaso(1); // reset wizard para próxima vez
+  irPaso(1);
   abrirEdicion();
 }
 
-// Mantener confirmarYPublicar como alias por si hay referencias en el HTML
+// Alias por compatibilidad con cualquier llamada directa desde el HTML
 async function confirmarYPublicar() {
   if (!itinerarioGenerado) return;
   const loadEl = document.getElementById('iaLoading');
@@ -4045,7 +3958,6 @@ async function confirmarYPublicar() {
   loadEl.style.display = 'block';
   await construirPuntosDesdeIA(itinerarioGenerado, loadEl);
 }
-
 
 function rellenarResumen() {
   if (!itinerarioGenerado) return;
@@ -4081,27 +3993,11 @@ async function publicarViaje() {
   it.autorNombre = usuarioActual?.displayName || it.autor || 'Anónimo';
   fotosBase64 = [];
 
-  // Sincronizar puntos desde estado central antes de publicar
-  if (state.viajeActual?.puntos?.length > 0) {
-    it.puntos = state.viajeActual.puntos;
-  }
-
-  // Si es edición, cargar puntos frescos de Firebase para no machacarlos
-  if (it.fbId) {
-    try {
-      const rp = await fetch(`${FB_URL}/itinerarios/${it.fbId}/puntos.json`);
-      const puntosFirebase = await rp.json();
-      if (Array.isArray(puntosFirebase) && puntosFirebase.length > 0) {
-        it.puntos = puntosFirebase;
-      } else {
-        it.puntos = puntosEdicion.filter(p => p && p.tipo);
-      }
-    } catch(e) {
-      it.puntos = puntosEdicion.filter(p => p && p.tipo);
-    }
-  } else {
-    it.puntos = puntosEdicion.filter(p => p && p.tipo);
-  }
+  // Usar siempre los puntos locales (puntosEdicion) como fuente de verdad.
+  // Las ediciones (borrar, añadir, mover) ya se sincronizan con Firebase en tiempo real,
+  // así que NO recargamos desde Firebase aquí para no machacar cambios locales.
+  it.puntos = puntosEdicion.filter(p => p && p.tipo);
+  if (state.viajeActual) state.viajeActual.puntos = it.puntos;
 
   const btn = document.querySelector('#screenEditar button[onclick="publicarViaje()"]') || 
                document.querySelector('.btn-primary');
@@ -4131,6 +4027,12 @@ async function publicarViaje() {
       });
       const data = await r.json();
       it.fbId = data.name;
+      // Guardar fbId dentro del objeto en Firebase para que el lookup funcione siempre
+      await fetch(`${FB_URL}/itinerarios/${it.fbId}/fbId.json`, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(it.fbId)
+      });
 
       if (!destinos[key]) {
         destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
@@ -4173,7 +4075,9 @@ async function cargarDeFirebase() {
     const r = await fetch(`${FB_URL}/itinerarios.json`);
     const data = await r.json();
     if (!data) return;
-    Object.values(data).forEach(it => {
+    Object.entries(data).forEach(([fbKey, it]) => {
+      // Asegurar que el fbId siempre está presente (viajes viejos pueden no tenerlo)
+      if (!it.fbId) it.fbId = fbKey;
       const key = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_');
       if (!key) return;
       if (!destinos[key]) {
@@ -4186,7 +4090,7 @@ async function cargarDeFirebase() {
             }).catch(()=>{});
         }
       }
-      const esNuevo = !destinos[key].itinerarios.find(i => i.id === it.id || i.fbId === it.fbId);
+      const esNuevo = !destinos[key].itinerarios.find(i => i.fbId === it.fbId);
       if (esNuevo) {
         it.fotos = it.fotos || [];
         it.puntos = it.puntos || [];
@@ -4277,9 +4181,9 @@ function mostrarPantallaHome() {
 }
 
 renderHome();
-cargarDeFirebase();
+cargarDeFirebase().then(() => comprobarUrlViaje());
 
-// Comprobar sesión guardada
+// Comprobar sesión guardada y mostrar pantalla inicial
 const sesionGuardada = localStorage.getItem('ye_user');
 if (sesionGuardada) {
   try {
@@ -4289,6 +4193,10 @@ if (sesionGuardada) {
     localStorage.removeItem('ye_user');
   }
 }
+
+// ── ARRANQUE: mostrar la primera pantalla ───────────────────────────────────
+// Sin esta llamada todas las pantallas quedan ocultas y la app no sale del splash
+navegarA('screenHome', 'navHome');
 
 // ── PWA SERVICE WORKER — desregistrar si existe para limpiar caché ──
 if ('serviceWorker' in navigator) {
@@ -4357,6 +4265,308 @@ function instalarApp() {
     _installPrompt = null;
   });
 }
+
+// ══════════════════════════════════════════════════════════════════
+// ══ COMPARTIR VIAJE ═══════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
+let _viajeCompartido = null; // itinerario activo en pantalla detalle
+
+function compartirViaje() {
+  if (!_viajeCompartido) return;
+  const it = _viajeCompartido;
+  const fbId = it.fbId;
+  if (!fbId) { mostrarToast('⚠️ Publica el viaje primero para compartirlo'); return; }
+
+  const url = `${location.origin}${location.pathname}?viaje=${fbId}`;
+
+  const sheet = document.createElement('div');
+  sheet.id = '_shareSheet';
+  sheet.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:5000;display:flex;align-items:flex-end';
+  sheet.innerHTML = `
+    <div style="background:var(--bg);border-radius:20px 20px 0 0;width:100%;padding:24px 20px 40px;animation:slideUp 0.25s ease">
+      <div style="width:36px;height:4px;background:var(--border);border-radius:4px;margin:0 auto 20px"></div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.1rem;margin-bottom:4px">Compartir viaje</div>
+      <div style="font-size:0.82rem;color:var(--muted);margin-bottom:20px">${it.titulo}</div>
+
+      <!-- URL box -->
+      <div style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <div style="flex:1;font-size:0.78rem;color:var(--muted);word-break:break-all;line-height:1.4">${url}</div>
+        <button onclick="copiarLinkViaje('${url}')" style="background:var(--ink);color:white;border:none;padding:8px 14px;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;white-space:nowrap;flex-shrink:0">Copiar</button>
+      </div>
+
+      <!-- Botones de acción -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <button onclick="compartirNativo('${url}','${it.titulo.replace(/'/g,"")}')" style="padding:14px;background:var(--ink);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">
+          📤 Compartir
+        </button>
+        <button onclick="compartirWhatsApp('${url}','${it.titulo.replace(/'/g,"").replace(/"/g,"")}','${it.destino || ""}')" style="padding:14px;background:#25D366;color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">
+          💬 WhatsApp
+        </button>
+      </div>
+
+      <button onclick="document.getElementById('_shareSheet').remove()" style="width:100%;padding:13px;background:none;border:1.5px solid var(--border);border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;font-size:0.9rem">Cerrar</button>
+    </div>`;
+  sheet.addEventListener('click', e => { if (e.target === sheet) sheet.remove(); });
+  document.body.appendChild(sheet);
+}
+
+function copiarLinkViaje(url) {
+  navigator.clipboard.writeText(url).then(() => {
+    mostrarToast('✅ Link copiado al portapapeles');
+    document.getElementById('_shareSheet')?.remove();
+  }).catch(() => {
+    // fallback para iOS
+    const ta = document.createElement('textarea');
+    ta.value = url;
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    mostrarToast('✅ Link copiado');
+    document.getElementById('_shareSheet')?.remove();
+  });
+}
+
+function compartirNativo(url, titulo) {
+  if (navigator.share) {
+    navigator.share({ title: titulo, text: `Mira este itinerario de viaje: ${titulo}`, url })
+      .catch(() => {});
+  } else {
+    copiarLinkViaje(url);
+  }
+  document.getElementById('_shareSheet')?.remove();
+}
+
+function compartirWhatsApp(url, titulo, destino) {
+  const texto = encodeURIComponent(`✈️ *${titulo}*\n📍 ${destino}\n\nMira este itinerario en YaEstuve:\n${url}`);
+  window.open(`https://wa.me/?text=${texto}`, '_blank');
+  document.getElementById('_shareSheet')?.remove();
+}
+
+// Al arrancar, comprobar si hay ?viaje=fbId en la URL y abrirlo directamente
+function comprobarUrlViaje() {
+  const params = new URLSearchParams(location.search);
+  const fbId = params.get('viaje');
+  if (!fbId) return;
+  // Esperar a que carguen los datos de Firebase
+  let intentos = 0;
+  const buscar = setInterval(() => {
+    intentos++;
+    for (const [key, d] of Object.entries(destinos)) {
+      const it = d.itinerarios.find(i => i.fbId === fbId);
+      if (it) {
+        clearInterval(buscar);
+        setTimeout(() => abrirItinerario(key, fbId), 300);
+        return;
+      }
+    }
+    if (intentos > 20) clearInterval(buscar); // 4 segundos máx
+  }, 200);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ══ DESCARGAR PDF ═════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
+
+function descargarPDF() {
+  const it = _viajeCompartido;
+  if (!it) return;
+
+  // Generar HTML del PDF en una ventana nueva para imprimir
+  const iconoTipoLocal = (tipo) => {
+    const m = {hotel:'🏨',restaurante:'🍽️',atraccion:'🎡',monumento:'🏛️',museo:'🖼️',playa:'🏖️',
+      mirador:'🔭',bar:'🍻',iglesia:'⛪',parque:'🌳',visita:'📍',tip:'💡',transporte:'🚌',
+      compras:'🛍️',avion:'✈️',tren:'🚂',barco:'🚢'};
+    return m[tipo] || '📍';
+  };
+
+  const diasHTML = (it.jornadas || []).map(j => `
+    <div class="dia">
+      <div class="dia-header">
+        <span class="dia-num">DÍA ${j.dia}</span>
+        <span class="dia-lugar">${j.lugar || ''}</span>
+      </div>
+      ${(j.items || []).map(item => `
+        <div class="item">
+          <span class="item-icon">${iconoTipoLocal(item.tipo)}</span>
+          <div>
+            <div class="item-nombre">${item.nombre}</div>
+            ${item.desc ? `<div class="item-desc">${item.desc}</div>` : ''}
+          </div>
+        </div>`).join('')}
+    </div>`).join('');
+
+  const tiposHTML = (it.tipo || []).map(t => `<span class="tag">${t}</span>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>${it.titulo} — YaEstuve</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Mulish:wght@400;600&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Mulish',sans-serif; background:#fff; color:#1C1917; padding:32px; max-width:680px; margin:0 auto; }
+  .header { border-bottom:3px solid #E8471C; padding-bottom:20px; margin-bottom:24px; }
+  .app-label { font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#9C9189; margin-bottom:8px; }
+  h1 { font-family:'Syne',sans-serif; font-size:26px; font-weight:800; margin-bottom:8px; line-height:1.2; }
+  .meta { display:flex; flex-wrap:wrap; gap:16px; font-size:13px; color:#5C8C6A; font-weight:600; margin-bottom:10px; }
+  .tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .tag { font-size:11px; background:#FEF0EC; color:#E8471C; padding:3px 10px; border-radius:50px; font-weight:700; }
+  .presupuesto { background:#5C8C6A; color:white; display:inline-flex; align-items:center; gap:8px; padding:8px 16px; border-radius:10px; font-family:'Syne',sans-serif; font-weight:700; font-size:14px; margin-top:12px; }
+  .resumen { font-size:13px; color:#666; line-height:1.6; margin:16px 0; padding:14px; background:#F7F4EF; border-radius:10px; border-left:3px solid #E8471C; }
+  .dia { margin-bottom:24px; page-break-inside:avoid; }
+  .dia-header { display:flex; align-items:center; gap:10px; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid #EDE8DF; }
+  .dia-num { background:#E8471C; color:white; font-size:10px; font-weight:700; letter-spacing:0.5px; padding:3px 10px; border-radius:50px; font-family:'Syne',sans-serif; }
+  .dia-lugar { font-family:'Syne',sans-serif; font-size:15px; font-weight:700; }
+  .item { display:flex; gap:10px; padding:8px 10px; border-radius:8px; margin-bottom:6px; background:#FAFAF8; border:1px solid #EDE8DF; }
+  .item-icon { font-size:16px; flex-shrink:0; margin-top:1px; }
+  .item-nombre { font-size:13px; font-weight:700; margin-bottom:2px; }
+  .item-desc { font-size:11px; color:#9C9189; line-height:1.5; }
+  .footer { margin-top:32px; padding-top:16px; border-top:1px solid #EDE8DF; text-align:center; font-size:11px; color:#9C9189; }
+  @media print {
+    body { padding:16px; }
+    .no-print { display:none; }
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="app-label">YaEstuve · Itinerario de viaje</div>
+    <h1>${it.emoji || '✈️'} ${it.titulo}</h1>
+    <div class="meta">
+      <span>📍 ${it.destino}</span>
+      <span>📅 ${it.dias} día${it.dias !== 1 ? 's' : ''}</span>
+      <span>👤 ${it.autor}</span>
+    </div>
+    ${tiposHTML ? `<div class="tags">${tiposHTML}</div>` : ''}
+    ${it.presupuesto ? `<div class="presupuesto">💰 ${it.presupuesto} / persona</div>` : ''}
+  </div>
+  ${it.resumen ? `<div class="resumen">${it.resumen}</div>` : ''}
+  <div class="dias">${diasHTML}</div>
+  <div class="footer">
+    Generado con YaEstuve · yaestuve2.jaymaviajes.workers.dev
+  </div>
+  <script>window.onload = () => { window.print(); }<\/script>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { mostrarToast('⚠️ Permite ventanas emergentes para descargar el PDF'); return; }
+  win.document.write(html);
+  win.document.close();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ══ MAPA MUNDIAL MEJORADO — CLUSTERS ══════════════════════════════
+// ══════════════════════════════════════════════════════════════════
+
+// Reemplazamos iniciarMapa y añadirPinMundial con versión con clusters visuales
+
+function iniciarMapa() {
+  mapaIniciado = true;
+  const m = L.map('map', { center:[25,10], zoom:2, zoomControl:false });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(m);
+  L.control.zoom({ position:'topright' }).addTo(m);
+  mapaMundial = m;
+  // Re-renderizar pins al cambiar zoom (para clusters dinámicos)
+  m.on('zoomend moveend', renderPinsMundiales);
+  // Añadir pins de destinos ya cargados
+  renderPinsMundiales();
+}
+
+// Guarda los markers actuales del mapa mundial para poder limpiarlos
+let _pinsMundiales = [];
+
+function renderPinsMundiales() {
+  if (!mapaMundial) return;
+  // Limpiar markers anteriores
+  _pinsMundiales.forEach(m => mapaMundial.removeLayer(m));
+  _pinsMundiales = [];
+
+  const zoom = mapaMundial.getZoom();
+  const entries = Object.entries(destinos).filter(([,d]) => d.lat && d.lng);
+  if (!entries.length) return;
+
+  // Agrupar destinos cercanos según el zoom
+  const radio = zoom < 4 ? 8 : zoom < 6 ? 4 : zoom < 9 ? 1.5 : 0.3;
+  const usados = new Set();
+  const grupos = [];
+
+  for (let i = 0; i < entries.length; i++) {
+    if (usados.has(i)) continue;
+    const [ki, di] = entries[i];
+    const grupo = { keys:[ki], destinos:[di], lat:di.lat, lng:di.lng };
+    for (let j = i+1; j < entries.length; j++) {
+      if (usados.has(j)) continue;
+      const [kj, dj] = entries[j];
+      if (Math.abs(di.lat - dj.lat) < radio && Math.abs(di.lng - dj.lng) < radio) {
+        grupo.keys.push(kj);
+        grupo.destinos.push(dj);
+        usados.add(j);
+      }
+    }
+    usados.add(i);
+    grupos.push(grupo);
+  }
+
+  grupos.forEach(g => {
+    if (g.destinos.length === 1) {
+      // Pin individual
+      const d = g.destinos[0];
+      const key = g.keys[0];
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="background:${d.color||'#E8471C'};color:white;border-radius:50px;padding:6px 12px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 3px 12px rgba(0,0,0,0.25);border:2px solid white;cursor:pointer;transition:transform 0.15s" onmouseenter="this.style.transform='scale(1.08)'" onmouseleave="this.style.transform=''">${d.emoji || '📍'} ${d.nombre}</div>`,
+        iconSize: null, iconAnchor: [0,0]
+      });
+      const marker = L.marker([g.lat, g.lng], { icon })
+        .addTo(mapaMundial)
+        .on('click', () => abrirDestino(key));
+      _pinsMundiales.push(marker);
+    } else {
+      // Cluster: burbuja con número y emojis
+      const total = g.destinos.reduce((s,d) => s + (d.itinerarios?.length||0), 0);
+      const emojis = g.destinos.slice(0,3).map(d => d.emoji||'📍').join('');
+      // Centro del grupo (media de coords)
+      const lat = g.destinos.reduce((s,d)=>s+d.lat,0)/g.destinos.length;
+      const lng = g.destinos.reduce((s,d)=>s+d.lng,0)/g.destinos.length;
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="
+          background:var(--ink);color:white;
+          border-radius:50px;padding:8px 16px;
+          font-family:'Syne',sans-serif;font-size:12px;font-weight:700;
+          white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.3);
+          border:2.5px solid white;cursor:pointer;
+          display:flex;align-items:center;gap:6px;
+          transition:transform 0.15s"
+          onmouseenter="this.style.transform='scale(1.06)'"
+          onmouseleave="this.style.transform=''">
+          <span style="font-size:14px">${emojis}</span>
+          <span>${g.destinos.length} destinos</span>
+          <span style="background:var(--primary);border-radius:50px;padding:2px 7px;font-size:10px">${total} viajes</span>
+        </div>`,
+        iconSize: null, iconAnchor: [0,0]
+      });
+      // Al hacer click en cluster, hacer zoom hacia esa zona
+      const marker = L.marker([lat, lng], { icon })
+        .addTo(mapaMundial)
+        .on('click', () => {
+          const bounds = L.latLngBounds(g.destinos.map(d => [d.lat, d.lng]));
+          mapaMundial.fitBounds(bounds, { padding:[60,60], maxZoom:8 });
+        });
+      _pinsMundiales.push(marker);
+    }
+  });
+}
+
+function añadirPinMundial(key, d) {
+  // Ahora solo re-renderizamos todo (más simple y limpio)
+  if (mapaMundial) renderPinsMundiales();
+}
+
 
 </script>
 </body>
