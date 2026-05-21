@@ -2312,6 +2312,8 @@ function iniciarMapaEdicion() {
 
 function renderPuntosEnMapa() {
   if (!mapEditInstance) return;
+  // Limpiar markers existentes antes de redibujar
+  mapEditInstance.eachLayer(l => { if (l instanceof L.Marker) mapEditInstance.removeLayer(l); });
   puntosEdicion.forEach(p => {
     if (p.lat && p.lng) {
       const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.visita;
@@ -2395,7 +2397,11 @@ function seleccionarTipoPunto(tipo) {
   document.getElementById('puntoFormTitulo').textContent = `${cfg.icon} ${cfg.label}`;
   document.getElementById('p-nombre').value = '';
   document.getElementById('p-desc').value = '';
-  document.getElementById('puntoForm').classList.add('active');
+  const formEl2 = document.getElementById('puntoForm');
+  // Guardar las coords en el form para que no se pierdan si latLngPunto se limpia
+  formEl2._latLng = latLngPunto ? { lat: latLngPunto.lat, lng: latLngPunto.lng } : null;
+  delete formEl2._editIndex;
+  formEl2.classList.add('active');
 }
 
 function cerrarFormPunto(e) {
@@ -2420,8 +2426,8 @@ async function guardarPunto() {
     tipo: tipoPuntoSeleccionado,
     nombre,
     desc,
-    lat: editIndex !== undefined ? puntosEdicion[editIndex]?.lat : (latLngPunto?.lat || null),
-    lng: editIndex !== undefined ? puntosEdicion[editIndex]?.lng : (latLngPunto?.lng || null),
+    lat: editIndex !== undefined ? puntosEdicion[editIndex]?.lat : (formEl._latLng?.lat || latLngPunto?.lat || null),
+    lng: editIndex !== undefined ? puntosEdicion[editIndex]?.lng : (formEl._latLng?.lng || latLngPunto?.lng || null),
     dia: editIndex !== undefined ? (puntosEdicion[editIndex]?.dia || null) : diaDelPunto
   };
 
@@ -2481,6 +2487,7 @@ async function guardarPunto() {
 
   if (!formEl.classList.contains('active')) return; // ya se cerró arriba
   formEl.classList.remove('active');
+  formEl._latLng = null;
   latLngPunto = null;
   renderPuntos();
 
@@ -2495,7 +2502,7 @@ async function guardarPunto() {
     }).catch(() => {});
   }
 
-  // Añadir al mapa
+  // Añadir al mapa con marker arrastrable
   if (punto.lat && mapEditFullInstance) {
     const cfg = TIPOS_CONFIG[punto.tipo] || TIPOS_CONFIG.visita;
     const icon = L.divIcon({
@@ -2503,8 +2510,30 @@ async function guardarPunto() {
       html: `<div style="font-size:1.6rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">${cfg.icon}</div>`,
       iconSize: [32,32], iconAnchor: [16,16]
     });
-    L.marker([punto.lat, punto.lng], {icon}).addTo(mapEditFullInstance)
-      .bindPopup(`<b>${cfg.icon} ${punto.nombre}</b><br><small>${punto.desc||''}</small>`);
+    const marker = L.marker([punto.lat, punto.lng], {icon, draggable: true}).addTo(mapEditFullInstance);
+    marker.bindPopup(`<b>${cfg.icon} ${punto.nombre}</b><br><small>${punto.desc||''}</small>`);
+    marker.on('dragend', e => {
+      const ll = e.target.getLatLng();
+      punto.lat = ll.lat;
+      punto.lng = ll.lng;
+      updatePuntoById(punto.id, { lat: ll.lat, lng: ll.lng });
+      state._dirty = true;
+      _redibujarLineaMapa();
+    });
+    _redibujarLineaMapa();
+  }
+
+  // Si hay jornadas y el punto viene del mapa (no de un día), añadirlo al día 1
+  if (itinerarioGenerado?.jornadas?.length > 0 && _puntoParaDia === undefined) {
+    itinerarioGenerado.jornadas[0].items = itinerarioGenerado.jornadas[0].items || [];
+    itinerarioGenerado.jornadas[0].items.push({
+      tipo: punto.tipo,
+      nombre: punto.nombre,
+      desc: punto.desc,
+      lat: punto.lat,
+      lng: punto.lng
+    });
+    guardarJornadasEnFirebase();
   }
 
   mostrarToast('✅ Punto guardado');
@@ -2909,6 +2938,9 @@ async function abrirMapaEdicionPantalla() {
     // Pinchar en el mapa para añadir punto
     mapEditFullInstance.on('click', e => {
       latLngPunto = e.latlng;
+      // Limpiar flags de cambio de icono para que se abra el form de nuevo punto
+      _cambiarIconoIndex = undefined;
+      _cambiarIconoJornada = undefined;
       abrirMenuPunto();
     });
 
