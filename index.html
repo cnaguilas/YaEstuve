@@ -1313,11 +1313,8 @@ html, body {
     </div>
     <div class="form-group" style="position:relative">
       <label>Destino</label>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input type="text" id="e-destino" style="flex:1" placeholder="Ej: Cazorla, Jaén" oninput="buscarDestinoEdicion(this.value)" autocomplete="off">
-        <button type="button" onclick="abrirBuscadorDestino()" style="background:var(--primary);color:white;border:none;padding:10px 14px;border-radius:10px;font-size:1rem;cursor:pointer;white-space:nowrap">📍</button>
-      </div>
-      <div id="e-destino-coords" style="font-size:0.75rem;color:var(--primary);margin-top:4px;display:none">✅ Ubicación guardada</div>
+      <input type="text" id="e-destino" placeholder="Ej: Cazorla, Jaén" oninput="buscarDestinoEdicion(this.value)" autocomplete="off" style="width:100%;box-sizing:border-box">
+      <div id="e-destino-coords" style="font-size:0.75rem;color:var(--primary);margin-top:4px;display:none">✅ Ubicación encontrada</div>
       <div id="e-destino-sugerencias" style="display:none;position:absolute;left:0;right:0;background:var(--bg);border-radius:0 0 12px 12px;box-shadow:0 8px 20px rgba(0,0,0,0.15);z-index:800;overflow:hidden;max-height:220px;overflow-y:auto;border:1px solid var(--border);border-top:none"></div>
     </div>
     <div class="form-group">
@@ -2302,8 +2299,28 @@ function seleccionarDestinoEdicion(nombre, lat, lng) {
 
 function iniciarMapaEdicion() {
   const it = itinerarioGenerado;
-  const lat = it?.lat || 40;
-  const lng = it?.lng || -3;
+  // Si hay coords del destino usarlas; si no, intentar geocodificar el destino escrito
+  let lat = it?.lat || null;
+  let lng = it?.lng || null;
+  if (!lat || !lng) {
+    const destTexto = document.getElementById('e-destino')?.value?.trim();
+    if (destTexto) {
+      // Geocodificar en background y centrar cuando llegue
+      fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(destTexto)}&limit=1&lang=es`)
+        .then(r => r.json())
+        .then(data => {
+          const f = data?.features?.[0];
+          if (f && mapEditFullInstance) {
+            const fLat = f.geometry.coordinates[1];
+            const fLng = f.geometry.coordinates[0];
+            if (it) { it.lat = fLat; it.lng = fLng; }
+            mapEditFullInstance.setView([fLat, fLng], 13, { animate: true });
+          }
+        }).catch(() => {});
+    }
+    // Mientras geocodifica, mostrar España completa (no Madrid)
+    lat = 40.4; lng = -3.7;
+  }
 
   mapEditInstance = L.map('mapEdit', { center:[lat,lng], zoom:12, zoomControl:false });
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(mapEditInstance);
@@ -2948,7 +2965,7 @@ async function abrirMapaEdicionPantalla() {
     const it = itinerarioGenerado;
     // Calcular centro a partir de los puntos con coordenadas
     const ptsConCoords = puntosEdicion.filter(p => p && p.lat && p.lng);
-    let lat = 40, lng = -3;
+    let lat = null, lng = null;
     // 1. Usar coords del itinerario si las tiene
     if (it?.lat && Math.abs(it.lat) > 0.01) { lat = it.lat; lng = it.lng; }
     // 2. Si no, usar la media de los puntos
@@ -2956,8 +2973,29 @@ async function abrirMapaEdicionPantalla() {
       lat = ptsConCoords.reduce((s,p) => s + p.lat, 0) / ptsConCoords.length;
       lng = ptsConCoords.reduce((s,p) => s + p.lng, 0) / ptsConCoords.length;
     }
-    console.log('Mapa centro:', lat, lng, '| puntos con coords:', ptsConCoords.length, '| total puntosEdicion:', puntosEdicion.length);
-    mapEditFullInstance = L.map('mapEditFull', { center:[lat,lng], zoom:13, zoomControl:false });
+    // 3. Si no hay nada, intentar geocodificar el destino escrito en el form
+    if (!lat) {
+      const destTexto = (document.getElementById('e-destino')?.value || it?.destino || '').trim();
+      if (destTexto) {
+        try {
+          const geoR = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(destTexto)}&limit=1&lang=es`);
+          const geoData = await geoR.json();
+          const f = geoData?.features?.[0];
+          if (f) {
+            lat = f.geometry.coordinates[1];
+            lng = f.geometry.coordinates[0];
+            if (it) { it.lat = lat; it.lng = lng; }
+            // Mostrar tick de ubicación encontrada
+            const coordsEl = document.getElementById('e-destino-coords');
+            if (coordsEl) coordsEl.style.display = 'block';
+          }
+        } catch(e) {}
+      }
+    }
+    // 4. Último fallback: centrar en España entera (zoom bajo), no en Madrid
+    if (!lat) { lat = 40.4; lng = -3.7; }
+    const zoomInicial = (ptsConCoords.length > 0 || (it?.lat && Math.abs(it.lat) > 0.01)) ? 13 : 6;
+    mapEditFullInstance = L.map('mapEditFull', { center:[lat,lng], zoom:zoomInicial, zoomControl:false });
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(mapEditFullInstance);
     L.control.zoom({ position:'topright' }).addTo(mapEditFullInstance);
     mapEditFullInstance.invalidateSize();
