@@ -1313,9 +1313,18 @@ html, body {
     </div>
     <div class="form-group" style="position:relative">
       <label>Destino</label>
-      <input type="text" id="e-destino" placeholder="Ej: Cazorla, Jaén" oninput="buscarDestinoEdicion(this.value)" autocomplete="off" style="width:100%;box-sizing:border-box">
-      <div id="e-destino-coords" style="font-size:0.75rem;color:var(--primary);margin-top:4px;display:none">✅ Ubicación encontrada</div>
-      <div id="e-destino-sugerencias" style="display:none;position:absolute;left:0;right:0;background:var(--bg);border-radius:0 0 12px 12px;box-shadow:0 8px 20px rgba(0,0,0,0.15);z-index:800;overflow:hidden;max-height:220px;overflow-y:auto;border:1px solid var(--border);border-top:none"></div>
+      <div style="position:relative">
+        <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:1rem;pointer-events:none">🔍</span>
+        <input type="text" id="e-destino"
+          placeholder="Busca una ciudad o lugar..."
+          oninput="buscarDestinoEdicion(this.value)"
+          onfocus="if(this.value.length>=3)buscarDestinoEdicion(this.value)"
+          autocomplete="off"
+          style="width:100%;box-sizing:border-box;padding-left:36px;padding-right:36px">
+        <button id="e-destino-clear" onclick="limpiarDestinoEdicion()" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:1rem;cursor:pointer;color:var(--muted);padding:4px">✕</button>
+      </div>
+      <div id="e-destino-coords" style="font-size:0.78rem;color:#5C8C6A;margin-top:6px;display:none;display:flex;align-items:center;gap:5px;font-weight:600">✅ Destino localizado en el mapa</div>
+      <div id="e-destino-sugerencias" style="display:none;position:absolute;left:0;right:0;background:var(--bg);border-radius:0 0 14px 14px;box-shadow:0 8px 24px rgba(0,0,0,0.18);z-index:800;overflow:hidden;max-height:240px;overflow-y:auto;border:1.5px solid var(--border);border-top:none"></div>
     </div>
     <div class="form-group">
       <label>Días</label>
@@ -2255,36 +2264,100 @@ function seleccionarDestinoModal(nombre, lat, lng) {
   mostrarToast('✅ Destino guardado');
 }
 
+function limpiarDestinoEdicion() {
+  const input = document.getElementById('e-destino');
+  if (input) input.value = '';
+  const sug = document.getElementById('e-destino-sugerencias');
+  if (sug) { sug.style.display = 'none'; sug.innerHTML = ''; }
+  const coords = document.getElementById('e-destino-coords');
+  if (coords) coords.style.display = 'none';
+  const clear = document.getElementById('e-destino-clear');
+  if (clear) clear.style.display = 'none';
+  if (itinerarioGenerado) { itinerarioGenerado.lat = null; itinerarioGenerado.lng = null; }
+}
+
 function buscarDestinoEdicion(q) {
   clearTimeout(_destTimer);
   const box = document.getElementById('e-destino-sugerencias');
-  if (!q || q.length < 3) { box.style.display='none'; return; }
+  const clear = document.getElementById('e-destino-clear');
+  if (clear) clear.style.display = q ? 'block' : 'none';
+  if (!q || q.length < 2) { if(box) box.style.display='none'; return; }
+  if (box) box.innerHTML = '<div style="padding:12px 14px;color:var(--muted);font-size:0.83rem">🔍 Buscando...</div>';
+  if (box) box.style.display = 'block';
   _destTimer = setTimeout(async () => {
     try {
-      const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=es`);
+      const biasD = (itinerarioGenerado?.lat && itinerarioGenerado?.lng)
+        ? `&lat=${itinerarioGenerado.lat}&lon=${itinerarioGenerado.lng}` : '';
+      const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=7&lang=es${biasD}`);
       const data = await r.json();
       const features = data?.features || [];
-      if (!features.length) { box.style.display='none'; return; }
+      if (!features.length) {
+        box.innerHTML = '<div style="padding:12px 14px;color:var(--muted);font-size:0.83rem">Sin resultados para "' + q + '"</div>';
+        return;
+      }
+      // Filtrar: priorizar ciudades/municipios sobre calles o edificios
+      const tiposPrio = ['city','town','village','municipality','county','state','country','district'];
+      const sorted = [...features].sort((a, b) => {
+        const ta = a.properties.type || '', tb = b.properties.type || '';
+        const pa = tiposPrio.includes(ta) ? 0 : 1;
+        const pb = tiposPrio.includes(tb) ? 0 : 1;
+        return pa - pb;
+      });
       box.style.display = 'block';
-      box.innerHTML = features.map(f => {
+      box.innerHTML = sorted.map(f => {
         const p = f.properties;
         const lat = f.geometry.coordinates[1];
         const lng = f.geometry.coordinates[0];
-        const nombre = [p.name, p.city, p.state, p.country].filter(Boolean).join(', ');
-        return `<div onclick="seleccionarDestinoEdicion('${nombre.replace(/'/g,"\\'")}',${lat},${lng})"
-          style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:0.85rem"
-          onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">${nombre}</div>`;
+        // Construir nombre legible
+        const partes = [];
+        if (p.name) partes.push(p.name);
+        if (p.city && p.city !== p.name) partes.push(p.city);
+        if (p.state && p.state !== p.city && p.state !== p.name) partes.push(p.state);
+        if (p.country) partes.push(p.country);
+        const nombre = partes.filter(Boolean).join(', ');
+        const subtipo = p.type ? `<span style="font-size:0.68rem;background:var(--card);padding:2px 6px;border-radius:50px;color:var(--muted);margin-left:4px">${p.type}</span>` : '';
+        const iconoTipo = tiposPrio.includes(p.type||'') ? '🏙️' : '📍';
+        // Usar data-* para evitar problemas de escaping en onclick dentro de template literals
+        const safeNombre = nombre.replace(/"/g,'&quot;');
+        const safeName64 = btoa(unescape(encodeURIComponent(nombre))); // base64 safe
+        return `<div data-b64="${safeName64}" data-lat="${lat}" data-lng="${lng}"
+          class="_dest-sug-item"
+          style="padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:10px;font-family:'Mulish',sans-serif;transition:background 0.1s"
+          onmousedown="event.preventDefault()"
+          onmouseover="this.style.background='var(--card)'" onmouseout="this.style.background=''">
+          <span style="font-size:1.1rem;flex-shrink:0">${iconoTipo}</span>
+          <div style="min-width:0;flex:1">
+            <div style="font-size:0.88rem;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name || q}${subtipo}</div>
+            <div style="font-size:0.73rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${partes.slice(1).join(', ')}</div>
+          </div>
+        </div>`;
       }).join('');
-    } catch(e) { box.style.display='none'; }
-  }, 400);
+      // Attach click handlers after rendering (no inline onclick)
+      box.querySelectorAll('._dest-sug-item').forEach(el => {
+        el.addEventListener('mousedown', ev => {
+          ev.preventDefault();
+          const lat = parseFloat(el.dataset.lat);
+          const lng = parseFloat(el.dataset.lng);
+          const nombre = decodeURIComponent(escape(atob(el.dataset.b64)));
+          seleccionarDestinoEdicion(nombre, lat, lng);
+        });
+      });
+    } catch(e) {
+      if(box) box.innerHTML = '<div style="padding:12px 14px;color:var(--muted);font-size:0.83rem">Error al buscar. Comprueba la conexión.</div>';
+    }
+  }, 350);
 }
+
 
 function seleccionarDestinoEdicion(nombre, lat, lng) {
   document.getElementById('e-destino').value = nombre;
   const sug = document.getElementById('e-destino-sugerencias');
-  if (sug) sug.style.display = 'none';
+  if (sug) { sug.style.display = 'none'; sug.innerHTML = ''; }
+  // Show confirmation tick, hide clear button
   const coords = document.getElementById('e-destino-coords');
-  if (coords) coords.style.display = 'block';
+  if (coords) { coords.style.display = 'flex'; }
+  const clear = document.getElementById('e-destino-clear');
+  if (clear) clear.style.display = 'block';
   const latF = parseFloat(lat), lngF = parseFloat(lng);
   if (itinerarioGenerado) {
     itinerarioGenerado.lat = latF;
@@ -2509,16 +2582,18 @@ async function guardarPunto() {
           L.marker([punto.lat, punto.lng], {icon: icon2}).addTo(mapEditFullInstance)
             .bindPopup(`<b>${cfg2.icon} ${punto.nombre}</b><br><small>${punto.desc||''}</small>`);
         }
+        renderDias();
         mostrarToast('✅ Punto añadido al Día ' + itinerarioGenerado.jornadas[ji].dia);
       }
       delete _puntoParaDia;
-      goBack();
-      setTimeout(() => cambiarTab('tabDias'), 200);
+      // Navegar directamente a screenEditar con el tab Días visible
+      navegarA('screenEditar', null);
+      setTimeout(() => cambiarTab('tabDias'), 100);
       return; // evitar doble guardado en Firebase
     }
   }
 
-  if (!formEl.classList.contains('active')) return; // ya se cerró arriba
+  // Cerrar form si aún está abierto (puede que ya se cerró en el bloque _puntoParaDia)
   formEl.classList.remove('active');
   formEl._latLng = null;
   latLngPunto = null;
@@ -2556,10 +2631,15 @@ async function guardarPunto() {
     _redibujarLineaMapa();
   }
 
-  // Si hay jornadas y el punto viene del mapa (no de un día), añadirlo al día 1
+  // Si hay jornadas y el punto viene del mapa (no de un día), añadirlo al día correcto
   if (itinerarioGenerado?.jornadas?.length > 0 && _puntoParaDia === undefined) {
-    itinerarioGenerado.jornadas[0].items = itinerarioGenerado.jornadas[0].items || [];
-    itinerarioGenerado.jornadas[0].items.push({
+    // Intentar asociar al día del punto si viene definido, sino al día 1
+    const diaIdx = (punto.dia && punto.dia > 1)
+      ? (itinerarioGenerado.jornadas.findIndex(j => j.dia === punto.dia) || 0)
+      : 0;
+    const targetIdx = diaIdx >= 0 ? diaIdx : 0;
+    itinerarioGenerado.jornadas[targetIdx].items = itinerarioGenerado.jornadas[targetIdx].items || [];
+    itinerarioGenerado.jornadas[targetIdx].items.push({
       tipo: punto.tipo,
       nombre: punto.nombre,
       desc: punto.desc,
@@ -2567,6 +2647,10 @@ async function guardarPunto() {
       lng: punto.lng
     });
     guardarJornadasEnFirebase();
+    // Actualizar tab Días si está visible
+    if (document.getElementById('tabDias')?.classList.contains('active')) {
+      renderDias();
+    }
   }
 
   mostrarToast('✅ Punto guardado');
@@ -4144,21 +4228,26 @@ async function publicarViaje() {
 
       if (!destinos[key]) {
         destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
-        // Si no hay coords, buscarlas por Nominatim
-        if (!destinos[key].lat) {
-          fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`)
-            .then(r=>r.json()).then(g=>{
-              const f = g?.features?.[0];
-              if (f) {
-                destinos[key].lat = f.geometry.coordinates[1];
-                destinos[key].lng = f.geometry.coordinates[0];
-                añadirPinMundial(key, destinos[key]);
-              }
-            }).catch(()=>{});
-        }
+      }
+      // Siempre actualizar coords desde el itinerario (puede que se geocodificaron al publicar)
+      if (it.lat && it.lng) {
+        destinos[key].lat = it.lat;
+        destinos[key].lng = it.lng;
+      }
+      // Si aún no hay coords, buscarlas por Photon en background
+      if (!destinos[key].lat) {
+        fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`)
+          .then(r=>r.json()).then(g=>{
+            const f = g?.features?.[0];
+            if (f) {
+              destinos[key].lat = f.geometry.coordinates[1];
+              destinos[key].lng = f.geometry.coordinates[0];
+              if (mapaMundial) renderPinsMundiales();
+            }
+          }).catch(()=>{});
       }
       destinos[key].itinerarios.push(it);
-      if (destinos[key].lat) añadirPinMundial(key, destinos[key]);
+      if (mapaMundial) renderPinsMundiales(); // re-render con el nuevo pin
       mostrarToast('✅ ¡Viaje publicado!');
     }
 
@@ -4194,9 +4283,18 @@ async function cargarDeFirebase() {
           fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`)
             .then(r=>r.json()).then(g=>{
               const f = g?.features?.[0];
-              if (f) { destinos[key].lat=f.geometry.coordinates[1]; destinos[key].lng=f.geometry.coordinates[0]; añadirPinMundial(key, destinos[key]); }
+              if (f) {
+                destinos[key].lat=f.geometry.coordinates[1];
+                destinos[key].lng=f.geometry.coordinates[0];
+                if (mapaMundial) renderPinsMundiales();
+              }
             }).catch(()=>{});
         }
+      }
+      // Si destinos[key] ya existe pero le faltan coords, tomarlas del itinerario
+      if (it.lat && it.lng && !destinos[key].lat) {
+        destinos[key].lat = it.lat;
+        destinos[key].lng = it.lng;
       }
       const esNuevo = !destinos[key].itinerarios.find(i => i.fbId === it.fbId);
       if (esNuevo) {
@@ -4206,10 +4304,8 @@ async function cargarDeFirebase() {
       }
     });
     renderHome();
-    // Añadir pins al mapa mundial si ya está iniciado
-    if (mapaIniciado) {
-      Object.entries(destinos).forEach(([key, d]) => añadirPinMundial(key, d));
-    }
+    // Renderizar todos los pins del mapa mundial si ya está iniciado
+    if (mapaIniciado && mapaMundial) renderPinsMundiales();
   } catch(e) { console.log('Error cargando Firebase:', e); }
 }
 
@@ -4339,6 +4435,14 @@ function actualizarEstadoApiKey() {
     el.style.color = saved ? '#388E3C' : '#E65100';
   }
 }
+
+document.addEventListener('click', (e) => {
+  const box = document.getElementById('e-destino-sugerencias');
+  const input = document.getElementById('e-destino');
+  if (box && !box.contains(e.target) && e.target !== input) {
+    box.style.display = 'none';
+  }
+});
 
 document.addEventListener('DOMContentLoaded', () => {
   const saved = localStorage.getItem('ye_api_key');
@@ -4597,19 +4701,25 @@ function renderPinsMundiales() {
   const entries = Object.entries(destinos).filter(([,d]) => d.lat && d.lng);
   if (!entries.length) return;
 
-  // Agrupar destinos cercanos según el zoom
-  const radio = zoom < 4 ? 8 : zoom < 6 ? 4 : zoom < 9 ? 1.5 : 0.3;
+  // Agrupar destinos cuyas posiciones en pantalla estén a menos de 80px entre sí
+  // Esto es visualmente consistente independientemente del zoom
+  const CLUSTER_PX = 80;
+  const toPixel = (lat, lng) => mapaMundial.latLngToContainerPoint([lat, lng]);
+
   const usados = new Set();
   const grupos = [];
 
   for (let i = 0; i < entries.length; i++) {
     if (usados.has(i)) continue;
     const [ki, di] = entries[i];
-    const grupo = { keys:[ki], destinos:[di], lat:di.lat, lng:di.lng };
+    const piI = toPixel(di.lat, di.lng);
+    const grupo = { keys:[ki], destinos:[di], lat:di.lat, lng:di.lng, _px: piI };
     for (let j = i+1; j < entries.length; j++) {
       if (usados.has(j)) continue;
       const [kj, dj] = entries[j];
-      if (Math.abs(di.lat - dj.lat) < radio && Math.abs(di.lng - dj.lng) < radio) {
+      const piJ = toPixel(dj.lat, dj.lng);
+      const dx = piI.x - piJ.x, dy = piI.y - piJ.y;
+      if (Math.sqrt(dx*dx + dy*dy) < CLUSTER_PX) {
         grupo.keys.push(kj);
         grupo.destinos.push(dj);
         usados.add(j);
