@@ -1311,13 +1311,14 @@ html, body {
       <label>Título</label>
       <input type="text" id="e-titulo">
     </div>
-    <div class="form-group">
+    <div class="form-group" style="position:relative">
       <label>Destino</label>
       <div style="display:flex;gap:8px;align-items:center">
-        <input type="text" id="e-destino" style="flex:1" placeholder="Ej: Cazorla, Jaén">
+        <input type="text" id="e-destino" style="flex:1" placeholder="Ej: Cazorla, Jaén" oninput="buscarDestinoEdicion(this.value)" autocomplete="off">
         <button type="button" onclick="abrirBuscadorDestino()" style="background:var(--primary);color:white;border:none;padding:10px 14px;border-radius:10px;font-size:1rem;cursor:pointer;white-space:nowrap">📍</button>
       </div>
       <div id="e-destino-coords" style="font-size:0.75rem;color:var(--primary);margin-top:4px;display:none">✅ Ubicación guardada</div>
+      <div id="e-destino-sugerencias" style="display:none;position:absolute;left:0;right:0;background:var(--bg);border-radius:0 0 12px 12px;box-shadow:0 8px 20px rgba(0,0,0,0.15);z-index:800;overflow:hidden;max-height:220px;overflow-y:auto;border:1px solid var(--border);border-top:none"></div>
     </div>
     <div class="form-group">
       <label>Días</label>
@@ -2223,7 +2224,10 @@ function buscarEnModalDestino(q) {
   box.innerHTML = '<p style="padding:12px;color:#888">Buscando...</p>';
   _modalTimer = setTimeout(async () => {
     try {
-      const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=es`);
+      const itLat = itinerarioGenerado?.lat;
+      const itLng = itinerarioGenerado?.lng;
+      const biasD = (itLat && itLng) ? `&lat=${itLat}&lon=${itLng}` : '';
+      const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=es${biasD}`);
       const data = await r.json();
       const features = data?.features || [];
       if (!features.length) { box.innerHTML = '<p style="padding:12px;color:#888">Sin resultados</p>'; return; }
@@ -2280,12 +2284,20 @@ function buscarDestinoEdicion(q) {
 
 function seleccionarDestinoEdicion(nombre, lat, lng) {
   document.getElementById('e-destino').value = nombre;
-  document.getElementById('e-destino-sugerencias').style.display = 'none';
+  const sug = document.getElementById('e-destino-sugerencias');
+  if (sug) sug.style.display = 'none';
+  const coords = document.getElementById('e-destino-coords');
+  if (coords) coords.style.display = 'block';
+  const latF = parseFloat(lat), lngF = parseFloat(lng);
   if (itinerarioGenerado) {
-    itinerarioGenerado.lat = parseFloat(lat);
-    itinerarioGenerado.lng = parseFloat(lng);
+    itinerarioGenerado.lat = latF;
+    itinerarioGenerado.lng = lngF;
     itinerarioGenerado.destino = nombre;
   }
+  // Also update map center if open
+  if (mapEditFullInstance) mapEditFullInstance.setView([latF, lngF], 13, { animate: true });
+  if (mapEditInstance) mapEditInstance.setView([latF, lngF], 13, { animate: true });
+  mostrarToast('📍 Destino guardado');
 }
 
 function iniciarMapaEdicion() {
@@ -3381,7 +3393,10 @@ async function buscarLugarMapa(q) {
     try {
       let features = [];
       try {
-        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=es`, {
+        // Usar el centro actual del mapa como bias para resultados más relevantes
+        const mapCenter = mapEditFullInstance ? mapEditFullInstance.getCenter() : null;
+        const biasParam = mapCenter ? `&lat=${mapCenter.lat.toFixed(4)}&lon=${mapCenter.lng.toFixed(4)}` : '';
+        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&lang=es${biasParam}`, {
           headers: { 'User-Agent': 'YaEstuve/1.0' }
         });
         const data = await res.json();
@@ -3654,6 +3669,11 @@ function irPaso(n) {
 function crearManualmente() {
   const autor = document.getElementById('f-autor').value.trim();
   if (!autor) { mostrarToast('⚠️ Pon primero tu nombre'); return; }
+  // Limpiar estado anterior por si venía de paso IA fallido
+  puntosEdicion = [];
+  itinerarioGenerado = null;
+  state.viajeActual = null;
+  irPaso(1);
   // Crear itinerario vacío y abrir edición directamente
   itinerarioGenerado = {
     titulo: 'Mi viaje',
@@ -3711,42 +3731,41 @@ async function generarConIA() {
     return;
   }
 
-  const prompt = `Eres un asistente de viajes experto en geografía mundial. El usuario describe su viaje y debes estructurarlo en JSON con coordenadas GPS precisas.
+  const prompt = `Eres un experto en viajes y geografía. Estructura el viaje del usuario en JSON.
 
 Descripción: "${desc}"
 
-IMPORTANTE sobre las coordenadas:
-- Debes incluir "lat" y "lng" para CADA lugar (coordenadas GPS reales y precisas).
-- Usa tus conocimientos geográficos para dar coordenadas exactas de monumentos, restaurantes, hoteles, playas, etc.
-- Para parques naturales, playas, faros, miradores y zonas costeras: usa coordenadas MUY precisas del punto exacto, no del centro de la zona. Por ejemplo, el Faro de Cabo de Gata está en 36.7267, -2.1902; la Playa de Mónsul en 36.7225, -2.0583; la Playa de los Genoveses en 36.7433, -2.0817.
-- Para restaurantes y negocios locales poco conocidos: usa las coordenadas del pueblo o zona donde están ubicados.
-- Si no estás seguro de un lugar concreto, usa las coordenadas del centro del municipio más cercano, nunca inventes coordenadas que puedan caer en el mar.
-- Las coordenadas deben ser números decimales (ej: 41.3851, 2.1734).
-- NUNCA pongas coordenadas en el mar para lugares que están en tierra.
+INSTRUCCIONES:
+- Extrae y estructura TODA la información que el usuario mencione (hoteles, restaurantes, monumentos, actividades, transportes, consejos).
+- Para lugares MUY conocidos (Sagrada Familia, Torre Eiffel, Alhambra, Coliseo, etc.) incluye coordenadas GPS precisas que conozcas con certeza.
+- Para lugares locales, restaurantes o sitios poco conocidos: NO inventes coordenadas — pon lat:null, lng:null y deja que el sistema los localice.
+- Las jornadas deben llevar la ciudad principal del día con sus coordenadas reales.
+- "tipo" debe ser uno de: monumento, restaurante, hotel, atraccion, playa, mirador, museo, parque, iglesia, bar, compras, visita, tip, transporte, avion, tren, barco
 
 Devuelve SOLO este JSON (sin texto extra, sin markdown):
 {
-  "titulo": "Título atractivo del viaje",
-  "destino": "Ciudad/región principal, País",
-  "lat": coordenada_latitud_destino_principal,
-  "lng": coordenada_longitud_destino_principal,
-  "dias": número_de_días,
+  "titulo": "Título atractivo",
+  "destino": "Ciudad principal, País",
+  "lat": lat_destino_principal,
+  "lng": lng_destino_principal,
+  "dias": número,
   "presupuesto": "~XX€/persona",
-  "resumen": "2-3 frases describiendo el viaje",
-  "emoji": "emoji representativo",
+  "resumen": "2-3 frases",
+  "emoji": "emoji",
+  "color": "#C4522A",
   "jornadas": [
     {
       "dia": 1,
       "lugar": "Ciudad del día",
-      "lat": coordenada_latitud_ciudad,
-      "lng": coordenada_longitud_ciudad,
+      "lat": lat_ciudad_real,
+      "lng": lng_ciudad_real,
       "items": [
         {
-          "tipo": "monumento|restaurante|hotel|atraccion|playa|mirador|museo|parque|iglesia|bar|compras|parking|visita|tip",
-          "nombre": "Nombre del lugar en español",
-          "desc": "descripción breve",
-          "lat": coordenada_latitud_lugar_exacto,
-          "lng": coordenada_longitud_lugar_exacto
+          "tipo": "tipo_del_lugar",
+          "nombre": "Nombre exacto del lugar",
+          "desc": "descripción breve útil",
+          "lat": lat_si_conoces_con_certeza_o_null,
+          "lng": lng_si_conoces_con_certeza_o_null
         }
       ]
     }
@@ -3787,7 +3806,6 @@ Devuelve SOLO este JSON (sin texto extra, sin markdown):
     parsed.id = Date.now();
     parsed.destinoKey = 'viaje_' + Date.now();
 
-    // Guardar itinerario y construir puntos directamente (sin pantalla de validación)
     itinerarioGenerado = parsed;
     state.viajeActual = itinerarioGenerado;
 
@@ -3803,60 +3821,76 @@ Devuelve SOLO este JSON (sin texto extra, sin markdown):
   }
 }
 
-// ══ NUEVO FLUJO DE VALIDACIÓN ══════════════════════════════
-// Renderiza el formulario de validación día por día
+// ══ GEOCODIFICACIÓN ════════════════════════════════════════════════
 
-// Construye los puntos del mapa a partir del JSON de la IA y abre la edición
-// Mapa de tipos de la app → clases OSM para búsqueda más precisa
-const OSM_TIPOS = {
-  monumento: ['historic=monument','historic=ruins','historic=archaeological_site','historic=castle','historic=memorial','tourism=attraction'],
-  museo:     ['tourism=museum','amenity=arts_centre'],
-  iglesia:   ['amenity=place_of_worship','historic=church','building=church','building=cathedral'],
-  restaurante: ['amenity=restaurant','amenity=cafe'],
-  bar:       ['amenity=bar','amenity=pub'],
-  mirador:   ['tourism=viewpoint'],
-  atraccion: ['tourism=attraction','leisure=park','tourism=theme_park'],
-  visita:    ['tourism=attraction','historic=monument','tourism=museum'],
-  compras:   ['shop=mall','landuse=retail','highway=pedestrian'],
-  playa:     ['natural=beach'],
-  parque:    ['leisure=park','leisure=nature_reserve'],
-};
-
-// Busca coords exactas en OSM usando Nominatim con tipo específico
-async function buscarCoordsOSM(nombre, ciudad, latRef, lngRef, tipo) {
-  const clases = OSM_TIPOS[tipo] || [];
-
-  // Intento 1: búsqueda con tipo específico OSM
-  for (const clase of clases) {
-    try {
-      const [key, val] = clase.split('=');
-      const q = encodeURIComponent(nombre);
-      const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1&countrycodes=&viewbox=${lngRef-0.3},${latRef+0.3},${lngRef+0.3},${latRef-0.3}&bounded=1`;
-      const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' } });
-      const data = await r.json();
-      // Filtrar por tipo OSM y proximidad
-      const match = data.find(d =>
-        (d.type === val || d.class === key) &&
-        Math.abs(parseFloat(d.lat) - latRef) < 0.4 &&
-        Math.abs(parseFloat(d.lon) - lngRef) < 0.4
-      );
-      if (match) return { lat: parseFloat(match.lat), lng: parseFloat(match.lon) };
-    } catch(e) {}
-    await new Promise(r => setTimeout(r, 100));
-  }
-
-  // Intento 2: búsqueda libre con nombre + ciudad dentro del viewbox
+// Photon (Komoot) — bueno para nombres en español, más rápido que Nominatim
+async function buscarPhoton(nombre, ciudad, latRef, lngRef) {
   try {
-    const q = encodeURIComponent(`${nombre}, ${ciudad}`);
-    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1&viewbox=${lngRef-0.3},${latRef+0.3},${lngRef+0.3},${latRef-0.3}&bounded=1`;
-    const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' } });
+    const q = encodeURIComponent(`${nombre} ${ciudad}`);
+    const url = `https://photon.komoot.io/api/?q=${q}&limit=5&lang=es&lat=${latRef}&lon=${lngRef}`;
+    const r = await fetch(url);
     const data = await r.json();
-    const cercano = data.find(d =>
-      Math.abs(parseFloat(d.lat) - latRef) < 0.4 &&
-      Math.abs(parseFloat(d.lon) - lngRef) < 0.4
-    );
-    if (cercano) return { lat: parseFloat(cercano.lat), lng: parseFloat(cercano.lon) };
+    const features = data?.features || [];
+    // Coger el más cercano al punto de referencia
+    const cercano = features
+      .map(f => ({
+        lat: f.geometry.coordinates[1],
+        lng: f.geometry.coordinates[0],
+        dist: Math.hypot(f.geometry.coordinates[1] - latRef, f.geometry.coordinates[0] - lngRef)
+      }))
+      .filter(f => f.dist < 0.6)
+      .sort((a, b) => a.dist - b.dist)[0];
+    if (cercano) return { lat: cercano.lat, lng: cercano.lng };
   } catch(e) {}
+  return null;
+}
+
+// Nominatim — más preciso para nombres oficiales, con viewbox ajustado
+async function buscarNominatim(nombre, ciudad, latRef, lngRef) {
+  try {
+    // Intento 1: nombre + ciudad
+    const q1 = encodeURIComponent(`${nombre}, ${ciudad}`);
+    const vb = `${lngRef-0.5},${latRef+0.5},${lngRef+0.5},${latRef-0.5}`;
+    const url1 = `https://nominatim.openstreetmap.org/search?q=${q1}&format=json&limit=5&viewbox=${vb}&bounded=0&accept-language=es`;
+    const r1 = await fetch(url1, { headers: { 'User-Agent': 'YaEstuve/1.0' } });
+    const data1 = await r1.json();
+    const hit1 = data1.find(d =>
+      Math.hypot(parseFloat(d.lat) - latRef, parseFloat(d.lon) - lngRef) < 0.8
+    );
+    if (hit1) return { lat: parseFloat(hit1.lat), lng: parseFloat(hit1.lon) };
+
+    await new Promise(r => setTimeout(r, 150));
+
+    // Intento 2: solo nombre dentro del viewbox (más amplio)
+    const q2 = encodeURIComponent(nombre);
+    const vb2 = `${lngRef-1},${latRef+1},${lngRef+1},${latRef-1}`;
+    const url2 = `https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=5&viewbox=${vb2}&bounded=1&accept-language=es`;
+    const r2 = await fetch(url2, { headers: { 'User-Agent': 'YaEstuve/1.0' } });
+    const data2 = await r2.json();
+    if (data2.length > 0) {
+      const sorted = data2
+        .map(d => ({ lat: parseFloat(d.lat), lng: parseFloat(d.lon), dist: Math.hypot(parseFloat(d.lat)-latRef, parseFloat(d.lon)-lngRef) }))
+        .sort((a,b) => a.dist - b.dist);
+      if (sorted[0].dist < 1.2) return { lat: sorted[0].lat, lng: sorted[0].lng };
+    }
+  } catch(e) {}
+  return null;
+}
+
+// Estrategia combinada: Photon primero (más rápido), Nominatim de respaldo
+async function geocodificarLugar(nombre, ciudad, latRef, lngRef, tipo) {
+  // Tipos que no necesitan coords exactas
+  if (['tip','avion','barco','tren','metro','tranvia','transporte','parking'].includes(tipo)) return null;
+
+  // 1. Photon (rápido, buena cobertura internacional)
+  const photon = await buscarPhoton(nombre, ciudad, latRef, lngRef);
+  if (photon) return { ...photon, fuente: 'photon' };
+
+  await new Promise(r => setTimeout(r, 150));
+
+  // 2. Nominatim (más preciso para POIs oficiales)
+  const nominatim = await buscarNominatim(nombre, ciudad, latRef, lngRef);
+  if (nominatim) return { ...nominatim, fuente: 'nominatim' };
 
   return null;
 }
@@ -3866,41 +3900,63 @@ async function construirPuntosDesdeIA(parsed, loadEl) {
 
   const jornadas = parsed.jornadas || [];
   let puntosIA = [];
+  let geocodificados = 0;
+  let deIA = 0;
   let sinCoords = [];
-  let mejorados = 0;
+
+  // Geocodificar también las ciudades de jornadas si no tienen coords
+  for (const j of jornadas) {
+    if (!j.lat && j.lugar) {
+      loadEl.innerHTML = `<div class="spinner"></div><p>Localizando ${j.lugar}...</p>`;
+      const coords = await buscarPhoton(j.lugar, parsed.destino, parsed.lat||40, parsed.lng||-3);
+      if (coords) { j.lat = coords.lat; j.lng = coords.lng; }
+      await new Promise(r => setTimeout(r, 100));
+    }
+  }
 
   for (let ji = 0; ji < jornadas.length; ji++) {
     const j = jornadas[ji];
-    const ciudadLat = j.lat || null;
-    const ciudadLng = j.lng || null;
+    const ciudadLat = j.lat || parsed.lat || null;
+    const ciudadLng = j.lng || parsed.lng || null;
 
     for (let ii = 0; ii < (j.items||[]).length; ii++) {
       const item = j.items[ii];
       if (['tip','avion','barco','tren','metro','tranvia','transporte'].includes(item.tipo)) continue;
 
-      let lat = item._lat || item.lat || null;
-      let lng = item._lng || item.lng || null;
+      let lat = item.lat || null;
+      let lng = item.lng || null;
       let esAproximado = false;
+      let fuente = 'ia';
 
-      // Intentar mejorar coords con OSM para monumentos, museos, restaurantes...
-      if (lat && ciudadLat && ['monumento','museo','iglesia','restaurante','bar','mirador','atraccion','visita','compras','parking'].includes(item.tipo)) {
-        loadEl.innerHTML = `<div class="spinner"></div><p>Localizando ${item.nombre}...</p>`;
-        const coords = await buscarCoordsOSM(item.nombre, j.lugar, ciudadLat, ciudadLng, item.tipo);
+      // Si la IA ya dio coords razonables (no null, no 0,0), verificar que no están en el mar
+      const iaFiable = lat && lng && ciudadLat &&
+        Math.hypot(lat - ciudadLat, lng - ciudadLng) < 1.5 &&
+        Math.abs(lat) > 0.1 && Math.abs(lng) > 0.1;
+
+      if (!iaFiable && ciudadLat) {
+        // Geocodificar desde cero con Photon + Nominatim
+        loadEl.innerHTML = `<div class="spinner"></div><p>Localizando <b>${item.nombre}</b>...</p>`;
+        const coords = await geocodificarLugar(item.nombre, j.lugar, ciudadLat, ciudadLng, item.tipo);
         if (coords) {
           lat = coords.lat;
           lng = coords.lng;
-          mejorados++;
+          fuente = coords.fuente;
+          geocodificados++;
+        } else if (iaFiable) {
+          // La IA dio coords y no las pudimos mejorar — usarlas tal cual
+          fuente = 'ia';
+          deIA++;
+        } else {
+          // Fallback: centro de la ciudad (sin offset aleatorio — mejor que coords inventadas)
+          if (ciudadLat) {
+            lat = ciudadLat;
+            lng = ciudadLng;
+            esAproximado = true;
+            sinCoords.push(item.nombre);
+          }
         }
-        await new Promise(r => setTimeout(r, 200)); // respetar límite Nominatim
-      }
-
-      // Fallback: coords de la ciudad con offset
-      if (!lat && ciudadLat) {
-        const offset = () => (Math.random()-0.5)*0.008;
-        lat = ciudadLat + offset();
-        lng = ciudadLng + offset();
-        esAproximado = true;
-        sinCoords.push(item.nombre);
+      } else if (iaFiable) {
+        deIA++;
       }
 
       puntosIA.push({
@@ -3916,17 +3972,17 @@ async function construirPuntosDesdeIA(parsed, loadEl) {
     }
   }
 
-  // Coordenadas del destino principal — vienen directamente de la IA
-  if (!itinerarioGenerado.lat) {
-    const jornadasConCoords = jornadas.filter(j => j.lat);
-    if (jornadasConCoords.length > 0) {
-      itinerarioGenerado.lat = jornadasConCoords.reduce((s,j)=>s+j.lat,0) / jornadasConCoords.length;
-      itinerarioGenerado.lng = jornadasConCoords.reduce((s,j)=>s+j.lng,0) / jornadasConCoords.length;
+  // Coords del destino principal
+  if (!itinerarioGenerado.lat && jornadas.length > 0) {
+    const jConCoords = jornadas.filter(j => j.lat);
+    if (jConCoords.length > 0) {
+      itinerarioGenerado.lat = jConCoords[0].lat;
+      itinerarioGenerado.lng = jConCoords[0].lng;
     }
   }
 
   const destinoNorm = (itinerarioGenerado.destino||'viaje').toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_').slice(0,40);
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').slice(0,40);
   itinerarioGenerado.destinoKey = destinoNorm + '_' + Date.now();
 
   puntosEdicion = puntosIA;
@@ -3937,12 +3993,11 @@ async function construirPuntosDesdeIA(parsed, loadEl) {
 
   loadEl.style.display = 'none';
 
+  const totalLocalizados = geocodificados + deIA;
   if (sinCoords.length > 0) {
-    setTimeout(() => {
-      mostrarToast(`⚠️ ${sinCoords.length} punto${sinCoords.length > 1 ? 's' : ''} sin ubicación exacta — colócalos en el mapa`);
-    }, 800);
+    setTimeout(() => mostrarToast(`⚠️ ${sinCoords.length} punto${sinCoords.length>1?'s':''} sin ubicación exacta — arrástralos en el mapa`), 600);
   } else {
-    mostrarToast(`✨ ${puntosIA.length} puntos localizados${mejorados > 0 ? ` (${mejorados} con coords exactas)` : ''}`);
+    mostrarToast(`✅ ${totalLocalizados} puntos localizados`);
   }
 
   itinerarioGenerado.puntos = puntosEdicion.slice();
@@ -3984,6 +4039,21 @@ async function publicarViaje() {
 
   // Verificar destino obligatorio
   if (!it.destino?.trim()) { mostrarToast('⚠️ Escribe el destino del viaje'); return; }
+
+  // Si el usuario tecleó el destino a mano sin seleccionar del autocomplete, geocodificar ahora
+  if (!it.lat || !it.lng) {
+    try {
+      mostrarToast('📍 Buscando ubicación del destino...');
+      const geoR = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`);
+      const geoData = await geoR.json();
+      const f = geoData?.features?.[0];
+      if (f) {
+        it.lat = f.geometry.coordinates[1];
+        it.lng = f.geometry.coordinates[0];
+      }
+    } catch(e) {}
+  }
+
   it.dias = parseInt(document.getElementById('e-dias')?.value) || it.dias;
   it.presupuesto = document.getElementById('e-presupuesto')?.value || it.presupuesto;
   it.resumen = document.getElementById('e-resumen')?.value || it.resumen;
