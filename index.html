@@ -1744,7 +1744,7 @@ async function eliminarViaje(fbId, titulo) {
 }
 
 function cerrarSesion() {
-  window.fbLogout?.();
+  window._fbSignOut?.();
   localStorage.removeItem('ye_user');
   usuarioActual = null;
   actualizarPerfil();
@@ -2182,26 +2182,46 @@ function seleccionarDestinoModal(nombre, lat, lng) {
 function buscarDestinoEdicion(q) {
   clearTimeout(_destTimer);
   const box = document.getElementById('e-destino-sugerencias');
-  if (!q || q.length < 3) { box.style.display='none'; return; }
+  const clear = document.getElementById('e-destino-clear');
+  if (clear) clear.style.display = q ? 'block' : 'none';
+  if (!q || q.length < 2) { if(box) box.style.display='none'; return; }
+  if (box) { box.innerHTML = '<div style="padding:12px 14px;color:var(--muted);font-size:0.83rem">🔍 Buscando...</div>'; box.style.display='block'; }
   _destTimer = setTimeout(async () => {
     try {
-      const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=es`);
+      const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=7&lang=es`);
       const data = await r.json();
       const features = data?.features || [];
-      if (!features.length) { box.style.display='none'; return; }
+      if (!features.length) { box.innerHTML='<div style="padding:12px 14px;color:var(--muted);font-size:0.83rem">Sin resultados</div>'; return; }
       box.style.display = 'block';
       box.innerHTML = features.map(f => {
         const p = f.properties;
         const lat = f.geometry.coordinates[1];
         const lng = f.geometry.coordinates[0];
-        const nombre = [p.name, p.city, p.state, p.country].filter(Boolean).join(', ');
-        return `<div onclick="seleccionarDestinoEdicion('${nombre.replace(/'/g,"\\'")}',${lat},${lng})"
-          style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:0.85rem"
-          onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">${nombre}</div>`;
+        const partes = [p.name, p.city && p.city!==p.name ? p.city : null, p.state && p.state!==p.name ? p.state : null, p.country].filter(Boolean);
+        const nombre = partes.join(', ');
+        const safeName = btoa(unescape(encodeURIComponent(nombre)));
+        return `<div class="_dest-sug-item" data-b64="${safeName}" data-lat="${lat}" data-lng="${lng}"
+          style="padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer;font-family:'Mulish',sans-serif"
+          onmousedown="event.preventDefault()"
+          onmouseover="this.style.background='var(--card)'" onmouseout="this.style.background=''">
+          <div style="font-size:0.88rem;font-weight:700">${p.name || q}</div>
+          <div style="font-size:0.75rem;color:var(--muted)">${partes.slice(1).join(', ')}</div>
+        </div>`;
       }).join('');
-    } catch(e) { box.style.display='none'; }
-  }, 400);
+      // Attach click handlers safely
+      box.querySelectorAll('._dest-sug-item').forEach(el => {
+        el.addEventListener('mousedown', ev => {
+          ev.preventDefault();
+          const lat = parseFloat(el.dataset.lat);
+          const lng = parseFloat(el.dataset.lng);
+          const nombre = decodeURIComponent(escape(atob(el.dataset.b64)));
+          seleccionarDestinoEdicion(nombre, lat, lng);
+        });
+      });
+    } catch(e) { if(box) box.style.display='none'; }
+  }, 350);
 }
+
 
 function seleccionarDestinoEdicion(nombre, lat, lng) {
   document.getElementById('e-destino').value = nombre;
