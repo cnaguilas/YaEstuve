@@ -1478,7 +1478,7 @@ html, body {
     <div id="perfilMisViajes"></div>
 
     <div style="margin-top:20px;background:white;border-radius:16px;padding:16px;border:1.5px solid var(--border)">
-      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;margin-bottom:4px">🤖 Clave API (IA)</div>
+      
       <div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px">Necesaria para generar viajes con IA. Consíguela gratis en <b>console.anthropic.com</b>. Se guarda solo en tu dispositivo.</div>
       <div style="display:flex;gap:8px;align-items:center">
         <input type="password" id="apiKeyInput" placeholder="sk-ant-..." 
@@ -4135,14 +4135,6 @@ if ('serviceWorker' in navigator) {
   if (window.caches) caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
 }
 
-// ── API KEY ──
-function guardarApiKey() {
-  const val = document.getElementById('apiKeyInput')?.value?.trim() || '';
-  if (!val.startsWith('sk-ant-')) { mostrarToast('⚠️ Formato incorrecto (sk-ant-...)'); return; }
-  localStorage.setItem('ye_api_key', val);
-  mostrarToast('✅ Clave API guardada');
-  actualizarEstadoApiKey();
-}
 
 function actualizarEstadoApiKey() {
   const el = document.getElementById('apiKeyEstado');
@@ -4162,12 +4154,7 @@ function actualizarEstadoApiKey() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const saved = localStorage.getItem('ye_api_key');
-  const input = document.getElementById('apiKeyInput');
-  if (saved && input) input.value = saved;
-  actualizarEstadoApiKey();
-});
+
 let _installPrompt = null;
 
 window.addEventListener('beforeinstallprompt', e => {
