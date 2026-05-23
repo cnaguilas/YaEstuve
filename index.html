@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#E8471C">
@@ -19,7 +18,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script>
-// ══ FIREBASE AUTH CON GOOGLE (CDN compat) ═══════════════════════
 const firebaseConfig = {
   apiKey: "AIzaSyASW2zgeIcGIVm2pkoghgcH9SVrhpH2QAc",
   authDomain: "yaestuve-app.firebaseapp.com",
@@ -29,11 +27,9 @@ const firebaseConfig = {
   messagingSenderId: "714279224485",
   appId: "1:714279224485:web:462c519074504efaab794c"
 };
-
 firebase.initializeApp(firebaseConfig);
 const _fbAuth = firebase.auth();
 const _fbGoogleProvider = new firebase.auth.GoogleAuthProvider();
-
 window._fbSignInWithGoogle = () => _fbAuth.signInWithPopup(_fbGoogleProvider);
 window._fbSignOut = () => _fbAuth.signOut();
 window._fbOnAuth = (cb) => _fbAuth.onAuthStateChanged(cb);
@@ -1114,17 +1110,11 @@ html, body {
     <div style="font-size:2.5rem;margin-bottom:12px">✈️</div>
     <div style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;margin-bottom:8px">YaEstuve</div>
     <div style="font-size:0.88rem;color:#9C9189;margin-bottom:32px;line-height:1.5">Comparte tus viajes y descubre<br>los itinerarios de otros viajeros</div>
-
-    <!-- Botón Google -->
-    <button id="btnGoogleLogin" onclick="loginConGoogle()"
-      style="width:100%;padding:16px;background:white;border:2px solid #EDE8DF;border-radius:14px;font-family:'Mulish',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:12px;transition:all 0.2s"
-      onmouseover="this.style.borderColor='#E8471C'" onmouseout="this.style.borderColor='#EDE8DF'">
+    <button id="btnGoogleLogin" onclick="loginConGoogle()" style="width:100%;padding:16px;background:white;border:2px solid #EDE8DF;border-radius:14px;font-family:'Mulish',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:12px">
       <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.6 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34 6.4 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.1 18.9 12 24 12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34 6.4 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.4 35.5 26.8 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.9 2.5-2.5 4.6-4.7 6l6.2 5.2C41 35.3 44 30 44 24c0-1.3-.1-2.7-.4-4z"/></svg>
       Continuar con Google
     </button>
-
-    <div id="loginError" style="color:#E8471C;font-size:0.82rem;margin-top:8px;text-align:center;min-height:20px"></div>
-
+    <div id="loginError" style="color:#E8471C;font-size:0.82rem;margin-top:8px;min-height:20px"></div>
     <button onclick="cerrarLogin()" style="width:100%;padding:13px;background:none;border:none;font-family:'Mulish',sans-serif;font-size:0.85rem;color:#9C9189;cursor:pointer;margin-top:8px">Ahora no</button>
   </div>
 </div>
@@ -1166,7 +1156,7 @@ html, body {
   <div class="nav-bar">
     <button class="back-btn" onclick="goBack()">←</button>
     <div class="nav-title"></div>
-    <button onclick="compartirViaje()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:7px 14px;border-radius:50px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;display:flex;align-items:center;gap:5px;flex-shrink:0">⬆️ Compartir</button>
+    <button onclick="compartirViaje()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:7px 14px;border-radius:50px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;flex-shrink:0">⬆️ Compartir</button>
   </div>
   <div class="detalle-hero">
     <div class="hero-fotos" id="heroFotos"></div>
@@ -1278,20 +1268,13 @@ html, body {
       <label>Título</label>
       <input type="text" id="e-titulo">
     </div>
-    <div class="form-group" style="position:relative">
+    <div class="form-group">
       <label>Destino</label>
-      <div style="position:relative">
-        <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:1rem;pointer-events:none">🔍</span>
-        <input type="text" id="e-destino"
-          placeholder="Busca una ciudad o lugar..."
-          oninput="buscarDestinoEdicion(this.value)"
-          onfocus="if(this.value.length>=3)buscarDestinoEdicion(this.value)"
-          autocomplete="off"
-          style="width:100%;box-sizing:border-box;padding-left:36px;padding-right:36px">
-        <button id="e-destino-clear" onclick="limpiarDestinoEdicion()" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:1rem;cursor:pointer;color:var(--muted);padding:4px">✕</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="e-destino" style="flex:1" placeholder="Ej: Cazorla, Jaén">
+        <button type="button" onclick="abrirBuscadorDestino()" style="background:var(--primary);color:white;border:none;padding:10px 14px;border-radius:10px;font-size:1rem;cursor:pointer;white-space:nowrap">📍</button>
       </div>
-      <div id="e-destino-coords" style="font-size:0.78rem;color:#5C8C6A;margin-top:6px;display:none;align-items:center;gap:5px;font-weight:600">✅ Destino localizado en el mapa</div>
-      <div id="e-destino-sugerencias" style="display:none;position:absolute;left:0;right:0;background:var(--bg);border-radius:0 0 14px 14px;box-shadow:0 8px 24px rgba(0,0,0,0.18);z-index:800;overflow:hidden;max-height:240px;overflow-y:auto;border:1.5px solid var(--border);border-top:none"></div>
+      <div id="e-destino-coords" style="font-size:0.75rem;color:var(--primary);margin-top:4px;display:none">✅ Ubicación guardada</div>
     </div>
     <div class="form-group">
       <label>Días</label>
@@ -1589,17 +1572,15 @@ const destinos = {};
 
 
 // ══ AUTH ══════════════════════════════════════
-// ══ AUTH CON GOOGLE ══════════════════════════════════════════════
+// ══ AUTH CON GOOGLE ══
 
 function abrirLoginSheet() {
   document.getElementById('loginSheet').style.display = 'block';
   document.getElementById('loginError').textContent = '';
 }
-
 function cerrarLogin() {
   document.getElementById('loginSheet').style.display = 'none';
 }
-
 async function loginConGoogle() {
   const btn = document.getElementById('btnGoogleLogin');
   const errEl = document.getElementById('loginError');
@@ -1609,43 +1590,28 @@ async function loginConGoogle() {
   try {
     const result = await window._fbSignInWithGoogle();
     const user = result.user;
-    // Guardar usuario en Firebase Realtime DB (perfil público)
     await fetch(`${FB_URL}/usuarios/${user.uid}.json`, {
-      method: 'PATCH',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        nombre: user.displayName,
-        email: user.email,
-        foto: user.photoURL,
-        uid: user.uid,
-        ultimoAcceso: Date.now()
-      })
+      method: 'PATCH', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ nombre:user.displayName, email:user.email, foto:user.photoURL, uid:user.uid, ultimoAcceso:Date.now() })
     });
-    usuarioActual = {
-      nombre: user.displayName,
-      email: user.email,
-      foto: user.photoURL,
-      uid: user.uid
-    };
+    usuarioActual = { nombre:user.displayName, email:user.email, foto:user.photoURL, uid:user.uid };
     localStorage.setItem('ye_user', JSON.stringify(usuarioActual));
-    cerrarLogin();
-    actualizarPerfil();
+    cerrarLogin(); actualizarPerfil();
     mostrarToast('👋 Bienvenido, ' + user.displayName.split(' ')[0] + '!');
   } catch(e) {
     console.error('Google login error:', e.code, e.message);
     const msgs = {
-      'auth/popup-closed-by-user': 'Inicio cancelado',
-      'auth/popup-blocked': 'Popup bloqueado. Permite popups para esta página.',
-      'auth/unauthorized-domain': 'Dominio no autorizado en Firebase.',
-      'auth/cancelled-popup-request': 'Inicio cancelado',
-      'auth/network-request-failed': 'Error de red. Comprueba tu conexión.'
+      'auth/popup-closed-by-user':'Inicio cancelado',
+      'auth/popup-blocked':'Permite ventanas emergentes para esta página',
+      'auth/unauthorized-domain':'Dominio no autorizado en Firebase',
+      'auth/cancelled-popup-request':'Inicio cancelado',
+      'auth/network-request-failed':'Error de red'
     };
-    errEl.textContent = msgs[e.code] || (e.message || 'Error al iniciar sesión');
+    errEl.textContent = msgs[e.code] || e.message || 'Error al iniciar sesión';
     btn.disabled = false;
-    btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.6 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34 6.4 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.1 18.9 12 24 12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34 6.4 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.4 35.5 26.8 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.9 2.5-2.5 4.6-4.7 6l6.2 5.2C41 35.3 44 30 44 24c0-1.3-.1-2.7-.4-4z"/></svg> Continuar con Google';
+    btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.6 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34 6.4 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/></svg> Continuar con Google';
   }
 }
-
 function cerrarSesion() {
   window._fbSignOut?.();
   usuarioActual = null;
@@ -1653,24 +1619,6 @@ function cerrarSesion() {
   actualizarPerfil();
   mostrarToast('👋 Sesión cerrada');
 }
-
-// Escuchar cambios de auth en tiempo real (recarga de página, etc.)
-window._fbOnAuth?.((user) => {
-  if (user && !usuarioActual) {
-    usuarioActual = {
-      nombre: user.displayName,
-      email: user.email,
-      foto: user.photoURL,
-      uid: user.uid
-    };
-    localStorage.setItem('ye_user', JSON.stringify(usuarioActual));
-    actualizarPerfil();
-  } else if (!user) {
-    usuarioActual = null;
-    localStorage.removeItem('ye_user');
-    actualizarPerfil();
-  }
-});
 
 
 
@@ -1683,13 +1631,9 @@ function actualizarPerfil() {
   const loginBtn = document.getElementById('perfilLoginBtn');
 
   if (u) {
-    // Mostrar foto de Google si está disponible
     if (avatarEl) {
-      if (u.foto) {
-        avatarEl.innerHTML = `<img src="${u.foto}" style="width:100%;height:100%;border-radius:50%;object-fit:cover" referrerpolicy="no-referrer">`;
-      } else {
-        avatarEl.textContent = (u.nombre || u.email || '?')[0].toUpperCase();
-      }
+      if (u.foto) avatarEl.innerHTML = `<img src="${u.foto}" style="width:100%;height:100%;border-radius:50%;object-fit:cover" referrerpolicy="no-referrer">`;
+      else avatarEl.textContent = (u.nombre||u.email||'?')[0].toUpperCase();
     }
     if (nombreEl) nombreEl.textContent = u.nombre || u.displayName || 'Usuario';
     if (emailEl) emailEl.textContent = u.email || '';
@@ -2113,11 +2057,6 @@ function abrirEdicion() {
   // Rellenar campos info
   document.getElementById('e-titulo').value = it.titulo || '';
   document.getElementById('e-destino').value = it.destino || '';
-  // Mostrar tick solo si el destino ya tiene coords guardadas
-  const coordsEl = document.getElementById('e-destino-coords');
-  const clearEl = document.getElementById('e-destino-clear');
-  if (coordsEl) coordsEl.style.display = (it.lat && it.lng) ? 'flex' : 'none';
-  if (clearEl) clearEl.style.display = (it.destino) ? 'block' : 'none';
   document.getElementById('e-dias').value = it.dias || '';
   document.getElementById('e-presupuesto').value = it.presupuesto || '';
   document.getElementById('e-resumen').value = it.resumen || '';
@@ -2209,10 +2148,7 @@ function buscarEnModalDestino(q) {
   box.innerHTML = '<p style="padding:12px;color:#888">Buscando...</p>';
   _modalTimer = setTimeout(async () => {
     try {
-      const itLat = itinerarioGenerado?.lat;
-      const itLng = itinerarioGenerado?.lng;
-      const biasD = (itLat && itLng) ? `&lat=${itLat}&lon=${itLng}` : '';
-      const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=es${biasD}`);
+      const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=es`);
       const data = await r.json();
       const features = data?.features || [];
       if (!features.length) { box.innerHTML = '<p style="padding:12px;color:#888">Sin resultados</p>'; return; }
@@ -2243,162 +2179,44 @@ function seleccionarDestinoModal(nombre, lat, lng) {
   mostrarToast('✅ Destino guardado');
 }
 
-function limpiarDestinoEdicion() {
-  const input = document.getElementById('e-destino');
-  if (input) input.value = '';
-  const sug = document.getElementById('e-destino-sugerencias');
-  if (sug) { sug.style.display = 'none'; sug.innerHTML = ''; }
-  const coords = document.getElementById('e-destino-coords');
-  if (coords) coords.style.display = 'none';
-  const clear = document.getElementById('e-destino-clear');
-  if (clear) clear.style.display = 'none';
-  if (itinerarioGenerado) { itinerarioGenerado.lat = null; itinerarioGenerado.lng = null; }
-}
-
 function buscarDestinoEdicion(q) {
   clearTimeout(_destTimer);
   const box = document.getElementById('e-destino-sugerencias');
-  const clear = document.getElementById('e-destino-clear');
-  if (clear) clear.style.display = q ? 'block' : 'none';
-  if (!q || q.length < 2) { if(box) box.style.display='none'; return; }
-  if (box) box.innerHTML = '<div style="padding:12px 14px;color:var(--muted);font-size:0.83rem">🔍 Buscando...</div>';
-  if (box) box.style.display = 'block';
+  if (!q || q.length < 3) { box.style.display='none'; return; }
   _destTimer = setTimeout(async () => {
     try {
-      const biasD = (itinerarioGenerado?.lat && itinerarioGenerado?.lng)
-        ? `&lat=${itinerarioGenerado.lat}&lon=${itinerarioGenerado.lng}` : '';
-      const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=7&lang=es${biasD}`);
+      const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=es`);
       const data = await r.json();
       const features = data?.features || [];
-      if (!features.length) {
-        box.innerHTML = '<div style="padding:12px 14px;color:var(--muted);font-size:0.83rem">Sin resultados para "' + q + '"</div>';
-        return;
-      }
-      // Filtrar: priorizar ciudades/municipios sobre calles o edificios
-      const tiposPrio = ['city','town','village','municipality','county','state','country','district'];
-      const sorted = [...features].sort((a, b) => {
-        const ta = a.properties.type || '', tb = b.properties.type || '';
-        const pa = tiposPrio.includes(ta) ? 0 : 1;
-        const pb = tiposPrio.includes(tb) ? 0 : 1;
-        return pa - pb;
-      });
+      if (!features.length) { box.style.display='none'; return; }
       box.style.display = 'block';
-      box.innerHTML = sorted.map(f => {
+      box.innerHTML = features.map(f => {
         const p = f.properties;
         const lat = f.geometry.coordinates[1];
         const lng = f.geometry.coordinates[0];
-        // Construir nombre legible
-        const partes = [];
-        if (p.name) partes.push(p.name);
-        if (p.city && p.city !== p.name) partes.push(p.city);
-        if (p.state && p.state !== p.city && p.state !== p.name) partes.push(p.state);
-        if (p.country) partes.push(p.country);
-        const nombre = partes.filter(Boolean).join(', ');
-        const subtipo = p.type ? `<span style="font-size:0.68rem;background:var(--card);padding:2px 6px;border-radius:50px;color:var(--muted);margin-left:4px">${p.type}</span>` : '';
-        const iconoTipo = tiposPrio.includes(p.type||'') ? '🏙️' : '📍';
-        // Usar data-* para evitar problemas de escaping en onclick dentro de template literals
-        const safeNombre = nombre.replace(/"/g,'&quot;');
-        const safeName64 = btoa(unescape(encodeURIComponent(nombre))); // base64 safe
-        return `<div data-b64="${safeName64}" data-lat="${lat}" data-lng="${lng}"
-          class="_dest-sug-item"
-          style="padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:10px;font-family:'Mulish',sans-serif;transition:background 0.1s"
-          onmousedown="event.preventDefault()"
-          onmouseover="this.style.background='var(--card)'" onmouseout="this.style.background=''">
-          <span style="font-size:1.1rem;flex-shrink:0">${iconoTipo}</span>
-          <div style="min-width:0;flex:1">
-            <div style="font-size:0.88rem;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name || q}${subtipo}</div>
-            <div style="font-size:0.73rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${partes.slice(1).join(', ')}</div>
-          </div>
-        </div>`;
+        const nombre = [p.name, p.city, p.state, p.country].filter(Boolean).join(', ');
+        return `<div onclick="seleccionarDestinoEdicion('${nombre.replace(/'/g,"\\'")}',${lat},${lng})"
+          style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:0.85rem"
+          onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">${nombre}</div>`;
       }).join('');
-      // Attach click handlers after rendering (no inline onclick)
-      box.querySelectorAll('._dest-sug-item').forEach(el => {
-        el.addEventListener('mousedown', ev => {
-          ev.preventDefault();
-          const lat = parseFloat(el.dataset.lat);
-          const lng = parseFloat(el.dataset.lng);
-          const nombre = decodeURIComponent(escape(atob(el.dataset.b64)));
-          seleccionarDestinoEdicion(nombre, lat, lng);
-        });
-      });
-    } catch(e) {
-      if(box) box.innerHTML = '<div style="padding:12px 14px;color:var(--muted);font-size:0.83rem">Error al buscar. Comprueba la conexión.</div>';
-    }
-  }, 350);
+    } catch(e) { box.style.display='none'; }
+  }, 400);
 }
 
-
 function seleccionarDestinoEdicion(nombre, lat, lng) {
-  const input = document.getElementById('e-destino');
-  if (input) input.value = nombre;
-  const sug = document.getElementById('e-destino-sugerencias');
-  if (sug) { sug.style.display = 'none'; sug.innerHTML = ''; }
-  const coords = document.getElementById('e-destino-coords');
-  if (coords) coords.style.display = 'flex';
-  const clear = document.getElementById('e-destino-clear');
-  if (clear) clear.style.display = 'block';
-
-  const latF = parseFloat(lat), lngF = parseFloat(lng);
-
-  // Guardar en itinerarioGenerado
+  document.getElementById('e-destino').value = nombre;
+  document.getElementById('e-destino-sugerencias').style.display = 'none';
   if (itinerarioGenerado) {
-    itinerarioGenerado.lat = latF;
-    itinerarioGenerado.lng = lngF;
+    itinerarioGenerado.lat = parseFloat(lat);
+    itinerarioGenerado.lng = parseFloat(lng);
     itinerarioGenerado.destino = nombre;
-    // Normalizar destinoKey
-    const keyNorm = nombre.toLowerCase()
-      .normalize('NFD').replace(/[̀-ͯ]/g,'')
-      .replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,40);
-    itinerarioGenerado.destinoKey = keyNorm;
-
-    // Actualizar destinos en memoria para que aparezca en el mapa mundial YA
-    if (!destinos[keyNorm]) {
-      destinos[keyNorm] = {
-        nombre, emoji: itinerarioGenerado.emoji || '📍',
-        lat: latF, lng: lngF,
-        color: itinerarioGenerado.color || '#C4522A',
-        itinerarios: []
-      };
-    } else {
-      destinos[keyNorm].lat = latF;
-      destinos[keyNorm].lng = lngF;
-      destinos[keyNorm].nombre = nombre;
-    }
-    // Re-renderizar mapa mundial si está abierto
-    if (mapaMundial) renderPinsMundiales();
   }
-
-  // Centrar mapas de edición si están abiertos
-  if (mapEditFullInstance) mapEditFullInstance.setView([latF, lngF], 13, { animate: true });
-  if (mapEditInstance) mapEditInstance.setView([latF, lngF], 13, { animate: true });
-
-  mostrarToast('📍 ' + nombre + ' localizado');
 }
 
 function iniciarMapaEdicion() {
   const it = itinerarioGenerado;
-  // Si hay coords del destino usarlas; si no, intentar geocodificar el destino escrito
-  let lat = it?.lat || null;
-  let lng = it?.lng || null;
-  if (!lat || !lng) {
-    const destTexto = document.getElementById('e-destino')?.value?.trim();
-    if (destTexto) {
-      // Geocodificar en background y centrar cuando llegue
-      fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(destTexto)}&limit=1&lang=es`)
-        .then(r => r.json())
-        .then(data => {
-          const f = data?.features?.[0];
-          if (f && mapEditFullInstance) {
-            const fLat = f.geometry.coordinates[1];
-            const fLng = f.geometry.coordinates[0];
-            if (it) { it.lat = fLat; it.lng = fLng; }
-            mapEditFullInstance.setView([fLat, fLng], 13, { animate: true });
-          }
-        }).catch(() => {});
-    }
-    // Mientras geocodifica, mostrar España completa (no Madrid)
-    lat = 40.4; lng = -3.7;
-  }
+  const lat = it?.lat || 40;
+  const lng = it?.lng || -3;
 
   mapEditInstance = L.map('mapEdit', { center:[lat,lng], zoom:12, zoomControl:false });
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(mapEditInstance);
@@ -2587,18 +2405,16 @@ async function guardarPunto() {
           L.marker([punto.lat, punto.lng], {icon: icon2}).addTo(mapEditFullInstance)
             .bindPopup(`<b>${cfg2.icon} ${punto.nombre}</b><br><small>${punto.desc||''}</small>`);
         }
-        renderDias();
         mostrarToast('✅ Punto añadido al Día ' + itinerarioGenerado.jornadas[ji].dia);
       }
       delete _puntoParaDia;
-      // Navegar directamente a screenEditar con el tab Días visible
-      navegarA('screenEditar', null);
-      setTimeout(() => cambiarTab('tabDias'), 100);
+      goBack();
+      setTimeout(() => cambiarTab('tabDias'), 200);
       return; // evitar doble guardado en Firebase
     }
   }
 
-  // Cerrar form si aún está abierto (puede que ya se cerró en el bloque _puntoParaDia)
+  if (!formEl.classList.contains('active')) return; // ya se cerró arriba
   formEl.classList.remove('active');
   formEl._latLng = null;
   latLngPunto = null;
@@ -2636,15 +2452,10 @@ async function guardarPunto() {
     _redibujarLineaMapa();
   }
 
-  // Si hay jornadas y el punto viene del mapa (no de un día), añadirlo al día correcto
+  // Si hay jornadas y el punto viene del mapa (no de un día), añadirlo al día 1
   if (itinerarioGenerado?.jornadas?.length > 0 && _puntoParaDia === undefined) {
-    // Intentar asociar al día del punto si viene definido, sino al día 1
-    const diaIdx = (punto.dia && punto.dia > 1)
-      ? (itinerarioGenerado.jornadas.findIndex(j => j.dia === punto.dia) || 0)
-      : 0;
-    const targetIdx = diaIdx >= 0 ? diaIdx : 0;
-    itinerarioGenerado.jornadas[targetIdx].items = itinerarioGenerado.jornadas[targetIdx].items || [];
-    itinerarioGenerado.jornadas[targetIdx].items.push({
+    itinerarioGenerado.jornadas[0].items = itinerarioGenerado.jornadas[0].items || [];
+    itinerarioGenerado.jornadas[0].items.push({
       tipo: punto.tipo,
       nombre: punto.nombre,
       desc: punto.desc,
@@ -2652,10 +2463,6 @@ async function guardarPunto() {
       lng: punto.lng
     });
     guardarJornadasEnFirebase();
-    // Actualizar tab Días si está visible
-    if (document.getElementById('tabDias')?.classList.contains('active')) {
-      renderDias();
-    }
   }
 
   mostrarToast('✅ Punto guardado');
@@ -2719,8 +2526,7 @@ function cambiarIconoPunto(i) {
 function eliminarPunto(i) {
   puntosEdicion.splice(i, 1);
   // Sincronizar con estado central
-  if (state.viajeActual) state.viajeActual.puntos = puntosEdicion.slice();
-  state._dirty = true;
+    state._dirty = true;
   renderPuntos();
   // Redibujar mapa con pequeño delay para evitar race condition
   if (mapEditFullInstance) {
@@ -2732,16 +2538,6 @@ function eliminarPunto(i) {
       renderPuntosEnMapa();
       _redibujarLineaMapa();
     }, 50);
-  }
-  // Guardar en Firebase inmediatamente para que publicarViaje tenga datos actualizados
-  const fbId = itinerarioGenerado?.fbId;
-  if (fbId) {
-    const puntosLimpios = puntosEdicion.filter(p => p && p.tipo);
-    fetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`, {
-      method: 'PUT',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(puntosLimpios)
-    }).catch(() => {});
   }
   mostrarToast('🗑️ Punto eliminado');
 }
@@ -2996,13 +2792,10 @@ async function infoConIA(nombre, destino) {
   try {
     const apiKey = localStorage.getItem('ye_api_key') || '';
     if (!apiKey) { el.textContent = 'Añade tu clave API en Perfil para ver info.'; return; }
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
+    const r = await fetch('https://yaestuve2.jaymaviajes.workers.dev/api/claude', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
@@ -3054,7 +2847,7 @@ async function abrirMapaEdicionPantalla() {
     const it = itinerarioGenerado;
     // Calcular centro a partir de los puntos con coordenadas
     const ptsConCoords = puntosEdicion.filter(p => p && p.lat && p.lng);
-    let lat = null, lng = null;
+    let lat = 40, lng = -3;
     // 1. Usar coords del itinerario si las tiene
     if (it?.lat && Math.abs(it.lat) > 0.01) { lat = it.lat; lng = it.lng; }
     // 2. Si no, usar la media de los puntos
@@ -3062,29 +2855,8 @@ async function abrirMapaEdicionPantalla() {
       lat = ptsConCoords.reduce((s,p) => s + p.lat, 0) / ptsConCoords.length;
       lng = ptsConCoords.reduce((s,p) => s + p.lng, 0) / ptsConCoords.length;
     }
-    // 3. Si no hay nada, intentar geocodificar el destino escrito en el form
-    if (!lat) {
-      const destTexto = (document.getElementById('e-destino')?.value || it?.destino || '').trim();
-      if (destTexto) {
-        try {
-          const geoR = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(destTexto)}&limit=1&lang=es`);
-          const geoData = await geoR.json();
-          const f = geoData?.features?.[0];
-          if (f) {
-            lat = f.geometry.coordinates[1];
-            lng = f.geometry.coordinates[0];
-            if (it) { it.lat = lat; it.lng = lng; }
-            // Mostrar tick de ubicación encontrada
-            const coordsEl = document.getElementById('e-destino-coords');
-            if (coordsEl) coordsEl.style.display = 'block';
-          }
-        } catch(e) {}
-      }
-    }
-    // 4. Último fallback: centrar en España entera (zoom bajo), no en Madrid
-    if (!lat) { lat = 40.4; lng = -3.7; }
-    const zoomInicial = (ptsConCoords.length > 0 || (it?.lat && Math.abs(it.lat) > 0.01)) ? 13 : 6;
-    mapEditFullInstance = L.map('mapEditFull', { center:[lat,lng], zoom:zoomInicial, zoomControl:false });
+    console.log('Mapa centro:', lat, lng, '| puntos con coords:', ptsConCoords.length, '| total puntosEdicion:', puntosEdicion.length);
+    mapEditFullInstance = L.map('mapEditFull', { center:[lat,lng], zoom:13, zoomControl:false });
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(mapEditFullInstance);
     L.control.zoom({ position:'topright' }).addTo(mapEditFullInstance);
     mapEditFullInstance.invalidateSize();
@@ -3520,10 +3292,7 @@ async function buscarLugarMapa(q) {
     try {
       let features = [];
       try {
-        // Usar el centro actual del mapa como bias para resultados más relevantes
-        const mapCenter = mapEditFullInstance ? mapEditFullInstance.getCenter() : null;
-        const biasParam = mapCenter ? `&lat=${mapCenter.lat.toFixed(4)}&lon=${mapCenter.lng.toFixed(4)}` : '';
-        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&lang=es${biasParam}`, {
+        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=es`, {
           headers: { 'User-Agent': 'YaEstuve/1.0' }
         });
         const data = await res.json();
@@ -3738,7 +3507,17 @@ function eliminarLink(cat, idx) {
 
 // ══ MAPA ══════════════════════════════════════
 let mapaMundial = null;
-// iniciarMapa definido más abajo en la sección de clusters
+
+function iniciarMapa() {
+  mapaIniciado = true;
+  const m = L.map('map', { center:[25,10], zoom:2, zoomControl:false });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(m);
+  L.control.zoom({ position:'topright' }).addTo(m);
+  mapaMundial = m;
+  // Añadir pins de destinos ya cargados
+  Object.entries(destinos).forEach(([key, d]) => añadirPinMundial(key, d));
+}
+
 function añadirPinMundial(key, d) {
   if (!mapaMundial) return;
   const icon = L.divIcon({
@@ -3786,11 +3565,6 @@ function irPaso(n) {
 function crearManualmente() {
   const autor = document.getElementById('f-autor').value.trim();
   if (!autor) { mostrarToast('⚠️ Pon primero tu nombre'); return; }
-  // Limpiar estado anterior por si venía de paso IA fallido
-  puntosEdicion = [];
-  itinerarioGenerado = null;
-  state.viajeActual = null;
-  irPaso(1);
   // Crear itinerario vacío y abrir edición directamente
   itinerarioGenerado = {
     titulo: 'Mi viaje',
@@ -3848,41 +3622,42 @@ async function generarConIA() {
     return;
   }
 
-  const prompt = `Eres un experto en viajes y geografía. Estructura el viaje del usuario en JSON.
+  const prompt = `Eres un asistente de viajes experto en geografía mundial. El usuario describe su viaje y debes estructurarlo en JSON con coordenadas GPS precisas.
 
 Descripción: "${desc}"
 
-INSTRUCCIONES:
-- Extrae y estructura TODA la información que el usuario mencione (hoteles, restaurantes, monumentos, actividades, transportes, consejos).
-- Para lugares MUY conocidos (Sagrada Familia, Torre Eiffel, Alhambra, Coliseo, etc.) incluye coordenadas GPS precisas que conozcas con certeza.
-- Para lugares locales, restaurantes o sitios poco conocidos: NO inventes coordenadas — pon lat:null, lng:null y deja que el sistema los localice.
-- Las jornadas deben llevar la ciudad principal del día con sus coordenadas reales.
-- "tipo" debe ser uno de: monumento, restaurante, hotel, atraccion, playa, mirador, museo, parque, iglesia, bar, compras, visita, tip, transporte, avion, tren, barco
+IMPORTANTE sobre las coordenadas:
+- Debes incluir "lat" y "lng" para CADA lugar (coordenadas GPS reales y precisas).
+- Usa tus conocimientos geográficos para dar coordenadas exactas de monumentos, restaurantes, hoteles, playas, etc.
+- Para parques naturales, playas, faros, miradores y zonas costeras: usa coordenadas MUY precisas del punto exacto, no del centro de la zona. Por ejemplo, el Faro de Cabo de Gata está en 36.7267, -2.1902; la Playa de Mónsul en 36.7225, -2.0583; la Playa de los Genoveses en 36.7433, -2.0817.
+- Para restaurantes y negocios locales poco conocidos: usa las coordenadas del pueblo o zona donde están ubicados.
+- Si no estás seguro de un lugar concreto, usa las coordenadas del centro del municipio más cercano, nunca inventes coordenadas que puedan caer en el mar.
+- Las coordenadas deben ser números decimales (ej: 41.3851, 2.1734).
+- NUNCA pongas coordenadas en el mar para lugares que están en tierra.
 
 Devuelve SOLO este JSON (sin texto extra, sin markdown):
 {
-  "titulo": "Título atractivo",
-  "destino": "Ciudad principal, País",
-  "lat": lat_destino_principal,
-  "lng": lng_destino_principal,
-  "dias": número,
+  "titulo": "Título atractivo del viaje",
+  "destino": "Ciudad/región principal, País",
+  "lat": coordenada_latitud_destino_principal,
+  "lng": coordenada_longitud_destino_principal,
+  "dias": número_de_días,
   "presupuesto": "~XX€/persona",
-  "resumen": "2-3 frases",
-  "emoji": "emoji",
-  "color": "#C4522A",
+  "resumen": "2-3 frases describiendo el viaje",
+  "emoji": "emoji representativo",
   "jornadas": [
     {
       "dia": 1,
       "lugar": "Ciudad del día",
-      "lat": lat_ciudad_real,
-      "lng": lng_ciudad_real,
+      "lat": coordenada_latitud_ciudad,
+      "lng": coordenada_longitud_ciudad,
       "items": [
         {
-          "tipo": "tipo_del_lugar",
-          "nombre": "Nombre exacto del lugar",
-          "desc": "descripción breve útil",
-          "lat": lat_si_conoces_con_certeza_o_null,
-          "lng": lng_si_conoces_con_certeza_o_null
+          "tipo": "monumento|restaurante|hotel|atraccion|playa|mirador|museo|parque|iglesia|bar|compras|parking|visita|tip",
+          "nombre": "Nombre del lugar en español",
+          "desc": "descripción breve",
+          "lat": coordenada_latitud_lugar_exacto,
+          "lng": coordenada_longitud_lugar_exacto
         }
       ]
     }
@@ -3895,13 +3670,10 @@ Devuelve SOLO este JSON (sin texto extra, sin markdown):
         loadEl.innerHTML = `<div class="spinner"></div><p>Reintentando (${i+1}/3)...</p>`;
         await new Promise(r => setTimeout(r, 2000));
       }
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
+      const r = await fetch('https://yaestuve2.jaymaviajes.workers.dev/api/claude', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
         },
         body: JSON.stringify(body)
       });
@@ -3923,6 +3695,7 @@ Devuelve SOLO este JSON (sin texto extra, sin markdown):
     parsed.id = Date.now();
     parsed.destinoKey = 'viaje_' + Date.now();
 
+    // Guardar itinerario y construir puntos directamente (sin pantalla de validación)
     itinerarioGenerado = parsed;
     state.viajeActual = itinerarioGenerado;
 
@@ -3938,76 +3711,60 @@ Devuelve SOLO este JSON (sin texto extra, sin markdown):
   }
 }
 
-// ══ GEOCODIFICACIÓN ════════════════════════════════════════════════
+// ══ NUEVO FLUJO DE VALIDACIÓN ══════════════════════════════
+// Renderiza el formulario de validación día por día
 
-// Photon (Komoot) — bueno para nombres en español, más rápido que Nominatim
-async function buscarPhoton(nombre, ciudad, latRef, lngRef) {
+// Construye los puntos del mapa a partir del JSON de la IA y abre la edición
+// Mapa de tipos de la app → clases OSM para búsqueda más precisa
+const OSM_TIPOS = {
+  monumento: ['historic=monument','historic=ruins','historic=archaeological_site','historic=castle','historic=memorial','tourism=attraction'],
+  museo:     ['tourism=museum','amenity=arts_centre'],
+  iglesia:   ['amenity=place_of_worship','historic=church','building=church','building=cathedral'],
+  restaurante: ['amenity=restaurant','amenity=cafe'],
+  bar:       ['amenity=bar','amenity=pub'],
+  mirador:   ['tourism=viewpoint'],
+  atraccion: ['tourism=attraction','leisure=park','tourism=theme_park'],
+  visita:    ['tourism=attraction','historic=monument','tourism=museum'],
+  compras:   ['shop=mall','landuse=retail','highway=pedestrian'],
+  playa:     ['natural=beach'],
+  parque:    ['leisure=park','leisure=nature_reserve'],
+};
+
+// Busca coords exactas en OSM usando Nominatim con tipo específico
+async function buscarCoordsOSM(nombre, ciudad, latRef, lngRef, tipo) {
+  const clases = OSM_TIPOS[tipo] || [];
+
+  // Intento 1: búsqueda con tipo específico OSM
+  for (const clase of clases) {
+    try {
+      const [key, val] = clase.split('=');
+      const q = encodeURIComponent(nombre);
+      const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1&countrycodes=&viewbox=${lngRef-0.3},${latRef+0.3},${lngRef+0.3},${latRef-0.3}&bounded=1`;
+      const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' } });
+      const data = await r.json();
+      // Filtrar por tipo OSM y proximidad
+      const match = data.find(d =>
+        (d.type === val || d.class === key) &&
+        Math.abs(parseFloat(d.lat) - latRef) < 0.4 &&
+        Math.abs(parseFloat(d.lon) - lngRef) < 0.4
+      );
+      if (match) return { lat: parseFloat(match.lat), lng: parseFloat(match.lon) };
+    } catch(e) {}
+    await new Promise(r => setTimeout(r, 100));
+  }
+
+  // Intento 2: búsqueda libre con nombre + ciudad dentro del viewbox
   try {
-    const q = encodeURIComponent(`${nombre} ${ciudad}`);
-    const url = `https://photon.komoot.io/api/?q=${q}&limit=5&lang=es&lat=${latRef}&lon=${lngRef}`;
-    const r = await fetch(url);
+    const q = encodeURIComponent(`${nombre}, ${ciudad}`);
+    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1&viewbox=${lngRef-0.3},${latRef+0.3},${lngRef+0.3},${latRef-0.3}&bounded=1`;
+    const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' } });
     const data = await r.json();
-    const features = data?.features || [];
-    // Coger el más cercano al punto de referencia
-    const cercano = features
-      .map(f => ({
-        lat: f.geometry.coordinates[1],
-        lng: f.geometry.coordinates[0],
-        dist: Math.hypot(f.geometry.coordinates[1] - latRef, f.geometry.coordinates[0] - lngRef)
-      }))
-      .filter(f => f.dist < 0.6)
-      .sort((a, b) => a.dist - b.dist)[0];
-    if (cercano) return { lat: cercano.lat, lng: cercano.lng };
-  } catch(e) {}
-  return null;
-}
-
-// Nominatim — más preciso para nombres oficiales, con viewbox ajustado
-async function buscarNominatim(nombre, ciudad, latRef, lngRef) {
-  try {
-    // Intento 1: nombre + ciudad
-    const q1 = encodeURIComponent(`${nombre}, ${ciudad}`);
-    const vb = `${lngRef-0.5},${latRef+0.5},${lngRef+0.5},${latRef-0.5}`;
-    const url1 = `https://nominatim.openstreetmap.org/search?q=${q1}&format=json&limit=5&viewbox=${vb}&bounded=0&accept-language=es`;
-    const r1 = await fetch(url1, { headers: { 'User-Agent': 'YaEstuve/1.0' } });
-    const data1 = await r1.json();
-    const hit1 = data1.find(d =>
-      Math.hypot(parseFloat(d.lat) - latRef, parseFloat(d.lon) - lngRef) < 0.8
+    const cercano = data.find(d =>
+      Math.abs(parseFloat(d.lat) - latRef) < 0.4 &&
+      Math.abs(parseFloat(d.lon) - lngRef) < 0.4
     );
-    if (hit1) return { lat: parseFloat(hit1.lat), lng: parseFloat(hit1.lon) };
-
-    await new Promise(r => setTimeout(r, 150));
-
-    // Intento 2: solo nombre dentro del viewbox (más amplio)
-    const q2 = encodeURIComponent(nombre);
-    const vb2 = `${lngRef-1},${latRef+1},${lngRef+1},${latRef-1}`;
-    const url2 = `https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=5&viewbox=${vb2}&bounded=1&accept-language=es`;
-    const r2 = await fetch(url2, { headers: { 'User-Agent': 'YaEstuve/1.0' } });
-    const data2 = await r2.json();
-    if (data2.length > 0) {
-      const sorted = data2
-        .map(d => ({ lat: parseFloat(d.lat), lng: parseFloat(d.lon), dist: Math.hypot(parseFloat(d.lat)-latRef, parseFloat(d.lon)-lngRef) }))
-        .sort((a,b) => a.dist - b.dist);
-      if (sorted[0].dist < 1.2) return { lat: sorted[0].lat, lng: sorted[0].lng };
-    }
+    if (cercano) return { lat: parseFloat(cercano.lat), lng: parseFloat(cercano.lon) };
   } catch(e) {}
-  return null;
-}
-
-// Estrategia combinada: Photon primero (más rápido), Nominatim de respaldo
-async function geocodificarLugar(nombre, ciudad, latRef, lngRef, tipo) {
-  // Tipos que no necesitan coords exactas
-  if (['tip','avion','barco','tren','metro','tranvia','transporte','parking'].includes(tipo)) return null;
-
-  // 1. Photon (rápido, buena cobertura internacional)
-  const photon = await buscarPhoton(nombre, ciudad, latRef, lngRef);
-  if (photon) return { ...photon, fuente: 'photon' };
-
-  await new Promise(r => setTimeout(r, 150));
-
-  // 2. Nominatim (más preciso para POIs oficiales)
-  const nominatim = await buscarNominatim(nombre, ciudad, latRef, lngRef);
-  if (nominatim) return { ...nominatim, fuente: 'nominatim' };
 
   return null;
 }
@@ -4017,63 +3774,41 @@ async function construirPuntosDesdeIA(parsed, loadEl) {
 
   const jornadas = parsed.jornadas || [];
   let puntosIA = [];
-  let geocodificados = 0;
-  let deIA = 0;
   let sinCoords = [];
-
-  // Geocodificar también las ciudades de jornadas si no tienen coords
-  for (const j of jornadas) {
-    if (!j.lat && j.lugar) {
-      loadEl.innerHTML = `<div class="spinner"></div><p>Localizando ${j.lugar}...</p>`;
-      const coords = await buscarPhoton(j.lugar, parsed.destino, parsed.lat||40, parsed.lng||-3);
-      if (coords) { j.lat = coords.lat; j.lng = coords.lng; }
-      await new Promise(r => setTimeout(r, 100));
-    }
-  }
+  let mejorados = 0;
 
   for (let ji = 0; ji < jornadas.length; ji++) {
     const j = jornadas[ji];
-    const ciudadLat = j.lat || parsed.lat || null;
-    const ciudadLng = j.lng || parsed.lng || null;
+    const ciudadLat = j.lat || null;
+    const ciudadLng = j.lng || null;
 
     for (let ii = 0; ii < (j.items||[]).length; ii++) {
       const item = j.items[ii];
       if (['tip','avion','barco','tren','metro','tranvia','transporte'].includes(item.tipo)) continue;
 
-      let lat = item.lat || null;
-      let lng = item.lng || null;
+      let lat = item._lat || item.lat || null;
+      let lng = item._lng || item.lng || null;
       let esAproximado = false;
-      let fuente = 'ia';
 
-      // Si la IA ya dio coords razonables (no null, no 0,0), verificar que no están en el mar
-      const iaFiable = lat && lng && ciudadLat &&
-        Math.hypot(lat - ciudadLat, lng - ciudadLng) < 1.5 &&
-        Math.abs(lat) > 0.1 && Math.abs(lng) > 0.1;
-
-      if (!iaFiable && ciudadLat) {
-        // Geocodificar desde cero con Photon + Nominatim
-        loadEl.innerHTML = `<div class="spinner"></div><p>Localizando <b>${item.nombre}</b>...</p>`;
-        const coords = await geocodificarLugar(item.nombre, j.lugar, ciudadLat, ciudadLng, item.tipo);
+      // Intentar mejorar coords con OSM para monumentos, museos, restaurantes...
+      if (lat && ciudadLat && ['monumento','museo','iglesia','restaurante','bar','mirador','atraccion','visita','compras','parking'].includes(item.tipo)) {
+        loadEl.innerHTML = `<div class="spinner"></div><p>Localizando ${item.nombre}...</p>`;
+        const coords = await buscarCoordsOSM(item.nombre, j.lugar, ciudadLat, ciudadLng, item.tipo);
         if (coords) {
           lat = coords.lat;
           lng = coords.lng;
-          fuente = coords.fuente;
-          geocodificados++;
-        } else if (iaFiable) {
-          // La IA dio coords y no las pudimos mejorar — usarlas tal cual
-          fuente = 'ia';
-          deIA++;
-        } else {
-          // Fallback: centro de la ciudad (sin offset aleatorio — mejor que coords inventadas)
-          if (ciudadLat) {
-            lat = ciudadLat;
-            lng = ciudadLng;
-            esAproximado = true;
-            sinCoords.push(item.nombre);
-          }
+          mejorados++;
         }
-      } else if (iaFiable) {
-        deIA++;
+        await new Promise(r => setTimeout(r, 200)); // respetar límite Nominatim
+      }
+
+      // Fallback: coords de la ciudad con offset
+      if (!lat && ciudadLat) {
+        const offset = () => (Math.random()-0.5)*0.008;
+        lat = ciudadLat + offset();
+        lng = ciudadLng + offset();
+        esAproximado = true;
+        sinCoords.push(item.nombre);
       }
 
       puntosIA.push({
@@ -4089,17 +3824,17 @@ async function construirPuntosDesdeIA(parsed, loadEl) {
     }
   }
 
-  // Coords del destino principal
-  if (!itinerarioGenerado.lat && jornadas.length > 0) {
-    const jConCoords = jornadas.filter(j => j.lat);
-    if (jConCoords.length > 0) {
-      itinerarioGenerado.lat = jConCoords[0].lat;
-      itinerarioGenerado.lng = jConCoords[0].lng;
+  // Coordenadas del destino principal — vienen directamente de la IA
+  if (!itinerarioGenerado.lat) {
+    const jornadasConCoords = jornadas.filter(j => j.lat);
+    if (jornadasConCoords.length > 0) {
+      itinerarioGenerado.lat = jornadasConCoords.reduce((s,j)=>s+j.lat,0) / jornadasConCoords.length;
+      itinerarioGenerado.lng = jornadasConCoords.reduce((s,j)=>s+j.lng,0) / jornadasConCoords.length;
     }
   }
 
   const destinoNorm = (itinerarioGenerado.destino||'viaje').toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').slice(0,40);
+    .normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_').slice(0,40);
   itinerarioGenerado.destinoKey = destinoNorm + '_' + Date.now();
 
   puntosEdicion = puntosIA;
@@ -4110,11 +3845,12 @@ async function construirPuntosDesdeIA(parsed, loadEl) {
 
   loadEl.style.display = 'none';
 
-  const totalLocalizados = geocodificados + deIA;
   if (sinCoords.length > 0) {
-    setTimeout(() => mostrarToast(`⚠️ ${sinCoords.length} punto${sinCoords.length>1?'s':''} sin ubicación exacta — arrástralos en el mapa`), 600);
+    setTimeout(() => {
+      mostrarToast(`⚠️ ${sinCoords.length} punto${sinCoords.length > 1 ? 's' : ''} sin ubicación exacta — colócalos en el mapa`);
+    }, 800);
   } else {
-    mostrarToast(`✅ ${totalLocalizados} puntos localizados`);
+    mostrarToast(`✨ ${puntosIA.length} puntos localizados${mejorados > 0 ? ` (${mejorados} con coords exactas)` : ''}`);
   }
 
   itinerarioGenerado.puntos = puntosEdicion.slice();
@@ -4148,6 +3884,7 @@ function rellenarResumen() {
 
 async function publicarViaje() {
   const it = itinerarioGenerado;
+  const key = it.destinoKey;
 
   // Recoger cambios de edición si estamos en pantalla editar
   it.titulo = document.getElementById('e-titulo')?.value || it.titulo;
@@ -4155,32 +3892,6 @@ async function publicarViaje() {
 
   // Verificar destino obligatorio
   if (!it.destino?.trim()) { mostrarToast('⚠️ Escribe el destino del viaje'); return; }
-
-  // Normalizar destinoKey desde el nombre del destino (no timestamp)
-  // Así "Valencia" siempre usa el mismo key y agrupa bien en el mapa
-  const keyNorm = it.destino.toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g,'')
-    .replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,40);
-  if (keyNorm) it.destinoKey = keyNorm;
-  const key = it.destinoKey;
-
-  // Si el usuario tecleó el destino a mano sin seleccionar del autocomplete, geocodificar ahora
-  if (!it.lat || !it.lng) {
-    try {
-      mostrarToast('📍 Buscando ubicación del destino...');
-      const geoR = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`);
-      const geoData = await geoR.json();
-      const f = geoData?.features?.[0];
-      if (f) {
-        it.lat = f.geometry.coordinates[1];
-        it.lng = f.geometry.coordinates[0];
-        mostrarToast('📍 Destino localizado: ' + it.destino);
-      } else {
-        mostrarToast('⚠️ No se encontró la ubicación de "' + it.destino + '"');
-      }
-    } catch(e) {}
-  }
-
   it.dias = parseInt(document.getElementById('e-dias')?.value) || it.dias;
   it.presupuesto = document.getElementById('e-presupuesto')?.value || it.presupuesto;
   it.resumen = document.getElementById('e-resumen')?.value || it.resumen;
@@ -4190,11 +3901,27 @@ async function publicarViaje() {
   it.autorNombre = usuarioActual?.displayName || it.autor || 'Anónimo';
   fotosBase64 = [];
 
-  // Usar siempre los puntos locales (puntosEdicion) como fuente de verdad.
-  // Las ediciones (borrar, añadir, mover) ya se sincronizan con Firebase en tiempo real,
-  // así que NO recargamos desde Firebase aquí para no machacar cambios locales.
-  it.puntos = puntosEdicion.filter(p => p && p.tipo);
-  if (state.viajeActual) state.viajeActual.puntos = it.puntos;
+  // Sincronizar puntos desde estado central antes de publicar
+  if (state.viajeActual?.puntos?.length > 0) {
+    it.puntos = state.viajeActual.puntos;
+  }
+
+  // Si es edición, cargar puntos frescos de Firebase para no machacarlos
+  if (it.fbId) {
+    try {
+      const rp = await fetch(`${FB_URL}/itinerarios/${it.fbId}/puntos.json`);
+      const puntosFirebase = await rp.json();
+      if (Array.isArray(puntosFirebase) && puntosFirebase.length > 0) {
+        it.puntos = puntosFirebase;
+      } else {
+        it.puntos = puntosEdicion.filter(p => p && p.tipo);
+      }
+    } catch(e) {
+      it.puntos = puntosEdicion.filter(p => p && p.tipo);
+    }
+  } else {
+    it.puntos = puntosEdicion.filter(p => p && p.tipo);
+  }
 
   const btn = document.querySelector('#screenEditar button[onclick="publicarViaje()"]') || 
                document.querySelector('.btn-primary');
@@ -4233,26 +3960,21 @@ async function publicarViaje() {
 
       if (!destinos[key]) {
         destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
-      }
-      // Siempre actualizar coords desde el itinerario (puede que se geocodificaron al publicar)
-      if (it.lat && it.lng) {
-        destinos[key].lat = it.lat;
-        destinos[key].lng = it.lng;
-      }
-      // Si aún no hay coords, buscarlas por Photon en background
-      if (!destinos[key].lat) {
-        fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`)
-          .then(r=>r.json()).then(g=>{
-            const f = g?.features?.[0];
-            if (f) {
-              destinos[key].lat = f.geometry.coordinates[1];
-              destinos[key].lng = f.geometry.coordinates[0];
-              if (mapaMundial) renderPinsMundiales();
-            }
-          }).catch(()=>{});
+        // Si no hay coords, buscarlas por Nominatim
+        if (!destinos[key].lat) {
+          fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`)
+            .then(r=>r.json()).then(g=>{
+              const f = g?.features?.[0];
+              if (f) {
+                destinos[key].lat = f.geometry.coordinates[1];
+                destinos[key].lng = f.geometry.coordinates[0];
+                añadirPinMundial(key, destinos[key]);
+              }
+            }).catch(()=>{});
+        }
       }
       destinos[key].itinerarios.push(it);
-      if (mapaMundial) renderPinsMundiales(); // re-render con el nuevo pin
+      if (destinos[key].lat) añadirPinMundial(key, destinos[key]);
       mostrarToast('✅ ¡Viaje publicado!');
     }
 
@@ -4280,14 +4002,7 @@ async function cargarDeFirebase() {
     Object.entries(data).forEach(([fbKey, it]) => {
       // Asegurar que el fbId siempre está presente (viajes viejos pueden no tenerlo)
       if (!it.fbId) it.fbId = fbKey;
-      // Normalizar key: si es timestamp antiguo (viaje_XXXXXXX), recalcular desde destino
-      let key = it.destinoKey || '';
-      const esKeyTimestamp = /^viaje_\d+$/.test(key) || /^[a-z0-9_]+_\d{10,}$/.test(key);
-      if (!key || esKeyTimestamp) {
-        key = (it.destino||'').toLowerCase()
-          .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-          .replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,40);
-      }
+      const key = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_');
       if (!key) return;
       if (!destinos[key]) {
         destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
@@ -4295,18 +4010,9 @@ async function cargarDeFirebase() {
           fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`)
             .then(r=>r.json()).then(g=>{
               const f = g?.features?.[0];
-              if (f) {
-                destinos[key].lat=f.geometry.coordinates[1];
-                destinos[key].lng=f.geometry.coordinates[0];
-                if (mapaMundial) renderPinsMundiales();
-              }
+              if (f) { destinos[key].lat=f.geometry.coordinates[1]; destinos[key].lng=f.geometry.coordinates[0]; añadirPinMundial(key, destinos[key]); }
             }).catch(()=>{});
         }
-      }
-      // Si destinos[key] ya existe pero le faltan coords, tomarlas del itinerario
-      if (it.lat && it.lng && !destinos[key].lat) {
-        destinos[key].lat = it.lat;
-        destinos[key].lng = it.lng;
       }
       const esNuevo = !destinos[key].itinerarios.find(i => i.fbId === it.fbId);
       if (esNuevo) {
@@ -4316,8 +4022,10 @@ async function cargarDeFirebase() {
       }
     });
     renderHome();
-    // Renderizar todos los pins del mapa mundial si ya está iniciado
-    if (mapaIniciado && mapaMundial) renderPinsMundiales();
+    // Añadir pins al mapa mundial si ya está iniciado
+    if (mapaIniciado) {
+      Object.entries(destinos).forEach(([key, d]) => añadirPinMundial(key, d));
+    }
   } catch(e) { console.log('Error cargando Firebase:', e); }
 }
 
@@ -4399,37 +4107,20 @@ function mostrarPantallaHome() {
 renderHome();
 cargarDeFirebase().then(() => comprobarUrlViaje());
 
-// Comprobar sesión guardada (caché local para arranque rápido)
+// Comprobar sesión guardada y mostrar pantalla inicial
 const sesionGuardada = localStorage.getItem('ye_user');
 if (sesionGuardada) {
-  try {
-    usuarioActual = JSON.parse(sesionGuardada);
-    actualizarPerfil();
-  } catch(e) {
-    localStorage.removeItem('ye_user');
-  }
+  try { usuarioActual = JSON.parse(sesionGuardada); actualizarPerfil(); }
+  catch(e) { localStorage.removeItem('ye_user'); }
 }
-
-// Conectar Firebase Auth cuando el módulo esté listo (es deferred)
-// Reintentamos hasta que window._fbOnAuth esté disponible
-// Escuchar cambios de auth de Firebase (CDN compat ya está disponible aquí)
 if (window._fbOnAuth) {
   window._fbOnAuth((user) => {
     if (user) {
-      usuarioActual = {
-        nombre: user.displayName,
-        email: user.email,
-        foto: user.photoURL,
-        uid: user.uid
-      };
+      usuarioActual = { nombre:user.displayName, email:user.email, foto:user.photoURL, uid:user.uid };
       localStorage.setItem('ye_user', JSON.stringify(usuarioActual));
       actualizarPerfil();
-    } else {
-      if (usuarioActual?.uid) {
-        usuarioActual = null;
-        localStorage.removeItem('ye_user');
-        actualizarPerfil();
-      }
+    } else if (usuarioActual?.uid) {
+      usuarioActual = null; localStorage.removeItem('ye_user'); actualizarPerfil();
     }
   });
 }
@@ -4438,15 +4129,10 @@ if (window._fbOnAuth) {
 // Sin esta llamada todas las pantallas quedan ocultas y la app no sale del splash
 navegarA('screenHome', 'navHome');
 
-// ── PWA SERVICE WORKER — limpiar caché completamente ──
+// ── PWA SERVICE WORKER — desregistrar si existe para limpiar caché ──
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(regs => {
-    regs.forEach(reg => reg.unregister());
-  });
-  // Limpiar todos los caches del navegador
-  if (window.caches) {
-    caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
-  }
+  navigator.serviceWorker.getRegistrations().then(regs => { regs.forEach(reg => reg.unregister()); });
+  if (window.caches) caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
 }
 
 // ── API KEY ──
@@ -4475,14 +4161,6 @@ function actualizarEstadoApiKey() {
     el.style.color = saved ? '#388E3C' : '#E65100';
   }
 }
-
-document.addEventListener('click', (e) => {
-  const box = document.getElementById('e-destino-sugerencias');
-  const input = document.getElementById('e-destino');
-  if (box && !box.contains(e.target) && e.target !== input) {
-    box.style.display = 'none';
-  }
-});
 
 document.addEventListener('DOMContentLoaded', () => {
   const saved = localStorage.getItem('ye_api_key');
@@ -4518,326 +4196,123 @@ function instalarApp() {
   });
 }
 
-// ══════════════════════════════════════════════════════════════════
-// ══ COMPARTIR VIAJE ═══════════════════════════════════════════════
-// ══════════════════════════════════════════════════════════════════
-let _viajeCompartido = null; // itinerario activo en pantalla detalle
+let _viajeCompartido = null;
+let _pinsMundiales = [];
 
+// ══ COMPARTIR VIAJE ══════════════════════════════════════════════
 function compartirViaje() {
   if (!_viajeCompartido) return;
   const it = _viajeCompartido;
   const fbId = it.fbId;
-  if (!fbId) { mostrarToast('⚠️ Publica el viaje primero para compartirlo'); return; }
-
+  if (!fbId) { mostrarToast('⚠️ Publica el viaje primero'); return; }
   const url = `${location.origin}${location.pathname}?viaje=${fbId}`;
-
   const sheet = document.createElement('div');
   sheet.id = '_shareSheet';
   sheet.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:5000;display:flex;align-items:flex-end';
   sheet.innerHTML = `
-    <div style="background:var(--bg);border-radius:20px 20px 0 0;width:100%;padding:24px 20px 40px;animation:slideUp 0.25s ease">
+    <div style="background:var(--bg);border-radius:20px 20px 0 0;width:100%;padding:24px 20px 40px">
       <div style="width:36px;height:4px;background:var(--border);border-radius:4px;margin:0 auto 20px"></div>
       <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.1rem;margin-bottom:4px">Compartir viaje</div>
       <div style="font-size:0.82rem;color:var(--muted);margin-bottom:20px">${it.titulo}</div>
-
-      <!-- URL box -->
       <div style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px;margin-bottom:16px">
-        <div style="flex:1;font-size:0.78rem;color:var(--muted);word-break:break-all;line-height:1.4">${url}</div>
-        <button onclick="copiarLinkViaje('${url}')" style="background:var(--ink);color:white;border:none;padding:8px 14px;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;white-space:nowrap;flex-shrink:0">Copiar</button>
+        <div style="flex:1;font-size:0.78rem;color:var(--muted);word-break:break-all">${url}</div>
+        <button onclick="copiarLinkViaje('${url}')" style="background:var(--ink);color:white;border:none;padding:8px 14px;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;flex-shrink:0">Copiar</button>
       </div>
-
-      <!-- Botones de acción -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-        <button onclick="compartirNativo('${url}','${it.titulo.replace(/'/g,"")}')" style="padding:14px;background:var(--ink);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">
-          📤 Compartir
-        </button>
-        <button onclick="compartirWhatsApp('${url}','${it.titulo.replace(/'/g,"").replace(/"/g,"")}','${it.destino || ""}')" style="padding:14px;background:#25D366;color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">
-          💬 WhatsApp
-        </button>
+        <button onclick="compartirNativo('${url}','${it.titulo.replace(/'/g,'')}')" style="padding:14px;background:var(--ink);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer">📤 Compartir</button>
+        <button onclick="compartirWhatsApp('${url}','${it.titulo.replace(/'/g,'').replace(/"/g,'')}','${it.destino||''}')" style="padding:14px;background:#25D366;color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer">💬 WhatsApp</button>
       </div>
-
-      <button onclick="document.getElementById('_shareSheet').remove()" style="width:100%;padding:13px;background:none;border:1.5px solid var(--border);border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;font-size:0.9rem">Cerrar</button>
+      <button onclick="document.getElementById('_shareSheet').remove()" style="width:100%;padding:13px;background:none;border:1.5px solid var(--border);border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">Cerrar</button>
     </div>`;
-  sheet.addEventListener('click', e => { if (e.target === sheet) sheet.remove(); });
+  sheet.addEventListener('click', e => { if(e.target===sheet) sheet.remove(); });
   document.body.appendChild(sheet);
 }
-
 function copiarLinkViaje(url) {
-  navigator.clipboard.writeText(url).then(() => {
-    mostrarToast('✅ Link copiado al portapapeles');
-    document.getElementById('_shareSheet')?.remove();
-  }).catch(() => {
-    // fallback para iOS
-    const ta = document.createElement('textarea');
-    ta.value = url;
-    ta.style.cssText = 'position:fixed;opacity:0';
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    ta.remove();
-    mostrarToast('✅ Link copiado');
-    document.getElementById('_shareSheet')?.remove();
+  navigator.clipboard.writeText(url).then(() => { mostrarToast('✅ Link copiado'); document.getElementById('_shareSheet')?.remove(); }).catch(() => {
+    const ta = document.createElement('textarea'); ta.value = url; ta.style.cssText='position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); mostrarToast('✅ Link copiado'); document.getElementById('_shareSheet')?.remove();
   });
 }
-
 function compartirNativo(url, titulo) {
-  if (navigator.share) {
-    navigator.share({ title: titulo, text: `Mira este itinerario de viaje: ${titulo}`, url })
-      .catch(() => {});
-  } else {
-    copiarLinkViaje(url);
-  }
+  if (navigator.share) navigator.share({ title:titulo, url }).catch(()=>{});
+  else copiarLinkViaje(url);
   document.getElementById('_shareSheet')?.remove();
 }
-
 function compartirWhatsApp(url, titulo, destino) {
-  const texto = encodeURIComponent(`✈️ *${titulo}*\n📍 ${destino}\n\nMira este itinerario en YaEstuve:\n${url}`);
-  window.open(`https://wa.me/?text=${texto}`, '_blank');
+  window.open(`https://wa.me/?text=${encodeURIComponent('✈️ *'+titulo+'*\n📍 '+destino+'\n\n'+url)}`, '_blank');
   document.getElementById('_shareSheet')?.remove();
 }
-
-// Al arrancar, comprobar si hay ?viaje=fbId en la URL y abrirlo directamente
 function comprobarUrlViaje() {
   const params = new URLSearchParams(location.search);
   const fbId = params.get('viaje');
   if (!fbId) return;
-  // Esperar a que carguen los datos de Firebase
   let intentos = 0;
   const buscar = setInterval(() => {
     intentos++;
     for (const [key, d] of Object.entries(destinos)) {
       const it = d.itinerarios.find(i => i.fbId === fbId);
-      if (it) {
-        clearInterval(buscar);
-        setTimeout(() => abrirItinerario(key, fbId), 300);
-        return;
-      }
+      if (it) { clearInterval(buscar); setTimeout(() => abrirItinerario(key, fbId), 300); return; }
     }
-    if (intentos > 20) clearInterval(buscar); // 4 segundos máx
+    if (intentos > 20) clearInterval(buscar);
   }, 200);
 }
 
-// ══════════════════════════════════════════════════════════════════
-// ══ DESCARGAR PDF ═════════════════════════════════════════════════
-// ══════════════════════════════════════════════════════════════════
-
+// ══ DESCARGAR PDF ════════════════════════════════════════════════
 function descargarPDF() {
   const it = _viajeCompartido;
   if (!it) return;
-
-  // Generar HTML del PDF en una ventana nueva para imprimir
-  const iconoTipoLocal = (tipo) => {
-    const m = {hotel:'🏨',restaurante:'🍽️',atraccion:'🎡',monumento:'🏛️',museo:'🖼️',playa:'🏖️',
-      mirador:'🔭',bar:'🍻',iglesia:'⛪',parque:'🌳',visita:'📍',tip:'💡',transporte:'🚌',
-      compras:'🛍️',avion:'✈️',tren:'🚂',barco:'🚢'};
-    return m[tipo] || '📍';
-  };
-
-  const diasHTML = (it.jornadas || []).map(j => `
-    <div class="dia">
-      <div class="dia-header">
-        <span class="dia-num">DÍA ${j.dia}</span>
-        <span class="dia-lugar">${j.lugar || ''}</span>
-      </div>
-      ${(j.items || []).map(item => `
-        <div class="item">
-          <span class="item-icon">${iconoTipoLocal(item.tipo)}</span>
-          <div>
-            <div class="item-nombre">${item.nombre}</div>
-            ${item.desc ? `<div class="item-desc">${item.desc}</div>` : ''}
-          </div>
-        </div>`).join('')}
-    </div>`).join('');
-
-  const tiposHTML = (it.tipo || []).map(t => `<span class="tag">${t}</span>`).join('');
-
-  const html = `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<title>${it.titulo} — YaEstuve</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Mulish:wght@400;600&display=swap');
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:'Mulish',sans-serif; background:#fff; color:#1C1917; padding:32px; max-width:680px; margin:0 auto; }
-  .header { border-bottom:3px solid #E8471C; padding-bottom:20px; margin-bottom:24px; }
-  .app-label { font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#9C9189; margin-bottom:8px; }
-  h1 { font-family:'Syne',sans-serif; font-size:26px; font-weight:800; margin-bottom:8px; line-height:1.2; }
-  .meta { display:flex; flex-wrap:wrap; gap:16px; font-size:13px; color:#5C8C6A; font-weight:600; margin-bottom:10px; }
-  .tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
-  .tag { font-size:11px; background:#FEF0EC; color:#E8471C; padding:3px 10px; border-radius:50px; font-weight:700; }
-  .presupuesto { background:#5C8C6A; color:white; display:inline-flex; align-items:center; gap:8px; padding:8px 16px; border-radius:10px; font-family:'Syne',sans-serif; font-weight:700; font-size:14px; margin-top:12px; }
-  .resumen { font-size:13px; color:#666; line-height:1.6; margin:16px 0; padding:14px; background:#F7F4EF; border-radius:10px; border-left:3px solid #E8471C; }
-  .dia { margin-bottom:24px; page-break-inside:avoid; }
-  .dia-header { display:flex; align-items:center; gap:10px; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid #EDE8DF; }
-  .dia-num { background:#E8471C; color:white; font-size:10px; font-weight:700; letter-spacing:0.5px; padding:3px 10px; border-radius:50px; font-family:'Syne',sans-serif; }
-  .dia-lugar { font-family:'Syne',sans-serif; font-size:15px; font-weight:700; }
-  .item { display:flex; gap:10px; padding:8px 10px; border-radius:8px; margin-bottom:6px; background:#FAFAF8; border:1px solid #EDE8DF; }
-  .item-icon { font-size:16px; flex-shrink:0; margin-top:1px; }
-  .item-nombre { font-size:13px; font-weight:700; margin-bottom:2px; }
-  .item-desc { font-size:11px; color:#9C9189; line-height:1.5; }
-  .footer { margin-top:32px; padding-top:16px; border-top:1px solid #EDE8DF; text-align:center; font-size:11px; color:#9C9189; }
-  @media print {
-    body { padding:16px; }
-    .no-print { display:none; }
-  }
-</style>
-</head>
-<body>
-  <div class="header">
-    <div class="app-label">YaEstuve · Itinerario de viaje</div>
-    <h1>${it.emoji || '✈️'} ${it.titulo}</h1>
-    <div class="meta">
-      <span>📍 ${it.destino}</span>
-      <span>📅 ${it.dias} día${it.dias !== 1 ? 's' : ''}</span>
-      <span>👤 ${it.autor}</span>
-    </div>
-    ${tiposHTML ? `<div class="tags">${tiposHTML}</div>` : ''}
-    ${it.presupuesto ? `<div class="presupuesto">💰 ${it.presupuesto} / persona</div>` : ''}
-  </div>
-  ${it.resumen ? `<div class="resumen">${it.resumen}</div>` : ''}
-  <div class="dias">${diasHTML}</div>
-  <div class="footer">
-    Generado con YaEstuve · yaestuve2.jaymaviajes.workers.dev
-  </div>
-  <script>window.onload = () => { window.print(); }<\/script>
-</body>
-</html>`;
-
+  const iconoT = (t) => ({hotel:'🏨',restaurante:'🍽️',atraccion:'🎡',monumento:'🏛️',museo:'🖼️',playa:'🏖️',mirador:'🔭',bar:'🍻',iglesia:'⛪',parque:'🌳',visita:'📍',tip:'💡',transporte:'🚌',compras:'🛍️',avion:'✈️',tren:'🚂',barco:'🚢'}[t]||'📍');
+  const diasHTML = (it.jornadas||[]).map(j => `<div class="dia"><div class="dia-header"><span class="dia-num">DÍA ${j.dia}</span><span class="dia-lugar">${j.lugar||''}</span></div>${(j.items||[]).map(item=>`<div class="item"><span class="item-icon">${iconoT(item.tipo)}</span><div><div class="item-nombre">${item.nombre}</div>${item.desc?`<div class="item-desc">${item.desc}</div>`:''}</div></div>`).join('')}</div>`).join('');
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${it.titulo}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:sans-serif;background:#fff;color:#1C1917;padding:32px;max-width:680px;margin:0 auto}h1{font-size:24px;font-weight:800;margin-bottom:8px}.meta{font-size:13px;color:#5C8C6A;margin-bottom:16px}.dia{margin-bottom:20px}.dia-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #eee}.dia-num{background:#E8471C;color:white;font-size:10px;font-weight:700;padding:3px 10px;border-radius:50px}.dia-lugar{font-size:15px;font-weight:700}.item{display:flex;gap:10px;padding:8px;border-radius:8px;margin-bottom:6px;background:#fafafa;border:1px solid #eee}.item-icon{font-size:16px;flex-shrink:0}.item-nombre{font-size:13px;font-weight:700}.item-desc{font-size:11px;color:#999}@media print{body{padding:16px}}</style></head><body><h1>${it.emoji||'✈️'} ${it.titulo}</h1><div class="meta">📍 ${it.destino} · 📅 ${it.dias} días · 👤 ${it.autor}</div>${diasHTML}<script>window.onload=()=>window.print()<\/script></body></html>`;
   const win = window.open('', '_blank');
-  if (!win) { mostrarToast('⚠️ Permite ventanas emergentes para descargar el PDF'); return; }
-  win.document.write(html);
-  win.document.close();
+  if (!win) { mostrarToast('⚠️ Permite ventanas emergentes'); return; }
+  win.document.write(html); win.document.close();
 }
 
-// ══════════════════════════════════════════════════════════════════
-// ══ MAPA MUNDIAL MEJORADO — CLUSTERS ══════════════════════════════
-// ══════════════════════════════════════════════════════════════════
-
-// Reemplazamos iniciarMapa y añadirPinMundial con versión con clusters visuales
-
-function iniciarMapa() {
-  mapaIniciado = true;
-  const m = L.map('map', { center:[25,10], zoom:2, zoomControl:false });
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(m);
-  L.control.zoom({ position:'topright' }).addTo(m);
-  mapaMundial = m;
-  m.on('zoomend moveend', renderPinsMundiales);
-  // Render inmediato + retry a los 2s para destinos que aún están geocodificando
-  renderPinsMundiales();
-  setTimeout(renderPinsMundiales, 2000);
-  // Para destinos sin coords, relanzar geocodificación ahora que el mapa está listo
-  Object.entries(destinos).forEach(([key, d]) => {
-    if (!d.lat && d.nombre) {
-      fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(d.nombre)}&limit=1&lang=es`)
-        .then(r=>r.json()).then(g=>{
-          const f = g?.features?.[0];
-          if (f) {
-            d.lat = f.geometry.coordinates[1];
-            d.lng = f.geometry.coordinates[0];
-            renderPinsMundiales();
-          }
-        }).catch(()=>{});
-    }
-  });
-}
-
-// Guarda los markers actuales del mapa mundial para poder limpiarlos
-let _pinsMundiales = [];
-
+// ══ MAPA MUNDIAL CON CLUSTERS ════════════════════════════════════
 function renderPinsMundiales() {
   if (!mapaMundial) return;
-  // Limpiar markers anteriores
   _pinsMundiales.forEach(m => mapaMundial.removeLayer(m));
   _pinsMundiales = [];
-
-  const zoom = mapaMundial.getZoom();
   const entries = Object.entries(destinos).filter(([,d]) => d.lat && d.lng);
   if (!entries.length) return;
-
-  // Agrupar destinos cuyas posiciones en pantalla estén a menos de 80px entre sí
-  // Esto es visualmente consistente independientemente del zoom
   const CLUSTER_PX = 80;
   const toPixel = (lat, lng) => mapaMundial.latLngToContainerPoint([lat, lng]);
-
   const usados = new Set();
   const grupos = [];
-
   for (let i = 0; i < entries.length; i++) {
     if (usados.has(i)) continue;
     const [ki, di] = entries[i];
     const piI = toPixel(di.lat, di.lng);
-    const grupo = { keys:[ki], destinos:[di], lat:di.lat, lng:di.lng, _px: piI };
+    const grupo = { keys:[ki], destinos:[di], lat:di.lat, lng:di.lng };
     for (let j = i+1; j < entries.length; j++) {
       if (usados.has(j)) continue;
       const [kj, dj] = entries[j];
       const piJ = toPixel(dj.lat, dj.lng);
-      const dx = piI.x - piJ.x, dy = piI.y - piJ.y;
-      if (Math.sqrt(dx*dx + dy*dy) < CLUSTER_PX) {
-        grupo.keys.push(kj);
-        grupo.destinos.push(dj);
-        usados.add(j);
-      }
+      const dx = piI.x-piJ.x, dy = piI.y-piJ.y;
+      if (Math.sqrt(dx*dx+dy*dy) < CLUSTER_PX) { grupo.keys.push(kj); grupo.destinos.push(dj); usados.add(j); }
     }
-    usados.add(i);
-    grupos.push(grupo);
+    usados.add(i); grupos.push(grupo);
   }
-
   grupos.forEach(g => {
+    const lat = g.destinos.reduce((s,d)=>s+d.lat,0)/g.destinos.length;
+    const lng = g.destinos.reduce((s,d)=>s+d.lng,0)/g.destinos.length;
+    let html, onClick;
     if (g.destinos.length === 1) {
-      // Pin individual
-      const d = g.destinos[0];
-      const key = g.keys[0];
-      const icon = L.divIcon({
-        className: '',
-        html: `<div style="background:${d.color||'#E8471C'};color:white;border-radius:50px;padding:6px 12px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 3px 12px rgba(0,0,0,0.25);border:2px solid white;cursor:pointer;transition:transform 0.15s" onmouseenter="this.style.transform='scale(1.08)'" onmouseleave="this.style.transform=''">${d.emoji || '📍'} ${d.nombre}</div>`,
-        iconSize: null, iconAnchor: [0,0]
-      });
-      const marker = L.marker([g.lat, g.lng], { icon })
-        .addTo(mapaMundial)
-        .on('click', () => abrirDestino(key));
-      _pinsMundiales.push(marker);
+      const d = g.destinos[0]; const key = g.keys[0];
+      html = `<div style="background:${d.color||'#E8471C'};color:white;border-radius:50px;padding:6px 12px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 3px 12px rgba(0,0,0,0.25);border:2px solid white;cursor:pointer">${d.emoji||'📍'} ${d.nombre}</div>`;
+      onClick = () => abrirDestino(key);
     } else {
-      // Cluster: burbuja con número y emojis
-      const total = g.destinos.reduce((s,d) => s + (d.itinerarios?.length||0), 0);
-      const emojis = g.destinos.slice(0,3).map(d => d.emoji||'📍').join('');
-      // Centro del grupo (media de coords)
-      const lat = g.destinos.reduce((s,d)=>s+d.lat,0)/g.destinos.length;
-      const lng = g.destinos.reduce((s,d)=>s+d.lng,0)/g.destinos.length;
-      const icon = L.divIcon({
-        className: '',
-        html: `<div style="
-          background:var(--ink);color:white;
-          border-radius:50px;padding:8px 16px;
-          font-family:'Syne',sans-serif;font-size:12px;font-weight:700;
-          white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.3);
-          border:2.5px solid white;cursor:pointer;
-          display:flex;align-items:center;gap:6px;
-          transition:transform 0.15s"
-          onmouseenter="this.style.transform='scale(1.06)'"
-          onmouseleave="this.style.transform=''">
-          <span style="font-size:14px">${emojis}</span>
-          <span>${g.destinos.length} destinos</span>
-          <span style="background:var(--primary);border-radius:50px;padding:2px 7px;font-size:10px">${total} viajes</span>
-        </div>`,
-        iconSize: null, iconAnchor: [0,0]
-      });
-      // Al hacer click en cluster, hacer zoom hacia esa zona
-      const marker = L.marker([lat, lng], { icon })
-        .addTo(mapaMundial)
-        .on('click', () => {
-          const bounds = L.latLngBounds(g.destinos.map(d => [d.lat, d.lng]));
-          mapaMundial.fitBounds(bounds, { padding:[60,60], maxZoom:8 });
-        });
-      _pinsMundiales.push(marker);
+      const total = g.destinos.reduce((s,d)=>s+(d.itinerarios?.length||0),0);
+      const emojis = g.destinos.slice(0,3).map(d=>d.emoji||'📍').join('');
+      html = `<div style="background:var(--ink);color:white;border-radius:50px;padding:8px 16px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.3);border:2.5px solid white;cursor:pointer;display:flex;align-items:center;gap:6px"><span>${emojis}</span><span>${g.destinos.length} destinos</span><span style="background:var(--primary);border-radius:50px;padding:2px 7px;font-size:10px">${total} viajes</span></div>`;
+      onClick = () => { const bounds = L.latLngBounds(g.destinos.map(d=>[d.lat,d.lng])); mapaMundial.fitBounds(bounds,{padding:[60,60],maxZoom:8}); };
     }
+    const icon = L.divIcon({ className:'', html, iconSize:null, iconAnchor:[0,0] });
+    const marker = L.marker([lat,lng],{icon}).addTo(mapaMundial).on('click', onClick);
+    _pinsMundiales.push(marker);
   });
 }
-
-function añadirPinMundial(key, d) {
-  // Ahora solo re-renderizamos todo (más simple y limpio)
-  if (mapaMundial) renderPinsMundiales();
-}
+function añadirPinMundial(key, d) { if (mapaMundial) renderPinsMundiales(); }
 
 
 </script>
