@@ -13,61 +13,43 @@
 <title>YaEstuve</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Mulish:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script>
-// Auth propio con Firebase Realtime Database
-const FB_AUTH_URL = 'https://yaestuve-app-default-rtdb.europe-west1.firebasedatabase.app/usuarios';
+<script type="module">
+// ══ FIREBASE AUTH CON GOOGLE ══════════════════════════════════════
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
-function hashSimple(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash) + str.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash).toString(36);
-}
-
-function emailToKey(email) {
-  return email.replace(/[.@]/g, '_');
-}
-
-window.fbCreateUser = async (email, pass, nombre) => {
-  const key = emailToKey(email);
-  // Comprobar si ya existe
-  const r = await fetch(`${FB_AUTH_URL}/${key}.json`);
-  const existe = await r.json();
-  if (existe) throw { code: 'auth/email-already-in-use' };
-  
-  const uid = 'u_' + Date.now().toString(36);
-  const user = { uid, email, nombre, passHash: hashSimple(pass + email), creado: Date.now() };
-  await fetch(`${FB_AUTH_URL}/${key}.json`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(user)
-  });
-  return { uid, email, displayName: nombre };
+const firebaseConfig = {
+  apiKey: "AIzaSyASW2zgeIcGIVm2pkoghgcH9SVrhpH2QAc",
+  authDomain: "yaestuve-app.firebaseapp.com",
+  databaseURL: "https://yaestuve-app-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "yaestuve-app",
+  storageBucket: "yaestuve-app.firebasestorage.app",
+  messagingSenderId: "714279224485",
+  appId: "1:714279224485:web:462c519074504efaab794c"
 };
 
-window.fbLogin = async (email, pass) => {
-  const key = emailToKey(email);
-  const r = await fetch(`${FB_AUTH_URL}/${key}.json`);
-  const user = await r.json();
-  if (!user) throw { code: 'auth/user-not-found' };
-  if (user.passHash !== hashSimple(pass + email)) throw { code: 'auth/wrong-password' };
-  return { uid: user.uid, email: user.email, displayName: user.nombre };
-};
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const provider = new GoogleAuthProvider();
 
-window.fbLogout = () => {
-  localStorage.removeItem('ye_user');
-};
-
-window.fbOnAuth = (cb) => {
-  const saved = localStorage.getItem('ye_user');
-  if (saved) {
-    try { cb(JSON.parse(saved)); } catch { cb(null); }
-  } else {
-    cb(null);
+// Exponer funciones al scope global para que el resto del código las use
+window._fbSignInWithGoogle = async () => {
+  try {
+    const result = await signInWithPopup(auth, provider);
+    return result.user;
+  } catch(e) {
+    console.error('Google sign-in error:', e);
+    throw e;
   }
 };
+
+window._fbSignOut = () => signOut(auth);
+
+window._fbOnAuth = (cb) => onAuthStateChanged(auth, cb);
+
+// Stub de compatibilidad para código antiguo
+window.fbOnAuth = window._fbOnAuth;
 </script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -1138,27 +1120,24 @@ html, body {
 
 
 <!-- ══ LOGIN SHEET (overlay simple) ══ -->
-<div id="loginSheet" style="display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,0.6)">
-  <div style="position:absolute;bottom:0;left:0;right:0;background:#F7F4EF;border-radius:20px 20px 0 0;padding:28px 20px 40px">
-    <div style="width:40px;height:4px;background:#d0c8b8;border-radius:4px;margin:0 auto 24px"></div>
-    <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;margin-bottom:4px" id="loginSheetTitulo">Entrar</div>
-    <div style="font-size:0.82rem;color:#9C9189;margin-bottom:20px" id="loginSheetSub">Accede a tu cuenta YaEstuve</div>
+<div id="loginSheet" style="display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px)">
+  <div style="position:absolute;bottom:0;left:0;right:0;background:white;border-radius:24px 24px 0 0;padding:32px 24px 48px;text-align:center">
+    <div style="width:40px;height:4px;background:#EDE8DF;border-radius:4px;margin:0 auto 28px"></div>
+    <div style="font-size:2.5rem;margin-bottom:12px">✈️</div>
+    <div style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;margin-bottom:8px">YaEstuve</div>
+    <div style="font-size:0.88rem;color:#9C9189;margin-bottom:32px;line-height:1.5">Comparte tus viajes y descubre<br>los itinerarios de otros viajeros</div>
 
-    <div id="loginNombreGroup" style="display:none;margin-bottom:12px">
-      <input type="text" id="loginNombre" placeholder="Tu nombre" style="width:100%;padding:13px 16px;border:1.5px solid #EDE8DF;border-radius:12px;font-family:'Mulish',sans-serif;font-size:0.95rem;outline:none;background:white">
-    </div>
-    <div style="margin-bottom:12px">
-      <input type="text" id="loginEmail" placeholder="Email" inputmode="email" autocomplete="email" style="width:100%;padding:13px 16px;border:1.5px solid #EDE8DF;border-radius:12px;font-family:'Mulish',sans-serif;font-size:0.95rem;outline:none;background:white">
-    </div>
-    <div style="margin-bottom:20px">
-      <input type="password" id="loginPass" placeholder="Contraseña (mín. 6 caracteres)" style="width:100%;padding:13px 16px;border:1.5px solid #EDE8DF;border-radius:12px;font-family:'Mulish',sans-serif;font-size:0.95rem;outline:none;background:white">
-    </div>
+    <!-- Botón Google -->
+    <button id="btnGoogleLogin" onclick="loginConGoogle()"
+      style="width:100%;padding:16px;background:white;border:2px solid #EDE8DF;border-radius:14px;font-family:'Mulish',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:12px;transition:all 0.2s"
+      onmouseover="this.style.borderColor='#E8471C'" onmouseout="this.style.borderColor='#EDE8DF'">
+      <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.6 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34 6.4 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.1 18.9 12 24 12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34 6.4 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.4 35.5 26.8 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.9 2.5-2.5 4.6-4.7 6l6.2 5.2C41 35.3 44 30 44 24c0-1.3-.1-2.7-.4-4z"/></svg>
+      Continuar con Google
+    </button>
 
-    <div id="loginError" style="color:#E8471C;font-size:0.82rem;margin-bottom:12px;text-align:center"></div>
+    <div id="loginError" style="color:#E8471C;font-size:0.82rem;margin-top:8px;text-align:center;min-height:20px"></div>
 
-    <button id="loginBtn" type="button" onclick="ejecutarLogin()" style="width:100%;padding:15px;background:#E8471C;color:white;border:none;border-radius:14px;font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;margin-bottom:12px">Entrar</button>
-    <button type="button" onclick="toggleLoginModo()" style="width:100%;padding:13px;background:white;border:1.5px solid #EDE8DF;border-radius:14px;font-family:'Mulish',sans-serif;font-size:0.88rem;cursor:pointer;margin-bottom:10px" id="loginToggleBtn">¿Sin cuenta? Regístrate</button>
-    <button type="button" onclick="cerrarLoginSheet()" style="width:100%;padding:10px;background:none;border:none;color:#9C9189;font-size:0.82rem;cursor:pointer">Cancelar</button>
+    <button onclick="cerrarLogin()" style="width:100%;padding:13px;background:none;border:none;font-family:'Mulish',sans-serif;font-size:0.85rem;color:#9C9189;cursor:pointer;margin-top:8px">Ahora no</button>
   </div>
 </div>
 
@@ -1323,7 +1302,7 @@ html, body {
           style="width:100%;box-sizing:border-box;padding-left:36px;padding-right:36px">
         <button id="e-destino-clear" onclick="limpiarDestinoEdicion()" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:1rem;cursor:pointer;color:var(--muted);padding:4px">✕</button>
       </div>
-      <div id="e-destino-coords" style="font-size:0.78rem;color:#5C8C6A;margin-top:6px;display:none;display:flex;align-items:center;gap:5px;font-weight:600">✅ Destino localizado en el mapa</div>
+      <div id="e-destino-coords" style="font-size:0.78rem;color:#5C8C6A;margin-top:6px;display:none;align-items:center;gap:5px;font-weight:600">✅ Destino localizado en el mapa</div>
       <div id="e-destino-sugerencias" style="display:none;position:absolute;left:0;right:0;background:var(--bg);border-radius:0 0 14px 14px;box-shadow:0 8px 24px rgba(0,0,0,0.18);z-index:800;overflow:hidden;max-height:240px;overflow-y:auto;border:1.5px solid var(--border);border-top:none"></div>
     </div>
     <div class="form-group">
@@ -1622,89 +1601,83 @@ const destinos = {};
 
 
 // ══ AUTH ══════════════════════════════════════
-let loginModo = 'login';
+// ══ AUTH CON GOOGLE ══════════════════════════════════════════════
 
 function abrirLoginSheet() {
-  document.getElementById('loginEmail').value = '';
-  document.getElementById('loginPass').value = '';
-  document.getElementById('loginNombre').value = '';
-  document.getElementById('loginError').textContent = '';
-  loginModo = 'login';
-  document.getElementById('loginSheetTitulo').textContent = 'Entrar';
-  document.getElementById('loginSheetSub').textContent = 'Accede a tu cuenta YaEstuve';
-  document.getElementById('loginNombreGroup').style.display = 'none';
-  document.getElementById('loginBtn').textContent = 'Entrar';
-  document.getElementById('loginToggleBtn').textContent = '¿Sin cuenta? Regístrate';
   document.getElementById('loginSheet').style.display = 'block';
+  document.getElementById('loginError').textContent = '';
 }
 
-function cerrarLoginSheet() {
+function cerrarLogin() {
   document.getElementById('loginSheet').style.display = 'none';
 }
 
-function toggleLoginModo() {
-  loginModo = loginModo === 'login' ? 'registro' : 'login';
-  const esRegistro = loginModo === 'registro';
-  document.getElementById('loginSheetTitulo').textContent = esRegistro ? 'Crear cuenta' : 'Entrar';
-  document.getElementById('loginSheetSub').textContent = esRegistro ? 'Únete a YaEstuve gratis' : 'Accede a tu cuenta YaEstuve';
-  document.getElementById('loginNombreGroup').style.display = esRegistro ? 'block' : 'none';
-  document.getElementById('loginBtn').textContent = esRegistro ? 'Crear cuenta' : 'Entrar';
-  document.getElementById('loginToggleBtn').textContent = esRegistro ? '¿Ya tienes cuenta? Entra' : '¿Sin cuenta? Regístrate';
-  document.getElementById('loginError').textContent = '';
-}
-
-async function ejecutarLogin() {
-  const emailEl = document.getElementById('loginEmail');
-  const passEl = document.getElementById('loginPass');
-  const nombreEl = document.getElementById('loginNombre');
+async function loginConGoogle() {
+  const btn = document.getElementById('btnGoogleLogin');
   const errEl = document.getElementById('loginError');
-  const btn = document.getElementById('loginBtn');
-
-  if (!emailEl || !passEl) { 
-    alert('Error: no se encontraron los campos');
-    return; 
-  }
-
-  const email = emailEl.value.trim();
-  const pass = passEl.value;
-  const nombre = nombreEl ? nombreEl.value.trim() : '';
-
-  errEl.textContent = 'Procesando...';
-
-  if (!email || !pass) { errEl.textContent = 'Rellena email y contraseña'; return; }
-  if (loginModo === 'registro' && !nombre) { errEl.textContent = 'Pon tu nombre'; return; }
-  if (pass.length < 6) { errEl.textContent = 'La contraseña debe tener al menos 6 caracteres'; return; }
-
   btn.disabled = true;
-  btn.textContent = '...';
-  errEl.textContent = 'Conectando...';
-
+  btn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;margin:0 auto"></div>';
+  errEl.textContent = '';
   try {
-    let user;
-    if (loginModo === 'registro') {
-      user = await window.fbCreateUser(email, pass, nombre);
-    } else {
-      user = await window.fbLogin(email, pass);
-    }
-    if (!user) throw new Error('No se obtuvo usuario');
-    usuarioActual = user;
-    localStorage.setItem('ye_user', JSON.stringify(user));
-    cerrarLoginSheet();
-    actualizarPerfil();
-    mostrarToast('¡Bienvenido' + (loginModo === 'registro' ? ' a YaEstuve' : '') + '! 🎉');
-  } catch(e) {
-    const msgs = {
-      'auth/email-already-in-use': 'Ese email ya está registrado',
-      'auth/user-not-found': 'No existe cuenta con ese email',
-      'auth/wrong-password': 'Contraseña incorrecta',
-      'auth/invalid-credential': 'Email o contraseña incorrectos'
+    const user = await window._fbSignInWithGoogle();
+    // Guardar usuario en Firebase Realtime DB (perfil público)
+    await fetch(`${FB_URL}/usuarios/${user.uid}.json`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        nombre: user.displayName,
+        email: user.email,
+        foto: user.photoURL,
+        uid: user.uid,
+        ultimoAcceso: Date.now()
+      })
+    });
+    usuarioActual = {
+      nombre: user.displayName,
+      email: user.email,
+      foto: user.photoURL,
+      uid: user.uid
     };
-    errEl.textContent = msgs[e.code] || 'Error: ' + (e.message || JSON.stringify(e));
-  } finally {
+    localStorage.setItem('ye_user', JSON.stringify(usuarioActual));
+    cerrarLogin();
+    actualizarPerfil();
+    mostrarToast('👋 Bienvenido, ' + user.displayName.split(' ')[0] + '!');
+  } catch(e) {
+    errEl.textContent = e.code === 'auth/popup-closed-by-user'
+      ? 'Inicio cancelado'
+      : 'Error al iniciar sesión. Inténtalo de nuevo.';
     btn.disabled = false;
-    btn.textContent = loginModo === 'registro' ? 'Crear cuenta' : 'Entrar';
+    btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.6 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34 6.4 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.1 18.9 12 24 12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34 6.4 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.4 35.5 26.8 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.9 2.5-2.5 4.6-4.7 6l6.2 5.2C41 35.3 44 30 44 24c0-1.3-.1-2.7-.4-4z"/></svg> Continuar con Google';
   }
 }
+
+function cerrarSesion() {
+  window._fbSignOut?.();
+  usuarioActual = null;
+  localStorage.removeItem('ye_user');
+  actualizarPerfil();
+  mostrarToast('👋 Sesión cerrada');
+}
+
+// Escuchar cambios de auth en tiempo real (recarga de página, etc.)
+window._fbOnAuth?.((user) => {
+  if (user && !usuarioActual) {
+    usuarioActual = {
+      nombre: user.displayName,
+      email: user.email,
+      foto: user.photoURL,
+      uid: user.uid
+    };
+    localStorage.setItem('ye_user', JSON.stringify(usuarioActual));
+    actualizarPerfil();
+  } else if (!user) {
+    usuarioActual = null;
+    localStorage.removeItem('ye_user');
+    actualizarPerfil();
+  }
+});
+
+
 
 function actualizarPerfil() {
   const u = usuarioActual;
@@ -1715,9 +1688,15 @@ function actualizarPerfil() {
   const loginBtn = document.getElementById('perfilLoginBtn');
 
   if (u) {
-    const inicial = (u.displayName || u.email || '?')[0].toUpperCase();
-    if (avatarEl) avatarEl.textContent = inicial;
-    if (nombreEl) nombreEl.textContent = u.displayName || 'Usuario';
+    // Mostrar foto de Google si está disponible
+    if (avatarEl) {
+      if (u.foto) {
+        avatarEl.innerHTML = `<img src="${u.foto}" style="width:100%;height:100%;border-radius:50%;object-fit:cover" referrerpolicy="no-referrer">`;
+      } else {
+        avatarEl.textContent = (u.nombre || u.email || '?')[0].toUpperCase();
+      }
+    }
+    if (nombreEl) nombreEl.textContent = u.nombre || u.displayName || 'Usuario';
     if (emailEl) emailEl.textContent = u.email || '';
     if (logoutBtn) logoutBtn.style.display = 'block';
     if (loginBtn) loginBtn.style.display = 'none';
@@ -2139,6 +2118,11 @@ function abrirEdicion() {
   // Rellenar campos info
   document.getElementById('e-titulo').value = it.titulo || '';
   document.getElementById('e-destino').value = it.destino || '';
+  // Mostrar tick solo si el destino ya tiene coords guardadas
+  const coordsEl = document.getElementById('e-destino-coords');
+  const clearEl = document.getElementById('e-destino-clear');
+  if (coordsEl) coordsEl.style.display = (it.lat && it.lng) ? 'flex' : 'none';
+  if (clearEl) clearEl.style.display = (it.destino) ? 'block' : 'none';
   document.getElementById('e-dias').value = it.dias || '';
   document.getElementById('e-presupuesto').value = it.presupuesto || '';
   document.getElementById('e-resumen').value = it.resumen || '';
@@ -2350,24 +2334,50 @@ function buscarDestinoEdicion(q) {
 
 
 function seleccionarDestinoEdicion(nombre, lat, lng) {
-  document.getElementById('e-destino').value = nombre;
+  const input = document.getElementById('e-destino');
+  if (input) input.value = nombre;
   const sug = document.getElementById('e-destino-sugerencias');
   if (sug) { sug.style.display = 'none'; sug.innerHTML = ''; }
-  // Show confirmation tick, hide clear button
   const coords = document.getElementById('e-destino-coords');
-  if (coords) { coords.style.display = 'flex'; }
+  if (coords) coords.style.display = 'flex';
   const clear = document.getElementById('e-destino-clear');
   if (clear) clear.style.display = 'block';
+
   const latF = parseFloat(lat), lngF = parseFloat(lng);
+
+  // Guardar en itinerarioGenerado
   if (itinerarioGenerado) {
     itinerarioGenerado.lat = latF;
     itinerarioGenerado.lng = lngF;
     itinerarioGenerado.destino = nombre;
+    // Normalizar destinoKey
+    const keyNorm = nombre.toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g,'')
+      .replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,40);
+    itinerarioGenerado.destinoKey = keyNorm;
+
+    // Actualizar destinos en memoria para que aparezca en el mapa mundial YA
+    if (!destinos[keyNorm]) {
+      destinos[keyNorm] = {
+        nombre, emoji: itinerarioGenerado.emoji || '📍',
+        lat: latF, lng: lngF,
+        color: itinerarioGenerado.color || '#C4522A',
+        itinerarios: []
+      };
+    } else {
+      destinos[keyNorm].lat = latF;
+      destinos[keyNorm].lng = lngF;
+      destinos[keyNorm].nombre = nombre;
+    }
+    // Re-renderizar mapa mundial si está abierto
+    if (mapaMundial) renderPinsMundiales();
   }
-  // Also update map center if open
+
+  // Centrar mapas de edición si están abiertos
   if (mapEditFullInstance) mapEditFullInstance.setView([latF, lngF], 13, { animate: true });
   if (mapEditInstance) mapEditInstance.setView([latF, lngF], 13, { animate: true });
-  mostrarToast('📍 Destino guardado');
+
+  mostrarToast('📍 ' + nombre + ' localizado');
 }
 
 function iniciarMapaEdicion() {
@@ -3733,17 +3743,7 @@ function eliminarLink(cat, idx) {
 
 // ══ MAPA ══════════════════════════════════════
 let mapaMundial = null;
-
-function iniciarMapa() {
-  mapaIniciado = true;
-  const m = L.map('map', { center:[25,10], zoom:2, zoomControl:false });
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(m);
-  L.control.zoom({ position:'topright' }).addTo(m);
-  mapaMundial = m;
-  // Añadir pins de destinos ya cargados
-  Object.entries(destinos).forEach(([key, d]) => añadirPinMundial(key, d));
-}
-
+// iniciarMapa definido más abajo en la sección de clusters
 function añadirPinMundial(key, d) {
   if (!mapaMundial) return;
   const icon = L.divIcon({
@@ -4153,7 +4153,6 @@ function rellenarResumen() {
 
 async function publicarViaje() {
   const it = itinerarioGenerado;
-  const key = it.destinoKey;
 
   // Recoger cambios de edición si estamos en pantalla editar
   it.titulo = document.getElementById('e-titulo')?.value || it.titulo;
@@ -4161,6 +4160,14 @@ async function publicarViaje() {
 
   // Verificar destino obligatorio
   if (!it.destino?.trim()) { mostrarToast('⚠️ Escribe el destino del viaje'); return; }
+
+  // Normalizar destinoKey desde el nombre del destino (no timestamp)
+  // Así "Valencia" siempre usa el mismo key y agrupa bien en el mapa
+  const keyNorm = it.destino.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,40);
+  if (keyNorm) it.destinoKey = keyNorm;
+  const key = it.destinoKey;
 
   // Si el usuario tecleó el destino a mano sin seleccionar del autocomplete, geocodificar ahora
   if (!it.lat || !it.lng) {
@@ -4172,6 +4179,9 @@ async function publicarViaje() {
       if (f) {
         it.lat = f.geometry.coordinates[1];
         it.lng = f.geometry.coordinates[0];
+        mostrarToast('📍 Destino localizado: ' + it.destino);
+      } else {
+        mostrarToast('⚠️ No se encontró la ubicación de "' + it.destino + '"');
       }
     } catch(e) {}
   }
@@ -4275,7 +4285,14 @@ async function cargarDeFirebase() {
     Object.entries(data).forEach(([fbKey, it]) => {
       // Asegurar que el fbId siempre está presente (viajes viejos pueden no tenerlo)
       if (!it.fbId) it.fbId = fbKey;
-      const key = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_');
+      // Normalizar key: si es timestamp antiguo (viaje_XXXXXXX), recalcular desde destino
+      let key = it.destinoKey || '';
+      const esKeyTimestamp = /^viaje_\d+$/.test(key) || /^[a-z0-9_]+_\d{10,}$/.test(key);
+      if (!key || esKeyTimestamp) {
+        key = (it.destino||'').toLowerCase()
+          .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+          .replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,40);
+      }
       if (!key) return;
       if (!destinos[key]) {
         destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
@@ -4387,7 +4404,7 @@ function mostrarPantallaHome() {
 renderHome();
 cargarDeFirebase().then(() => comprobarUrlViaje());
 
-// Comprobar sesión guardada y mostrar pantalla inicial
+// Comprobar sesión guardada (caché local para arranque rápido)
 const sesionGuardada = localStorage.getItem('ye_user');
 if (sesionGuardada) {
   try {
@@ -4397,6 +4414,34 @@ if (sesionGuardada) {
     localStorage.removeItem('ye_user');
   }
 }
+
+// Conectar Firebase Auth cuando el módulo esté listo (es deferred)
+// Reintentamos hasta que window._fbOnAuth esté disponible
+(function esperarFirebaseAuth() {
+  if (window._fbOnAuth) {
+    window._fbOnAuth((user) => {
+      if (user) {
+        usuarioActual = {
+          nombre: user.displayName,
+          email: user.email,
+          foto: user.photoURL,
+          uid: user.uid
+        };
+        localStorage.setItem('ye_user', JSON.stringify(usuarioActual));
+        actualizarPerfil();
+      } else {
+        // Solo limpiar si había sesión de Google (no si es sesión manual legacy)
+        if (usuarioActual?.uid) {
+          usuarioActual = null;
+          localStorage.removeItem('ye_user');
+          actualizarPerfil();
+        }
+      }
+    });
+  } else {
+    setTimeout(esperarFirebaseAuth, 300);
+  }
+})();
 
 // ── ARRANQUE: mostrar la primera pantalla ───────────────────────────────────
 // Sin esta llamada todas las pantallas quedan ocultas y la app no sale del splash
@@ -4682,10 +4727,24 @@ function iniciarMapa() {
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(m);
   L.control.zoom({ position:'topright' }).addTo(m);
   mapaMundial = m;
-  // Re-renderizar pins al cambiar zoom (para clusters dinámicos)
   m.on('zoomend moveend', renderPinsMundiales);
-  // Añadir pins de destinos ya cargados
+  // Render inmediato + retry a los 2s para destinos que aún están geocodificando
   renderPinsMundiales();
+  setTimeout(renderPinsMundiales, 2000);
+  // Para destinos sin coords, relanzar geocodificación ahora que el mapa está listo
+  Object.entries(destinos).forEach(([key, d]) => {
+    if (!d.lat && d.nombre) {
+      fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(d.nombre)}&limit=1&lang=es`)
+        .then(r=>r.json()).then(g=>{
+          const f = g?.features?.[0];
+          if (f) {
+            d.lat = f.geometry.coordinates[1];
+            d.lng = f.geometry.coordinates[0];
+            renderPinsMundiales();
+          }
+        }).catch(()=>{});
+    }
+  });
 }
 
 // Guarda los markers actuales del mapa mundial para poder limpiarlos
