@@ -1477,17 +1477,7 @@ html, body {
   <div class="screen-body">
     <div id="perfilMisViajes"></div>
 
-    <div style="margin-top:20px;background:white;border-radius:16px;padding:16px;border:1.5px solid var(--border)">
-      
-      <div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px">Necesaria para generar viajes con IA. Consíguela gratis en <b>console.anthropic.com</b>. Se guarda solo en tu dispositivo.</div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input type="password" id="apiKeyInput" placeholder="sk-ant-..." 
-          style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:0.82rem;outline:none;background:var(--bg)"
-          oninput="actualizarEstadoApiKey()">
-        <button onclick="guardarApiKey()" style="padding:10px 16px;background:var(--ink);color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer">Guardar</button>
-      </div>
-      <div id="apiKeyEstado" style="font-size:0.75rem;margin-top:8px;color:var(--muted)"></div>
-    </div>
+    
 
     <div style="margin-top:16px">
       <button id="perfilLogoutBtn" onclick="cerrarSesion()" style="width:100%;padding:14px;background:white;color:#e8471c;border:1.5px solid #e8471c;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;display:none">Cerrar sesión</button>
@@ -1666,7 +1656,12 @@ async function cargarMisViajes() {
     }
 
     const misViajes = Object.entries(data)
-      .filter(([k,v]) => v.autorUid === usuarioActual.uid || v.autorEmail === usuarioActual.email)
+      .filter(([k,v]) => 
+        v.autorUid === usuarioActual.uid || 
+        v.autorEmail === usuarioActual.email ||
+        v.autor === usuarioActual.nombre ||
+        v.autorNombre === usuarioActual.nombre
+      )
       .map(([k,v]) => ({...v, fbId: k, id: k}));
 
     if (!misViajes.length) {
@@ -1732,12 +1727,2751 @@ async function eliminarViaje(fbId, titulo) {
   try {
     await fetch(`${FB_URL}/itinerarios/${fbId}.json`, { method:'DELETE' });
     mostrarToast('🗑️ Viaje eliminado');
-    cargarMisViajes();
-    // Limpiar de memoria local
+    // Limpiar de memoria local inmediatamente
     Object.values(destinos).forEach(d => {
       d.itinerarios = d.itinerarios.filter(i => i.fbId !== fbId);
     });
+    // Eliminar destinos vacíos
+    Object.keys(destinos).forEach(k => {
+      if (!destinos[k].itinerarios?.length) delete destinos[k];
+    });
     renderHome();
+    await cargarMisViajes();
+  } catch(e) {
+    mostrarToast('❌ Error eliminando');
+  }
+}
+
+function cerrarSesion() {
+  window._fbSignOut?.();
+  localStorage.removeItem('ye_user');
+  usuarioActual = null;
+  actualizarPerfil();
+  mostrarToast('Sesión cerrada');
+}
+
+// ══ EDICIÓN DÍAS ══════════════════════════════
+function getJornadas() {
+  return itinerarioGenerado?.jornadas || [];
+}
+
+function guardarJornadasEnFirebase() {
+  const fbId = itinerarioGenerado?.fbId;
+  if (!fbId || !itinerarioGenerado?.jornadas) return;
+  fetch(`${FB_URL}/itinerarios/${fbId}/jornadas.json`, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(itinerarioGenerado.jornadas)
+  }).catch(() => {});
+}
+
+function renderDias() {
+  const lista = document.getElementById('listaDias');
+  if (!lista) return;
+  const jornadas = getJornadas();
+  
+  if (!jornadas.length) {
+    lista.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:0.85rem;padding:20px">No hay días. Pulsa + Día para añadir.</p>';
+    return;
+  }
+
+  lista.innerHTML = jornadas.map((j, ji) => `
+    <div class="dia-edit-block">
+      <div class="dia-edit-header">
+        <span class="dia-edit-num">DÍA ${j.dia}</span>
+        <div class="dia-edit-lugar">
+          <input type="text" value="${j.lugar||''}" placeholder="Ciudad o zona" 
+            oninput="actualizarLugarDia(${ji}, this.value)">
+        </div>
+        <button class="dia-edit-del" onclick="eliminarDia(${ji})">✕</button>
+      </div>
+      <div class="dia-edit-items" id="itemsDia${ji}">
+        ${(j.items||[]).map((item, ii) => `
+          <div class="item-edit-row">
+            <span class="item-edit-icon" onclick="cambiarIconoItem(${ji},${ii})" style="cursor:pointer" title="Cambiar icono">${iconoTipo(item.tipo)}</span>
+            <div class="item-edit-fields">
+              <input class="item-edit-nombre" type="text" value="${(item.nombre||'').replace(/"/g,'&quot;')}" 
+                placeholder="Nombre" oninput="actualizarItem(${ji},${ii},'nombre',this.value)">
+              <textarea class="item-edit-desc" placeholder="Descripción" 
+                oninput="actualizarItem(${ji},${ii},'desc',this.value)">${item.desc||''}</textarea>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0">
+              <button onclick="moverItem(${ji},${ii},-1)" style="width:24px;height:24px;background:var(--bg);border:1px solid var(--border);border-radius:5px;font-size:0.7rem;cursor:pointer" ${ii===0?'disabled':''}>↑</button>
+              <button onclick="moverItem(${ji},${ii},1)" style="width:24px;height:24px;background:var(--bg);border:1px solid var(--border);border-radius:5px;font-size:0.7rem;cursor:pointer" ${ii===(j.items||[]).length-1?'disabled':''}>↓</button>
+              <button class="item-edit-del" onclick="eliminarItem(${ji},${ii})">✕</button>
+            </div>
+          </div>
+        `).join('')}
+        <button class="dia-edit-add" onclick="añadirPuntoDesde(${ji})" style="color:var(--primary);border-color:var(--primary);margin-bottom:4px">📍 Añadir punto (con mapa)</button>
+        <button class="dia-edit-add" onclick="añadirItemTexto(${ji})">+ Añadir texto sin mapa</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function actualizarLugarDia(ji, valor) {
+  if (!itinerarioGenerado?.jornadas?.[ji]) return;
+  itinerarioGenerado.jornadas[ji].lugar = valor;
+  guardarJornadasEnFirebase();
+}
+
+function actualizarItem(ji, ii, campo, valor) {
+  if (!itinerarioGenerado?.jornadas?.[ji]?.items?.[ii]) return;
+  itinerarioGenerado.jornadas[ji].items[ii][campo] = valor;
+  guardarJornadasEnFirebase();
+}
+
+function eliminarDia(ji) {
+  if (!itinerarioGenerado?.jornadas) return;
+  if (!confirm('¿Eliminar este día?')) return;
+  itinerarioGenerado.jornadas.splice(ji, 1);
+  itinerarioGenerado.jornadas.forEach((j, i) => j.dia = i + 1);
+  guardarJornadasEnFirebase();
+  renderDias();
+  mostrarToast('🗑️ Día eliminado');
+}
+
+function eliminarItem(ji, ii) {
+  if (!itinerarioGenerado?.jornadas?.[ji]?.items) return;
+  itinerarioGenerado.jornadas[ji].items.splice(ii, 1);
+  sincronizarPuntosEdicion();
+  guardarJornadasEnFirebase();
+  renderDias();
+}
+
+function sincronizarPuntosEdicion() {
+  // Preservar coords e IDs de los puntos existentes
+  const mapaExistente = {};
+  puntosEdicion.forEach(p => {
+    if (p.nombre) mapaExistente[p.nombre] = p;
+  });
+  puntosEdicion = [];
+  (itinerarioGenerado?.jornadas || []).forEach(j => {
+    (j.items || []).forEach(item => {
+      const existente = mapaExistente[item.nombre] || {};
+      puntosEdicion.push({
+        id: existente.id || item.id || newPuntoId(),
+        tipo: item.tipo || existente.tipo || 'visita',
+        nombre: item.nombre,
+        desc: item.desc || existente.desc || '',
+        dia: j.dia,
+        lat: existente.lat || item.lat || null,
+        lng: existente.lng || item.lng || null
+      });
+    });
+  });
+  // Sincronizar con estado central
+  if (state.viajeActual) state.viajeActual.puntos = puntosEdicion;
+}
+
+function moverItem(ji, ii, dir) {
+  const items = itinerarioGenerado?.jornadas?.[ji]?.items;
+  if (!items) return;
+  const jj = ii + dir;
+  if (jj < 0 || jj >= items.length) return;
+  [items[ii], items[jj]] = [items[jj], items[ii]];
+  // Una sola reconstrucción de puntosEdicion preservando coords existentes
+  sincronizarPuntosEdicion();
+  state._dirty = true;
+  guardarJornadasEnFirebase();
+  renderDias();
+  if (mapEditFullInstance) {
+    mapEditFullInstance.eachLayer(l => { if (l instanceof L.Marker) mapEditFullInstance.removeLayer(l); });
+    renderPuntosEnMapa();
+    _redibujarLineaMapa();
+  }
+}
+
+function cambiarIconoItem(ji, ii) {
+  _cambiarIconoJornada = { ji, ii };
+  _cambiarIconoIndex = undefined;
+  document.getElementById('puntoMenu').classList.add('active');
+}
+
+function añadirDia() {
+  if (!itinerarioGenerado) return;
+  if (!itinerarioGenerado.jornadas) itinerarioGenerado.jornadas = [];
+  const numDia = itinerarioGenerado.jornadas.length + 1;
+  itinerarioGenerado.jornadas.push({ dia: numDia, lugar: 'Nuevo día', items: [] });
+  guardarJornadasEnFirebase();
+  renderDias();
+  mostrarToast('📅 Día añadido');
+}
+
+function añadirPuntoDesde(ji) {
+  // Guardar el día al que se asociará el punto
+  _puntoParaDia = ji;
+  abrirMapaEdicionPantalla();
+}
+
+function añadirItemTexto(ji) {
+  if (!itinerarioGenerado?.jornadas?.[ji]) return;
+  itinerarioGenerado.jornadas[ji].items.push({ tipo: 'visita', nombre: 'Nuevo item', desc: '' });
+  guardarJornadasEnFirebase();
+  renderDias();
+  setTimeout(() => {
+    const items = document.querySelectorAll(`#itemsDia${ji} .item-edit-nombre`);
+    if (items.length) items[items.length-1].focus();
+  }, 150);
+}
+
+// ══ EDICIÓN RICA ══════════════════════════════
+const TIPOS_CONFIG = {
+  restaurante: { icon: '🍽️', label: 'Restaurante',  color: '#7A9E7E' },
+  hotel:       { icon: '🏨', label: 'Hotel',         color: '#D4A843' },
+  atraccion:   { icon: '🎡', label: 'Atracción',     color: '#E8471C' },
+  bar:         { icon: '🍻', label: 'Bar',            color: '#5C8C6A' },
+  transporte:  { icon: '🚌', label: 'Transporte',    color: '#4a9bd4' },
+  inicio:      { icon: '🏁', label: 'Inicio ruta',   color: '#1C1917' },
+  playa:       { icon: '🏖️', label: 'Playa',         color: '#2a7db5' },
+  compras:     { icon: '🛍️', label: 'Compras',       color: '#9b4ea8' },
+  tip:         { icon: '💡', label: 'Consejo',        color: '#9b87d4' },
+  monumento:   { icon: '🏛️', label: 'Monumento',     color: '#8B6914' },
+  mirador:     { icon: '🔭', label: 'Mirador',        color: '#2E7D32' },
+  museo:       { icon: '🖼️', label: 'Museo',         color: '#6A1B9A' },
+  parque:      { icon: '🌳', label: 'Parque',         color: '#388E3C' },
+  iglesia:     { icon: '⛪', label: 'Iglesia',        color: '#5D4037' },
+  mercado:     { icon: '🏪', label: 'Mercado',        color: '#F57C00' },
+  discoteca:   { icon: '🎶', label: 'Ocio nocturno', color: '#880E4F' },
+  deporte:     { icon: '🏄', label: 'Deporte',        color: '#0277BD' },
+  spa:         { icon: '💆', label: 'Spa / Relax',   color: '#00695C' },
+  fotografia:  { icon: '📸', label: 'Foto imprescindible', color: '#37474F' },
+  visita:      { icon: '📍', label: 'Visita',         color: '#E8471C' },
+  comida:      { icon: '🍽️', label: 'Restaurante',   color: '#7A9E7E' },
+  avion:       { icon: '✈️', label: 'Vuelo',          color: '#1565C0' },
+  tren:        { icon: '🚂', label: 'Tren',           color: '#4E342E' },
+  metro:       { icon: '🚇', label: 'Metro',          color: '#1976D2' },
+  tranvia:     { icon: '🚋', label: 'Tranvía',        color: '#00838F' },
+  barco:       { icon: '🚢', label: 'Barco / Ferry',  color: '#0277BD' },
+  templo:      { icon: '🛕', label: 'Templo',         color: '#BF360C' },
+  pdi:         { icon: '⭐', label: 'Punto de interés', color: '#F9A825' },
+  ciudad:      { icon: '🏙️', label: 'Ciudad',         color: '#546E7A' },
+  pueblo:      { icon: '🏘️', label: 'Pueblo',         color: '#795548' },
+  cascada:     { icon: '💧', label: 'Cascada / Río',  color: '#0288D1' },
+  castillo:    { icon: '🏰', label: 'Castillo',       color: '#6D4C41' },
+  gastronomia: { icon: '🥘', label: 'Gastronomía',    color: '#E65100' },
+  paseo:       { icon: '🚶', label: 'Paseo / Andando', color: '#43A047' },
+  bici:        { icon: '🚴', label: 'En bici',         color: '#F57C00' },
+  coche:       { icon: '🚗', label: 'En coche',        color: '#E53935' },
+  plaza:       { icon: '⛲', label: 'Plaza',           color: '#B5651D' },
+  ruinas:      { icon: '🏚️', label: 'Ruinas',          color: '#795548' },
+  jardin:      { icon: '🌸', label: 'Jardín',          color: '#E91E63' },
+  lago:        { icon: '🏞️', label: 'Lago / Embalse',  color: '#1565C0' },
+  montaña:     { icon: '⛰️', label: 'Montaña',         color: '#4E342E' },
+  cueva:       { icon: '🕳️', label: 'Cueva / Gruta',   color: '#424242' },
+  faro:        { icon: '🗼', label: 'Faro',            color: '#0097A7' },
+  puerto:      { icon: '⚓', label: 'Puerto',          color: '#01579B' },
+  estadio:     { icon: '🏟️', label: 'Estadio',         color: '#2E7D32' },
+  universidad: { icon: '🎓', label: 'Universidad',     color: '#4A148C' },
+  hospital:    { icon: '🏥', label: 'Hospital',        color: '#C62828' },
+  camping:     { icon: '⛺', label: 'Camping',         color: '#558B2F' },
+  esqui:       { icon: '⛷️', label: 'Esquí',           color: '#1976D2' },
+  surf:        { icon: '🏄', label: 'Surf',            color: '#0288D1' },
+  senderismo:  { icon: '🥾', label: 'Senderismo',      color: '#5D4037' },
+  safari:      { icon: '🦁', label: 'Safari',          color: '#E65100' },
+  snorkel:     { icon: '🤿', label: 'Snorkel / Buceo', color: '#006064' },
+  termas:      { icon: '♨️', label: 'Termas / Baños',  color: '#AD1457' },
+  bodega:      { icon: '🍷', label: 'Bodega / Vino',   color: '#880E4F' },
+  cafeteria:   { icon: '☕', label: 'Café / Cafetería', color: '#4E342E' },
+  helado:      { icon: '🍦', label: 'Helado / Dulces', color: '#F48FB1' },
+  farmacia:    { icon: '💊', label: 'Farmacia',        color: '#00897B' },
+  banco:       { icon: '🏦', label: 'Banco / Cajero',  color: '#37474F' },
+  taxi:        { icon: '🚕', label: 'Taxi / Uber',     color: '#F9A825' },
+  moto:        { icon: '🏍️', label: 'Moto / Scooter',  color: '#E53935' },
+  parking:     { icon: '🅿️', label: 'Parking',          color: '#1565C0' },
+  aeropuerto:  { icon: '🛫', label: 'Aeropuerto',       color: '#0277BD' },
+  gasolinera:  { icon: '⛽', label: 'Gasolinera',       color: '#F57F17' },
+  teatro:      { icon: '🎭', label: 'Teatro / Cine',    color: '#6A1B9A' },
+  zoo:         { icon: '🦒', label: 'Zoo / Acuario',    color: '#2E7D32' },
+  crucero:     { icon: '🛳️', label: 'Crucero',          color: '#0288D1' },
+  tirolina:    { icon: '🧗', label: 'Aventura / Tirolina', color: '#00695C' },
+  globo:       { icon: '🎈', label: 'Globo aerostático', color: '#E91E63' },
+  observatorio:{ icon: '🔭', label: 'Observatorio',     color: '#37474F' },
+  acantilado:  { icon: '🏔️', label: 'Acantilado / Costa', color: '#546E7A' },
+  nieve:       { icon: '❄️', label: 'Nieve / Invierno', color: '#90CAF9' },
+  desierto:    { icon: '🏜️', label: 'Desierto',         color: '#F9A825' },
+  selva:       { icon: '🌴', label: 'Selva / Tropical', color: '#388E3C' },
+  volcan:      { icon: '🌋', label: 'Volcán',           color: '#BF360C' },
+  isla:        { icon: '🏝️', label: 'Isla',             color: '#0097A7' },
+  crucero:     { icon: '🛳️', label: 'Crucero',          color: '#0288D1' },
+  casino:      { icon: '🎰', label: 'Casino',           color: '#880E4F' },
+  golf:        { icon: '⛳', label: 'Golf',              color: '#33691E' },
+  kayak:       { icon: '🛶', label: 'Kayak / Canoa',    color: '#006064' },
+  parapente:   { icon: '🪂', label: 'Parapente',        color: '#7B1FA2' },
+};
+
+// ═══════════════════════════════════════════════
+// ESTADO CENTRAL - ÚNICA FUENTE DE VERDAD
+// ═══════════════════════════════════════════════
+const state = {
+  viajeActual: null,  // el itinerario que se está editando
+  _dirty: false,      // hay cambios sin guardar en Firebase
+};
+
+// Actualizar un punto por ID sin reconstruir el array
+function updatePuntoById(id, cambios) {
+  if (!state.viajeActual?.puntos) return;
+  const p = state.viajeActual.puntos.find(x => x.id === id);
+  if (p) Object.assign(p, cambios);
+  puntosEdicion = state.viajeActual.puntos;
+  state._dirty = true;
+}
+
+// Generar ID único para cada punto
+function newPuntoId() {
+  return 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6);
+}
+
+// Sincronizar estado central con itinerarioGenerado (compatibilidad)
+function syncState() {
+  if (!itinerarioGenerado) return;
+  // Asegurar que todos los puntos tienen ID
+  (itinerarioGenerado.puntos || []).forEach(p => { if (!p.id) p.id = newPuntoId(); });
+  state.viajeActual = itinerarioGenerado;
+  puntosEdicion = state.viajeActual.puntos || [];
+}
+
+let puntosEdicion = [];
+let tipoPuntoSeleccionado = null;
+let latLngPunto = null;
+let mapEditInstance = null;
+let mapVerInstance = null;
+let mapEditIniciado = false;
+
+function abrirEdicion() {
+  const it = itinerarioGenerado;
+  if (!it) return;
+  
+  // Resetear mapa de edición
+  if (mapEditInstance) {
+    mapEditInstance.remove();
+    mapEditInstance = null;
+  }
+  mapEditIniciado = false;
+  if (mapEditFullInstance) {
+    mapEditFullInstance.remove();
+    mapEditFullInstance = null;
+  }
+
+  // Rellenar campos info
+  document.getElementById('e-titulo').value = it.titulo || '';
+  document.getElementById('e-destino').value = it.destino || '';
+  document.getElementById('e-dias').value = it.dias || '';
+  document.getElementById('e-presupuesto').value = it.presupuesto || '';
+  document.getElementById('e-resumen').value = it.resumen || '';
+
+  // Tipos chips
+  const tiposOpciones = ['Mochilero','Familiar','Pareja','Lujo','Aventura','Cultural','Relax','Naturaleza'];
+  const tiposEl = document.getElementById('e-tipos');
+  tiposEl.innerHTML = tiposOpciones.map(t => `
+    <div onclick="toggleTipo(this,'${t}')" class="cat-chip ${(it.tipo||[]).includes(t)?'active':''}">${t}</div>
+  `).join('');
+
+  // Usar estado central como fuente de verdad
+  syncState();
+
+  renderPuntos();
+  cambiarTab('tabInfo');
+  navegarDetalle('screenEditar');
+}
+
+function toggleTipo(el, tipo) {
+  el.classList.toggle('active');
+}
+
+function cambiarTab(tab) {
+  ['tabInfo','tabDias','tabMapaPanel','tabFotos','tabLinks'].forEach(t => {
+    document.getElementById(t).classList.remove('active');
+  });
+  ['tabInfoBtn','tabDiasBtn','tabMapaBtn','tabFotosBtn','tabLinksBtn'].forEach(b => {
+    document.getElementById(b).classList.remove('active');
+  });
+  document.getElementById(tab).classList.add('active');
+
+  const btnMap = {tabInfo:'tabInfoBtn', tabDias:'tabDiasBtn', tabMapaPanel:'tabMapaBtn', tabFotos:'tabFotosBtn', tabLinks:'tabLinksBtn'};
+  document.getElementById(btnMap[tab]).classList.add('active');
+
+  if (tab === 'tabDias') renderDias();
+  if (tab === 'tabFotos') renderFotosEditar();
+  if (tab === 'tabLinks') renderLinks();
+
+  if (tab === 'tabMapaPanel') {
+    if (!mapEditIniciado) {
+      mapEditIniciado = true;
+      setTimeout(() => {
+        iniciarMapaEdicion();
+        setTimeout(() => mapEditInstance && mapEditInstance.invalidateSize(), 300);
+      }, 200);
+    } else if (mapEditInstance) {
+      setTimeout(() => {
+        mapEditInstance.invalidateSize();
+        // Re-renderizar siempre por si hay puntos nuevos de IA
+        mapEditInstance.eachLayer(l => { if (l instanceof L.Marker) mapEditInstance.removeLayer(l); });
+        renderPuntosEnMapa();
+        // Centrar en los puntos si los hay
+        const pts = puntosEdicion.filter(p => p.lat && p.lng);
+        if (pts.length > 0) {
+          const bounds = L.latLngBounds(pts.map(p => [p.lat, p.lng]));
+          mapEditInstance.fitBounds(bounds, { padding: [40, 40] });
+        }
+      }, 100);
+    }
+  }
+}
+
+// ══ BUSCADOR DESTINO ═══════════════════
+function abrirBuscadorDestino() {
+  const modal = document.createElement('div');
+  modal.id = 'modalDestino';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;flex-direction:column;padding:20px';
+  modal.innerHTML = `
+    <div style="background:var(--bg);border-radius:16px;padding:16px;flex:1;display:flex;flex-direction:column;gap:12px;max-height:90vh">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <b>Buscar destino</b>
+        <button onclick="document.getElementById('modalDestino').remove()" style="background:none;border:none;font-size:1.5rem;cursor:pointer">✕</button>
+      </div>
+      <input id="modalDestinoInput" type="text" placeholder="Ej: Cazorla, Jaén..." 
+        style="padding:12px;border:1px solid var(--border);border-radius:10px;font-size:1rem;width:100%;box-sizing:border-box"
+        oninput="buscarEnModalDestino(this.value)">
+      <div id="modalDestinoResultados" style="flex:1;overflow-y:auto"></div>
+    </div>`;
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('modalDestinoInput')?.focus(), 100);
+}
+
+let _modalTimer = null;
+function buscarEnModalDestino(q) {
+  clearTimeout(_modalTimer);
+  const box = document.getElementById('modalDestinoResultados');
+  if (!q || q.length < 3) { box.innerHTML = ''; return; }
+  box.innerHTML = '<p style="padding:12px;color:#888">Buscando...</p>';
+  _modalTimer = setTimeout(async () => {
+    try {
+      const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=es`);
+      const data = await r.json();
+      const features = data?.features || [];
+      if (!features.length) { box.innerHTML = '<p style="padding:12px;color:#888">Sin resultados</p>'; return; }
+      box.innerHTML = features.map(f => {
+        const p = f.properties;
+        const lat = f.geometry.coordinates[1];
+        const lng = f.geometry.coordinates[0];
+        const nombre = [p.name, p.city, p.state, p.country].filter(Boolean).join(', ');
+        return `<div onclick="seleccionarDestinoModal('${nombre.replace(/'/g,"\\'")}',${lat},${lng})"
+          style="padding:12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:0.9rem">
+          📍 ${nombre}
+        </div>`;
+      }).join('');
+    } catch(e) { box.innerHTML = '<p style="padding:12px;color:#888">Error al buscar</p>'; }
+  }, 500);
+}
+
+function seleccionarDestinoModal(nombre, lat, lng) {
+  document.getElementById('e-destino').value = nombre;
+  const coords = document.getElementById('e-destino-coords');
+  if (coords) coords.style.display = 'block';
+  if (itinerarioGenerado) {
+    itinerarioGenerado.lat = parseFloat(lat);
+    itinerarioGenerado.lng = parseFloat(lng);
+    itinerarioGenerado.destino = nombre;
+  }
+  document.getElementById('modalDestino')?.remove();
+  mostrarToast('✅ Destino guardado');
+}
+
+function buscarDestinoEdicion(q) {
+  clearTimeout(_destTimer);
+  const box = document.getElementById('e-destino-sugerencias');
+  const clear = document.getElementById('e-destino-clear');
+  if (clear) clear.style.display = q ? 'block' : 'none';
+  if (!q || q.length < 2) { if(box) box.style.display='none'; return; }
+  if (box) { box.innerHTML = '<div style="padding:12px 14px;color:var(--muted);font-size:0.83rem">🔍 Buscando...</div>'; box.style.display='block'; }
+  _destTimer = setTimeout(async () => {
+    try {
+      const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=7&lang=es`);
+      const data = await r.json();
+      const features = data?.features || [];
+      if (!features.length) { box.innerHTML='<div style="padding:12px 14px;color:var(--muted);font-size:0.83rem">Sin resultados</div>'; return; }
+      box.style.display = 'block';
+      box.innerHTML = features.map(f => {
+        const p = f.properties;
+        const lat = f.geometry.coordinates[1];
+        const lng = f.geometry.coordinates[0];
+        const partes = [p.name, p.city && p.city!==p.name ? p.city : null, p.state && p.state!==p.name ? p.state : null, p.country].filter(Boolean);
+        const nombre = partes.join(', ');
+        const safeName = btoa(unescape(encodeURIComponent(nombre)));
+        return `<div class="_dest-sug-item" data-b64="${safeName}" data-lat="${lat}" data-lng="${lng}"
+          style="padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer;font-family:'Mulish',sans-serif"
+          onmousedown="event.preventDefault()"
+          onmouseover="this.style.background='var(--card)'" onmouseout="this.style.background=''">
+          <div style="font-size:0.88rem;font-weight:700">${p.name || q}</div>
+          <div style="font-size:0.75rem;color:var(--muted)">${partes.slice(1).join(', ')}</div>
+        </div>`;
+      }).join('');
+      // Attach click handlers safely
+      box.querySelectorAll('._dest-sug-item').forEach(el => {
+        el.addEventListener('mousedown', ev => {
+          ev.preventDefault();
+          const lat = parseFloat(el.dataset.lat);
+          const lng = parseFloat(el.dataset.lng);
+          const nombre = decodeURIComponent(escape(atob(el.dataset.b64)));
+          seleccionarDestinoEdicion(nombre, lat, lng);
+        });
+      });
+    } catch(e) { if(box) box.style.display='none'; }
+  }, 350);
+}
+
+
+function seleccionarDestinoEdicion(nombre, lat, lng) {
+  document.getElementById('e-destino').value = nombre;
+  document.getElementById('e-destino-sugerencias').style.display = 'none';
+  if (itinerarioGenerado) {
+    itinerarioGenerado.lat = parseFloat(lat);
+    itinerarioGenerado.lng = parseFloat(lng);
+    itinerarioGenerado.destino = nombre;
+  }
+}
+
+function iniciarMapaEdicion() {
+  const it = itinerarioGenerado;
+  const lat = it?.lat || 40;
+  const lng = it?.lng || -3;
+
+  mapEditInstance = L.map('mapEdit', { center:[lat,lng], zoom:12, zoomControl:false });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(mapEditInstance);
+  L.control.zoom({ position:'topright' }).addTo(mapEditInstance);
+
+  // Pinchar en el mapa
+  mapEditInstance.on('click', e => {
+    latLngPunto = e.latlng;
+    abrirMenuPunto();
+  });
+
+  // Renderizar puntos existentes con coordenadas
+  renderPuntosEnMapa();
+
+  // Centrar en los puntos si los hay
+  const pts = puntosEdicion.filter(p => p.lat && p.lng);
+  if (pts.length > 0) {
+    const bounds = L.latLngBounds(pts.map(p => [p.lat, p.lng]));
+    mapEditInstance.fitBounds(bounds, { padding: [40, 40] });
+  }
+}
+
+function renderPuntosEnMapa() {
+  if (!mapEditInstance) return;
+  // Limpiar markers existentes antes de redibujar
+  mapEditInstance.eachLayer(l => { if (l instanceof L.Marker) mapEditInstance.removeLayer(l); });
+  puntosEdicion.forEach(p => {
+    if (p.lat && p.lng) {
+      const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.visita;
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="font-size:1.4rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">${cfg.icon}</div>`,
+        iconSize: [28,28], iconAnchor: [0,20]
+      });
+      L.marker([p.lat, p.lng], {icon}).addTo(mapEditInstance)
+        .bindPopup(`<b>${cfg.icon} ${p.nombre}</b><br><small>${p.desc||''}</small>`);
+    }
+  });
+}
+
+function abrirMenuPunto() {
+  document.getElementById('puntoMenu').classList.add('active');
+}
+
+function cerrarMenuPunto(e) {
+  if (e.target === document.getElementById('puntoMenu')) {
+    cancelarMenuPunto();
+  }
+}
+
+function cancelarMenuPunto() {
+  document.getElementById('puntoMenu').classList.remove('active');
+  latLngPunto = null; // limpiar coordenada para no marcar nada
+  _puntoParaDia = undefined;
+}
+
+function seleccionarTipoPunto(tipo) {
+  tipoPuntoSeleccionado = tipo;
+  document.getElementById('puntoMenu').classList.remove('active');
+
+  // Si venimos de cambiarIconoItem (lista de días)
+  if (_cambiarIconoJornada !== undefined) {
+    const { ji, ii } = _cambiarIconoJornada;
+    _cambiarIconoJornada = undefined;
+    if (itinerarioGenerado?.jornadas?.[ji]?.items?.[ii]) {
+      itinerarioGenerado.jornadas[ji].items[ii].tipo = tipo;
+      sincronizarPuntosEdicion();
+      // Actualizar tipo en estado central por nombre
+      const nombre = itinerarioGenerado.jornadas[ji].items[ii].nombre;
+      if (state.viajeActual?.puntos) {
+        const p = state.viajeActual.puntos.find(x => x.nombre === nombre);
+        if (p) p.tipo = tipo;
+      }
+      state._dirty = true;
+      guardarJornadasEnFirebase();
+      renderDias();
+      // Redibujar markers en mapa si está abierto
+      if (mapEditFullInstance) {
+        mapEditFullInstance.eachLayer(l => { if (l instanceof L.Marker) mapEditFullInstance.removeLayer(l); });
+        renderPuntosEnMapa();
+      }
+      mostrarToast(`${TIPOS_CONFIG[tipo]?.icon || ''} Icono cambiado`);
+    }
+    return;
+  }
+
+  // Si venimos de cambiarIconoPunto (lista de puntos del mapa)
+  if (_cambiarIconoIndex !== undefined) {
+    const i = _cambiarIconoIndex;
+    _cambiarIconoIndex = undefined;
+    if (puntosEdicion[i]) {
+      puntosEdicion[i].tipo = tipo;
+      if (state.viajeActual?.puntos?.[i]) state.viajeActual.puntos[i].tipo = tipo;
+      state._dirty = true;
+      renderPuntos();
+      // Redibujar markers en mapa si está abierto
+      if (mapEditFullInstance) {
+        mapEditFullInstance.eachLayer(l => { if (l instanceof L.Marker) mapEditFullInstance.removeLayer(l); });
+        renderPuntosEnMapa();
+      }
+      mostrarToast(`${TIPOS_CONFIG[tipo]?.icon || ''} Icono cambiado`);
+    }
+    return;
+  }
+
+  const cfg = TIPOS_CONFIG[tipo];
+  document.getElementById('puntoFormTitulo').textContent = `${cfg.icon} ${cfg.label}`;
+  document.getElementById('p-nombre').value = '';
+  document.getElementById('p-desc').value = '';
+  const formEl2 = document.getElementById('puntoForm');
+  // Guardar las coords en el form para que no se pierdan si latLngPunto se limpia
+  formEl2._latLng = latLngPunto ? { lat: latLngPunto.lat, lng: latLngPunto.lng } : null;
+  delete formEl2._editIndex;
+  formEl2.classList.add('active');
+}
+
+function cerrarFormPunto(e) {
+  if (e.target === document.getElementById('puntoForm')) {
+    document.getElementById('puntoForm').classList.remove('active');
+  }
+}
+
+async function guardarPunto() {
+  const nombre = document.getElementById('p-nombre').value.trim();
+  if (!nombre) { mostrarToast('⚠️ Ponle un nombre al punto'); return; }
+  const desc = document.getElementById('p-desc').value.trim();
+  const formEl = document.getElementById('puntoForm');
+  const editIndex = formEl._editIndex;
+
+  const diaDelPunto = (_puntoParaDia !== undefined && itinerarioGenerado?.jornadas)
+    ? (itinerarioGenerado.jornadas[_puntoParaDia]?.dia || null)
+    : null;
+
+  const punto = {
+    id: editIndex !== undefined ? (puntosEdicion[editIndex]?.id || newPuntoId()) : newPuntoId(),
+    tipo: tipoPuntoSeleccionado,
+    nombre,
+    desc,
+    lat: editIndex !== undefined ? puntosEdicion[editIndex]?.lat : (formEl._latLng?.lat || latLngPunto?.lat || null),
+    lng: editIndex !== undefined ? puntosEdicion[editIndex]?.lng : (formEl._latLng?.lng || latLngPunto?.lng || null),
+    dia: editIndex !== undefined ? (puntosEdicion[editIndex]?.dia || null) : diaDelPunto
+  };
+
+  if (editIndex !== undefined) {
+    puntosEdicion[editIndex] = punto;
+    delete formEl._editIndex;
+    if (mapEditFullInstance) {
+      mapEditFullInstance.remove();
+      mapEditFullInstance = null;
+      setTimeout(() => abrirMapaEdicionPantalla(), 100);
+    }
+  } else {
+    puntosEdicion.push(punto);
+    // Si viene de un día específico, añadirlo como item del día con tipo e icono
+    if (_puntoParaDia !== undefined && itinerarioGenerado?.jornadas) {
+      const ji = _puntoParaDia;
+      if (itinerarioGenerado.jornadas[ji]) {
+        itinerarioGenerado.jornadas[ji].items.push({
+          tipo: punto.tipo,
+          nombre: punto.nombre,
+          desc: punto.desc
+        });
+        // Cerrar formulario ANTES de guardar en Firebase para no bloquear UI
+        formEl.classList.remove('active');
+        latLngPunto = null;
+        renderPuntos();
+        guardarJornadasEnFirebase();
+        // Guardar también en puntos de Firebase
+        const fbId2 = itinerarioGenerado?.fbId;
+        if (fbId2) {
+          const puntosLimpios2 = puntosEdicion.filter(p => p && p.tipo);
+          fetch(`${FB_URL}/itinerarios/${fbId2}/puntos.json`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(puntosLimpios2)
+          }).catch(() => {});
+        }
+        // Añadir marcador al mapa de edición
+        if (punto.lat && mapEditFullInstance) {
+          const cfg2 = TIPOS_CONFIG[punto.tipo] || TIPOS_CONFIG.visita;
+          const icon2 = L.divIcon({
+            className: '',
+            html: `<div style="font-size:1.6rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">${cfg2.icon}</div>`,
+            iconSize: [32,32], iconAnchor: [16,16]
+          });
+          L.marker([punto.lat, punto.lng], {icon: icon2}).addTo(mapEditFullInstance)
+            .bindPopup(`<b>${cfg2.icon} ${punto.nombre}</b><br><small>${punto.desc||''}</small>`);
+        }
+        mostrarToast('✅ Punto añadido al Día ' + itinerarioGenerado.jornadas[ji].dia);
+      }
+      delete _puntoParaDia;
+      goBack();
+      setTimeout(() => cambiarTab('tabDias'), 200);
+      return; // evitar doble guardado en Firebase
+    }
+  }
+
+  if (!formEl.classList.contains('active')) return; // ya se cerró arriba
+  formEl.classList.remove('active');
+  formEl._latLng = null;
+  latLngPunto = null;
+  renderPuntos();
+
+  // Guardar puntos en Firebase inmediatamente
+  const fbId = itinerarioGenerado?.fbId;
+  if (fbId) {
+    const puntosLimpios = puntosEdicion.filter(p => p && p.tipo);
+    await fetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(puntosLimpios)
+    }).catch(() => {});
+  }
+
+  // Añadir al mapa con marker arrastrable
+  if (punto.lat && mapEditFullInstance) {
+    const cfg = TIPOS_CONFIG[punto.tipo] || TIPOS_CONFIG.visita;
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="font-size:1.6rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">${cfg.icon}</div>`,
+      iconSize: [32,32], iconAnchor: [16,16]
+    });
+    const marker = L.marker([punto.lat, punto.lng], {icon, draggable: true}).addTo(mapEditFullInstance);
+    marker.bindPopup(`<b>${cfg.icon} ${punto.nombre}</b><br><small>${punto.desc||''}</small>`);
+    marker.on('dragend', e => {
+      const ll = e.target.getLatLng();
+      punto.lat = ll.lat;
+      punto.lng = ll.lng;
+      updatePuntoById(punto.id, { lat: ll.lat, lng: ll.lng });
+      state._dirty = true;
+      _redibujarLineaMapa();
+    });
+    _redibujarLineaMapa();
+  }
+
+  // Si hay jornadas y el punto viene del mapa (no de un día), añadirlo al día 1
+  if (itinerarioGenerado?.jornadas?.length > 0 && _puntoParaDia === undefined) {
+    itinerarioGenerado.jornadas[0].items = itinerarioGenerado.jornadas[0].items || [];
+    itinerarioGenerado.jornadas[0].items.push({
+      tipo: punto.tipo,
+      nombre: punto.nombre,
+      desc: punto.desc,
+      lat: punto.lat,
+      lng: punto.lng
+    });
+    guardarJornadasEnFirebase();
+  }
+
+  mostrarToast('✅ Punto guardado');
+}
+
+function renderPuntos() {
+  const lista = document.getElementById('listaPuntos');
+  if (!puntosEdicion.length) {
+    lista.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:0.85rem;padding:20px">Aún no hay puntos. Pulsa + Añadir punto.</p>';
+    return;
+  }
+  lista.innerHTML = puntosEdicion.map((p,i) => {
+    const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.visita;
+    return `<div class="punto-item">
+      <span class="punto-item-icon" onclick="cambiarIconoPunto(${i})">${cfg.icon}</span>
+      <div class="punto-item-info" onclick="editarPunto(${i})">
+        <div class="punto-item-nombre">${p.nombre}</div>
+        <div class="punto-item-tipo">${cfg.label}${p.lat ? ' · 📍' : ''}</div>
+      </div>
+      <div class="punto-item-actions">
+        <button class="punto-item-btn" onclick="moverPunto(${i},-1)" ${i===0?'disabled':''}>↑</button>
+        <button class="punto-item-btn" onclick="moverPunto(${i},1)" ${i===puntosEdicion.length-1?'disabled':''}>↓</button>
+        <button class="punto-item-del" onclick="eliminarPunto(${i})">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function moverPunto(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= puntosEdicion.length) return;
+  [puntosEdicion[i], puntosEdicion[j]] = [puntosEdicion[j], puntosEdicion[i]];
+  // Sincronizar con estado central
+    state._dirty = true;
+  renderPuntos();
+  // Redibujar línea en mapa si está abierto
+  if (mapEditFullInstance) _redibujarLineaMapa();
+  mostrarToast(dir === -1 ? '⬆️ Punto subido' : '⬇️ Punto bajado');
+}
+
+function _redibujarLineaMapa() {
+  if (!mapEditFullInstance) return;
+  mapEditFullInstance.eachLayer(layer => {
+    if (layer instanceof L.Polyline) mapEditFullInstance.removeLayer(layer);
+  });
+  const coords = puntosEdicion.filter(p => p?.lat && p?.lng).map(p => [p.lat, p.lng]);
+  if (coords.length > 1) {
+    L.polyline(coords, { color:'#E8471C', weight:2.5, opacity:0.6, dashArray:'6,8' }).addTo(mapEditFullInstance);
+  }
+}
+
+function cambiarIconoPunto(i) {
+  const p = puntosEdicion[i];
+  if (!p) return;
+  tipoPuntoSeleccionado = p.tipo;
+  // Abrir menú de tipos para cambiar solo el icono
+  _cambiarIconoIndex = i;
+  document.getElementById('puntoMenu').classList.add('active');
+}
+
+function eliminarPunto(i) {
+  puntosEdicion.splice(i, 1);
+  // Sincronizar con estado central
+    state._dirty = true;
+  renderPuntos();
+  // Redibujar mapa con pequeño delay para evitar race condition
+  if (mapEditFullInstance) {
+    setTimeout(() => {
+      if (!mapEditFullInstance) return;
+      mapEditFullInstance.eachLayer(l => {
+        if (l instanceof L.Marker || l instanceof L.Polyline) mapEditFullInstance.removeLayer(l);
+      });
+      renderPuntosEnMapa();
+      _redibujarLineaMapa();
+    }, 50);
+  }
+  mostrarToast('🗑️ Punto eliminado');
+}
+
+function editarPunto(i) {
+  const p = puntosEdicion[i];
+  if (!p) return;
+  // Cerrar popup
+  if (mapEditFullInstance) mapEditFullInstance.closePopup();
+  // Seleccionar tipo
+  tipoPuntoSeleccionado = p.tipo;
+  const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.visita;
+  document.getElementById('puntoFormTitulo').textContent = `${cfg.icon} Editar ${cfg.label}`;
+  document.getElementById('p-nombre').value = p.nombre || '';
+  document.getElementById('p-desc').value = p.desc || '';
+  // Guardar índice para sobreescribir
+  document.getElementById('puntoForm')._editIndex = i;
+  document.getElementById('puntoForm').classList.add('active');
+}
+
+function renderFotosEditar() {
+  const grid = document.getElementById('fotoGridEditar');
+  if (!grid) return;
+  grid.innerHTML = '';
+  fotosBase64.forEach((src, i) => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden';
+    const img = document.createElement('img');
+    img.src = src;
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover';
+    const btn = document.createElement('button');
+    btn.textContent = '✕';
+    btn.style.cssText = 'position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.6);color:white;border:none;border-radius:50%;width:22px;height:22px;font-size:0.7rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1';
+    btn.onclick = (e) => { e.stopPropagation(); fotosBase64.splice(i, 1); renderFotosEditar(); };
+    wrap.appendChild(img);
+    wrap.appendChild(btn);
+    grid.appendChild(wrap);
+  });
+}
+
+function procesarFotosEditar(input) {
+  const files = Array.from(input.files);
+  input.value = '';
+  Promise.all(files.map(comprimirFoto)).then(b64s => {
+    fotosBase64.push(...b64s);
+    renderFotosEditar();
+  });
+}
+
+// ══ VER EN MAPA ════════════════════════════════
+// Índice de marcadores del mapa de ver, por nombre
+let mapVerMarkers = {};
+// ID del itinerario actualmente cargado en el mapa de ver
+let mapVerItId = null;
+
+async function verPuntoEnMapa(key, id, nombre) {
+  // Si el mapa ya está cargado con este itinerario, solo centrar
+  if (mapVerInstance && mapVerItId === id) {
+    navegarDetalle('screenVerMapa');
+    setTimeout(() => {
+      const marker = mapVerMarkers[nombre];
+      if (marker) {
+        mapVerInstance.setView(marker.getLatLng(), 16, { animate: true });
+        marker.openPopup();
+      }
+    }, 200);
+    return;
+  }
+  // Si no, cargar el mapa primero y luego centrar
+  await verEnMapa(key, id);
+  setTimeout(() => {
+    const marker = mapVerMarkers[nombre];
+    if (marker) {
+      mapVerInstance.setView(marker.getLatLng(), 16, { animate: true });
+      marker.openPopup();
+    }
+  }, 500);
+}
+
+async function verEnMapa(key, id) {
+  const d = destinos[key];
+  let it = d.itinerarios.find(i => i.id === id || i.fbId === id);
+  if (!it) return;
+
+  document.getElementById('verMapaTitulo').textContent = it.titulo;
+  navegarDetalle('screenVerMapa');
+
+  // Cargar puntos frescos de Firebase
+  if (it.fbId) {
+    try {
+      const r = await fetch(`${FB_URL}/itinerarios/${it.fbId}/puntos.json`);
+      const puntosFirebase = await r.json();
+      if (Array.isArray(puntosFirebase) && puntosFirebase.length > 0) it.puntos = puntosFirebase;
+    } catch(e) {}
+  }
+
+  setTimeout(() => {
+    if (mapVerInstance) { mapVerInstance.remove(); mapVerInstance = null; }
+    mapVerMarkers = {};
+    mapVerItId = id;
+    const lat = it.lat || d.lat || 40;
+    const lng = it.lng || d.lng || -3;
+    mapVerInstance = L.map('mapVer', { center:[lat,lng], zoom:13, zoomControl:false });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(mapVerInstance);
+    L.control.zoom({ position:'topright' }).addTo(mapVerInstance);
+
+    const destino = it.destino || d.nombre || '';
+    const puntos = it.puntos || [];
+    if (puntos.length) {
+      // Construir filtro de días
+      const diasBar = document.getElementById('diasFiltroBar');
+      const diasUnicos = [...new Set(puntos.filter(p=>p.lat&&p.dia).map(p=>p.dia))].sort((a,b)=>a-b);
+      _verMapaIt = it;
+      _verMapaD = d;
+      _verMapaDestino = destino;
+
+      if (diasUnicos.length > 1) {
+        diasBar.style.display = 'block';
+        diasBar.innerHTML = ['todos', ...diasUnicos].map(d => `
+          <button onclick="filtrarDiasMapa(${d==='todos'?'null':d})" 
+            data-dia="${d}"
+            style="display:inline-block;margin-right:6px;padding:5px 12px;border-radius:50px;border:1.5px solid rgba(255,255,255,0.3);background:${d==='todos'?'var(--primary)':'transparent'};color:white;font-family:'Mulish',sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;white-space:nowrap">
+            ${d==='todos'?'Todos':('Día '+d)}
+          </button>`).join('');
+      } else {
+        diasBar.style.display = 'none';
+      }
+
+      dibujarPuntosYRuta(puntos, null, destino, it);
+
+      const bounds = L.latLngBounds(puntos.filter(p=>p.lat).map(p=>[p.lat,p.lng]));
+      if (bounds.isValid()) mapVerInstance.fitBounds(bounds, { padding:[40,40] });
+    } else {
+      mostrarToast('Este viaje aún no tiene puntos en el mapa');
+    }
+  }, 200);
+}
+
+function filtrarDiasMapa(dia) {
+  const it = _verMapaIt;
+  const d = _verMapaD;
+  const destino = _verMapaDestino;
+  if (!it || !mapVerInstance) return;
+
+  // Actualizar botones activos
+  document.querySelectorAll('#diasFiltroBar button').forEach(btn => {
+    const btnDia = btn.dataset.dia;
+    const activo = (dia === null && btnDia === 'todos') || (dia !== null && parseInt(btnDia) === dia);
+    btn.style.background = activo ? 'var(--primary)' : 'transparent';
+  });
+
+  // Limpiar capas anteriores excepto el tile layer
+  mapVerInstance.eachLayer(layer => {
+    if (!(layer instanceof L.TileLayer) && !(layer._isZoomControl)) {
+      mapVerInstance.removeLayer(layer);
+    }
+  });
+  mapVerMarkers = {};
+
+  const puntosFiltrados = dia === null
+    ? (it.puntos || [])
+    : (it.puntos || []).filter(p => p.dia === dia);
+
+  dibujarPuntosYRuta(puntosFiltrados, dia, destino, it);
+
+  if (puntosFiltrados.filter(p=>p.lat).length > 0) {
+    const bounds = L.latLngBounds(puntosFiltrados.filter(p=>p.lat).map(p=>[p.lat,p.lng]));
+    if (bounds.isValid()) mapVerInstance.fitBounds(bounds, { padding:[40,40] });
+  }
+}
+
+// Estilos de línea por tipo de transporte
+function estiloRuta(jornadas, dia) {
+  if (!jornadas || !dia) return { color:'#E8471C', weight:2.5, opacity:0.6, dashArray:'6,8' };
+  const jornada = jornadas.find(j => j.dia === dia);
+  const tipoTransporte = jornada?.items?.find(i => 
+    ['avion','barco','tren','metro','tranvia','transporte'].includes(i.tipo))?.tipo;
+  const estilos = {
+    avion:     { color:'#1565C0', weight:2,   opacity:0.5, dashArray:'4,10' },
+    barco:     { color:'#0277BD', weight:2.5, opacity:0.6, dashArray:'8,6'  },
+    tren:      { color:'#4E342E', weight:3,   opacity:0.7, dashArray:'10,4' },
+    metro:     { color:'#1976D2', weight:2.5, opacity:0.6, dashArray:'3,5'  },
+    tranvia:   { color:'#00838F', weight:2.5, opacity:0.6, dashArray:'6,4'  },
+    transporte:{ color:'#37474F', weight:2,   opacity:0.6, dashArray:'6,8'  },
+  };
+  return estilos[tipoTransporte] || { color:'#E8471C', weight:2.5, opacity:0.6, dashArray:'6,8' };
+}
+
+function dibujarPuntosYRuta(puntos, diaFiltro, destino, it) {
+  puntos.forEach(p => {
+    if (!p.lat || !p.lng) return;
+    const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.visita;
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="font-size:1.6rem;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.35))">${cfg.icon}</div>`,
+      iconSize: [32,32], iconAnchor: [16,16]
+    });
+    const marker = L.marker([p.lat, p.lng], {icon}).addTo(mapVerInstance);
+    marker.bindPopup(`<div style="font-family:'Mulish',sans-serif;min-width:160px">
+      <b style="font-size:0.9rem">${cfg.icon} ${p.nombre}</b>
+      ${p.dia ? `<div style="font-size:0.7rem;color:#E8471C;font-weight:700;margin-top:2px">DÍA ${p.dia}</div>` : ''}
+      ${p.desc ? `<p style="margin-top:4px;font-size:0.78rem;color:#666">${p.desc}</p>` : ''}
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button onclick="buscarEnGoogle('${p.nombre.replace(/'/g,'')}','${destino.replace(/'/g,'')}');return false;" style="flex:1;padding:6px;background:#4285f4;color:white;border:none;border-radius:8px;font-size:0.72rem;cursor:pointer">🔍 Google</button>
+        <button onclick="abrirEnGoogleMaps(${p.lat},${p.lng},'${p.nombre.replace(/'/g,'')}');return false;" style="flex:1;padding:6px;background:#34A853;color:white;border:none;border-radius:8px;font-size:0.72rem;cursor:pointer">🗺️ Maps</button>
+        <button onclick="infoConIA('${p.nombre.replace(/'/g,'')}','${destino.replace(/'/g,'')}');return false;" style="flex:1;padding:6px;background:#E8471C;color:white;border:none;border-radius:8px;font-size:0.72rem;cursor:pointer">✨ IA</button>
+      </div>
+      <div id="iaInfoResult_${p.nombre.replace(/[^a-z0-9]/gi,'')}" style="margin-top:6px;font-size:0.75rem;color:#444"></div>
+    </div>`);
+    mapVerMarkers[p.nombre] = marker;
+  });
+
+  // Línea de ruta con flechas
+  const coords = puntos.filter(p => p.lat && p.lng && p.dia).map(p => [p.lat, p.lng]);
+  if (coords.length >= 2) {
+    const estilo = estiloRuta(it.jornadas, diaFiltro);
+    L.polyline(coords, { ...estilo, lineJoin:'round' }).addTo(mapVerInstance);
+
+    // Flechas de dirección cada ~2 segmentos
+    for (let i = 0; i < coords.length - 1; i += Math.max(1, Math.floor((coords.length-1)/5))) {
+      const mid = [(coords[i][0]+coords[i+1][0])/2, (coords[i][1]+coords[i+1][1])/2];
+      const angle = Math.atan2(coords[i+1][1]-coords[i][1], coords[i+1][0]-coords[i][0]) * 180/Math.PI;
+      L.marker(mid, {
+        icon: L.divIcon({
+          className: '',
+          html: `<div style="transform:rotate(${angle}deg);font-size:1rem;color:${estilo.color};opacity:0.8;line-height:1">➤</div>`,
+          iconSize: [16,16], iconAnchor: [8,8]
+        }),
+        interactive: false
+      }).addTo(mapVerInstance);
+    }
+  }
+}
+
+
+function buscarEnGoogle(nombre, destino) {
+  const q = encodeURIComponent(nombre + ' ' + destino);
+  window.open('https://www.google.com/search?q=' + q, '_blank');
+}
+
+function abrirEnGoogleMaps(lat, lng, nombre) {
+  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(nombre)}&center=${lat},${lng}`;
+  window.open(url, '_blank');
+}
+
+async function infoConIA(nombre, destino) {
+  const id = 'iaInfoResult_' + nombre.replace(/[^a-z0-9]/gi,'');
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = '✨ Buscando info...';
+
+  try {
+    const apiKey = localStorage.getItem('ye_api_key') || '';
+    if (!apiKey) { el.textContent = 'Añade tu clave API en Perfil para ver info.'; return; }
+    const r = await fetch('https://yaestuve2.jaymaviajes.workers.dev/api/claude', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 200,
+        messages: [{
+          role: 'user',
+          content: `Dame 2-3 frases muy breves y prácticas sobre "${nombre}" en ${destino}. Horarios, precio aproximado, qué destacar. Sin formato, solo texto directo.`
+        }]
+      })
+    });
+    const data = await r.json();
+    if (data.error) {
+      el.textContent = 'Error: ' + (data.error.message || JSON.stringify(data.error));
+      return;
+    }
+    el.textContent = data.content[0]?.text || 'Sin información disponible';
+  } catch(e) {
+    el.textContent = 'Error obteniendo información';
+  }
+}
+
+// ══ MAPA EDICIÓN PANTALLA COMPLETA ══
+let mapEditFullInstance = null;
+
+async function abrirMapaEdicionPantalla() {
+  navegarDetalle('screenMapaEdit');
+  
+  setTimeout(async () => {
+    if (mapEditFullInstance) {
+      mapEditFullInstance.remove();
+      mapEditFullInstance = null;
+    }
+
+    // Usar estado central como fuente de verdad
+    const fbId = itinerarioGenerado?.fbId;
+    if (state.viajeActual?.puntos?.filter(p=>p?.lat).length > 0) {
+      puntosEdicion = state.viajeActual.puntos;
+    } else if (fbId) {
+      try {
+        const r = await fetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`);
+        const puntosFirebase = await r.json();
+        if (Array.isArray(puntosFirebase) && puntosFirebase.length > 0) {
+          puntosEdicion = puntosFirebase.filter(p => p && p.tipo);
+          puntosEdicion.forEach(p => { if (!p.id) p.id = newPuntoId(); });
+                  }
+      } catch(e) { console.log('No se pudieron cargar puntos de Firebase', e); }
+    }
+
+    const it = itinerarioGenerado;
+    // Calcular centro a partir de los puntos con coordenadas
+    const ptsConCoords = puntosEdicion.filter(p => p && p.lat && p.lng);
+    let lat = 40, lng = -3;
+    // 1. Usar coords del itinerario si las tiene
+    if (it?.lat && Math.abs(it.lat) > 0.01) { lat = it.lat; lng = it.lng; }
+    // 2. Si no, usar la media de los puntos
+    else if (ptsConCoords.length > 0) {
+      lat = ptsConCoords.reduce((s,p) => s + p.lat, 0) / ptsConCoords.length;
+      lng = ptsConCoords.reduce((s,p) => s + p.lng, 0) / ptsConCoords.length;
+    }
+    console.log('Mapa centro:', lat, lng, '| puntos con coords:', ptsConCoords.length, '| total puntosEdicion:', puntosEdicion.length);
+    mapEditFullInstance = L.map('mapEditFull', { center:[lat,lng], zoom:13, zoomControl:false });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(mapEditFullInstance);
+    L.control.zoom({ position:'topright' }).addTo(mapEditFullInstance);
+    mapEditFullInstance.invalidateSize();
+
+    // Pinchar en el mapa para añadir punto
+    mapEditFullInstance.on('click', e => {
+      latLngPunto = e.latlng;
+      // Limpiar flags de cambio de icono para que se abra el form de nuevo punto
+      _cambiarIconoIndex = undefined;
+      _cambiarIconoJornada = undefined;
+      abrirMenuPunto();
+    });
+
+    // Mostrar puntos con coordenadas — arrastrables
+    const conCoords = puntosEdicion.filter(p => p && p.lat && p.lng);
+    let lineaRecorrido = null;
+    const markersMap = []; // {marker, punto}
+
+    const redibujarLinea = () => {
+      if (lineaRecorrido) mapEditFullInstance.removeLayer(lineaRecorrido);
+      const coords = markersMap.map(m => m.marker.getLatLng());
+      if (coords.length > 1) {
+        lineaRecorrido = L.polyline(coords, {
+          color: '#E8471C', weight: 2.5, opacity: 0.6,
+          dashArray: '6,8', lineJoin: 'round'
+        }).addTo(mapEditFullInstance);
+      }
+    };
+
+    conCoords.forEach(p => {
+      const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.visita;
+      // Pin aproximado: fondo amarillo punteado para avisar al usuario
+      const bgAprox = p.aproximado
+        ? 'background:rgba(255,200,0,0.25);border:2px dashed #f5a623;border-radius:50%;padding:2px;'
+        : '';
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="${bgAprox}font-size:1.6rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">${cfg.icon}</div>`,
+        iconSize: [32,32], iconAnchor: [16,16]
+      });
+      const marker = L.marker([p.lat, p.lng], { icon, draggable: true }).addTo(mapEditFullInstance);
+      const idx = puntosEdicion.indexOf(p);
+      markersMap.push({ marker, punto: p });
+
+      // Al arrastrar: actualizar coords y redibujar línea
+      marker.on('dragstart', () => mapEditFullInstance.dragging.disable());
+      marker.on('drag', () => redibujarLinea());
+      marker.on('dragend', (e) => {
+        const ll = e.target.getLatLng();
+        p.lat = ll.lat;
+        p.lng = ll.lng;
+        // Guardar en estado central inmediatamente
+        if (p.id) updatePuntoById(p.id, { lat: ll.lat, lng: ll.lng });
+                state._dirty = true;
+        redibujarLinea();
+        mapEditFullInstance.dragging.enable();
+        mostrarToast(`📍 ${p.nombre} movido`);
+      });
+
+      marker.bindPopup(`
+        <div style="font-family:'Mulish',sans-serif;min-width:160px">
+          <b style="font-size:0.9rem">${cfg.icon} ${p.nombre}</b>
+          ${p.aproximado ? `<div style="font-size:0.72rem;color:#f5a623;font-weight:700;margin-top:4px">⚠️ Ubicación aproximada — arrastra para corregir</div>` : ''}
+          ${p.desc ? `<p style="font-size:0.78rem;color:#666;margin:4px 0">${p.desc}</p>` : ''}
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button onclick="editarPunto(${idx})" style="flex:1;padding:6px;background:#E8471C;color:white;border:none;border-radius:8px;font-size:0.75rem;cursor:pointer">✏️ Editar</button>
+            <button onclick="eliminarPunto(${idx})" style="flex:1;padding:6px;background:#fee;color:#c00;border:1px solid #fcc;border-radius:8px;font-size:0.75rem;cursor:pointer">🗑️ Borrar</button>
+          </div>
+        </div>`);
+    });
+
+    mapEditFullInstance.whenReady(() => {
+      const spinner = document.getElementById('mapaEditSpinner');
+      const hint = document.getElementById('mapaEditHint');
+      if (spinner) spinner.style.display = 'none';
+      if (hint) {
+        hint.style.display = 'block';
+        hint.innerHTML = `👆 Toca para añadir · mantén pulsado un icono para moverlo`;
+      }
+      if (conCoords.length > 0) {
+        redibujarLinea();
+        const bounds = L.latLngBounds(conCoords.map(p => [p.lat, p.lng]));
+        if (bounds.isValid()) {
+          setTimeout(() => {
+            mapEditFullInstance.invalidateSize();
+            mapEditFullInstance.fitBounds(bounds, { padding:[50,50], maxZoom:14 });
+          }, 150);
+        }
+      }
+    });
+
+    renderPuntos();
+  }, 300);
+}
+
+function cerrarMapaEdicion() {
+  goBack();
+  // Actualizar lista de puntos al volver
+  renderPuntos();
+}
+
+// ══ NAVEGACIÓN ══════════════════════════════════
+// ══ ESTADO GLOBAL ══════════════════════════════
+const navHistory = ['screenHome'];
+let mapaIniciado = false;
+let itinerarioGenerado = null;
+let fotosBase64 = [];
+
+// Variables de estado que antes vivían en window._xxx
+let _puntoParaDia = null;        // día al que asociar un punto nuevo
+let _cambiarIconoIndex = null;   // índice en puntosEdicion al cambiar icono
+let _cambiarIconoJornada = null; // {ji, ii} al cambiar icono desde jornadas
+let _validacionCiudades = [];    // coords de ciudades en validación (legacy, se mantiene por compatibilidad)
+let _verMapaIt = null;           // itinerario activo en screenVerMapa
+let _verMapaD = null;            // destino activo en screenVerMapa
+let _verMapaDestino = '';        // nombre destino activo en screenVerMapa
+
+// Comprime una imagen a base64 (max 800px, jpeg 0.72)
+function comprimirFoto(file) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const max = 800;
+        let w = img.width, h = img.height;
+        if (w > max) { h = h * max / w; w = max; }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.72));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function procesarFotos(input) {
+  const files = Array.from(input.files);
+  fotosBase64 = [];
+  const preview = document.getElementById('fotoPreview');
+  const placeholder = document.getElementById('fotoPlaceholder');
+  preview.innerHTML = '';
+  files.forEach(async file => {
+    const b64 = await comprimirFoto(file);
+    fotosBase64.push(b64);
+    const thumb = document.createElement('img');
+    thumb.src = b64;
+    preview.appendChild(thumb);
+    placeholder.style.display = 'none';
+  });
+}
+
+function navegarA(screenId, navId) {
+  const current = navHistory[navHistory.length - 1];
+  if (current === screenId) return;
+
+  // Ocultar TODAS las pantallas primero
+  document.querySelectorAll('.screen').forEach(s => {
+    s.classList.remove('active', 'behind');
+  });
+
+  // Mostrar solo la pantalla destino
+  document.getElementById(screenId).classList.add('active');
+  navHistory.length = 0;
+  navHistory.push(screenId);
+
+  // Nav activo
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (navId) document.getElementById(navId)?.classList.add('active');
+
+  // Iniciar mapa si es necesario
+  if (screenId === 'screenMapa' && !mapaIniciado) iniciarMapa();
+}
+
+function navegarDetalle(screenId) {
+  const current = navHistory[navHistory.length - 1];
+  // Si venimos del mapa, no ponemos 'behind' porque el mapa tiene posición fixed
+  if (current === 'screenMapa') {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active','behind'));
+    document.getElementById(screenId).classList.add('active');
+    navHistory.push(screenId);
+  } else {
+    document.getElementById(current).classList.remove('active');
+    document.getElementById(current).classList.add('behind');
+    document.getElementById(screenId).classList.add('active');
+    document.getElementById(screenId).classList.remove('behind');
+    navHistory.push(screenId);
+  }
+}
+
+function goBack() {
+  if (navHistory.length <= 1) return;
+  const current = navHistory.pop();
+  const prev = navHistory[navHistory.length - 1];
+
+  document.getElementById(current).classList.remove('active', 'behind');
+  document.getElementById(prev).classList.remove('behind');
+  document.getElementById(prev).classList.add('active');
+
+  // Restaurar nav
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (prev === 'screenHome') document.getElementById('navHome').classList.add('active');
+  else if (prev === 'screenMapa') document.getElementById('navMapa').classList.add('active');
+}
+
+// ══ HOME — renderizar destinos ════════════════
+function renderHome() {
+  const grid = document.getElementById('destinosGrid');
+  grid.innerHTML = '';
+  Object.entries(destinos).forEach(([key, d]) => {
+    const card = document.createElement('div');
+    card.className = 'destino-card';
+    card.innerHTML = `
+      <div class="card-body">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-size:1.6rem;margin-bottom:4px">${d.emoji}</div>
+            <div class="card-dest-name">${d.nombre}</div>
+            <div class="card-count">${d.itinerarios.length} itinerario${d.itinerarios.length!==1?'s':''}</div>
+          </div>
+          <div class="card-arrow">→</div>
+        </div>
+      </div>`;
+    card.onclick = () => abrirDestino(key);
+    grid.appendChild(card);
+  });
+}
+
+// ══ LISTA ITINERARIOS ════════════════════════
+function abrirDestino(key) {
+  const d = destinos[key];
+  document.getElementById('listaTitulo').textContent = `${d.emoji} ${d.nombre}`;
+  document.getElementById('listaCount').textContent = `${d.itinerarios.length} viajes`;
+
+  const body = document.getElementById('listaBody');
+  body.innerHTML = '';
+  d.itinerarios.forEach(it => {
+    const card = document.createElement('div');
+    card.className = 'it-card';
+    card.innerHTML = `
+      <div class="it-card-top">
+        <div class="it-titulo">${it.titulo}</div>
+        <div class="it-dias">${it.dias} días</div>
+      </div>
+      <div class="it-autor">Por <strong>${it.autor}</strong></div>
+      <div class="it-tags">${(it.tipo||[]).map(t=>`<span class="it-tag">${t}</span>`).join('')}</div>
+      <div class="it-presupuesto">💰 <strong>${it.presupuesto}</strong></div>`;
+    card.onclick = () => abrirItinerario(key, it.fbId || it.id);
+    body.appendChild(card);
+  });
+  navegarDetalle('screenLista');
+}
+
+// ══ DETALLE ══════════════════════════════════
+function abrirItinerario(key, id) {
+  const d = destinos[key];
+  if (!d) { mostrarToast('❌ Destino no encontrado'); return; }
+  // Buscar por id, fbId, o coger el primero si solo hay uno
+  const it = d.itinerarios.find(i => i.id === id || i.fbId === id) || d.itinerarios[0];
+  if (!it) { mostrarToast('❌ Itinerario no encontrado'); return; }
+
+  // Hero fotos
+  const heroFotos = document.getElementById('heroFotos');
+  const heroDots = document.getElementById('heroDots');
+  heroFotos.innerHTML = '';
+  heroDots.innerHTML = '';
+  if (it.fotos && it.fotos.length) {
+    it.fotos.forEach(src => {
+      const img = document.createElement('img');
+      img.className = 'hero-foto';
+      img.src = src;
+      img.onclick = () => abrirLightbox(src, it.fotos);
+      heroFotos.appendChild(img);
+    });
+    if (it.fotos.length > 1) {
+      it.fotos.forEach((_, i) => {
+        const dot = document.createElement('div');
+        dot.style.cssText = `width:6px;height:6px;border-radius:50%;background:${i===0?'white':'rgba(255,255,255,0.45)'};transition:background 0.2s`;
+        heroDots.appendChild(dot);
+      });
+      heroFotos.addEventListener('scroll', () => {
+        const idx = Math.round(heroFotos.scrollLeft / heroFotos.offsetWidth);
+        heroDots.querySelectorAll('div').forEach((d, i) => {
+          d.style.background = i === idx ? 'white' : 'rgba(255,255,255,0.45)';
+        });
+      }, { passive: true });
+    }
+  } else {
+    heroFotos.innerHTML = `<div style="min-width:100%;height:100%;background:linear-gradient(135deg,${d.color}88,${d.color});display:flex;align-items:center;justify-content:center;font-size:5rem">${d.emoji}</div>`;
+  }
+
+  document.getElementById('heroTitulo').textContent = it.titulo;
+  document.getElementById('heroMeta').innerHTML = `
+    <span>✈️ ${d.nombre}</span>
+    <span>📅 ${it.dias} días</span>
+    <span>👤 ${it.autor}</span>`;
+  document.getElementById('detallePresupuesto').textContent = it.presupuesto;
+
+  const diasEl = document.getElementById('detalleDias');
+  diasEl.innerHTML = '';
+  // Índice de puntos con coords por nombre para lookup rápido
+  const puntosMap = {};
+  (it.puntos || []).forEach(p => { if (p.lat && p.lng) puntosMap[p.nombre] = p; });
+
+  it.jornadas.forEach(j => {
+    const block = document.createElement('div');
+    block.className = 'dia-block';
+    block.innerHTML = `
+      <div class="dia-header">
+        <span class="dia-num">DÍA ${j.dia}</span>
+        <span class="dia-lugar">${j.lugar}</span>
+      </div>
+      <div class="dia-items">
+        ${j.items.map(item => {
+          const tieneCoords = !!puntosMap[item.nombre];
+          return `<div class="dia-item ${item.tipo}" ${tieneCoords ? `onclick="verPuntoEnMapa('${(key)}','${(it.fbId||id)}','${item.nombre.replace(/'/g,"\'")}');return false;" style="cursor:pointer"` : ''}>
+            <div class="item-tipo">${iconoTipo(item.tipo)} ${labelTipo(item.tipo)}${tieneCoords ? ' <span style="font-size:0.65rem;background:var(--primary-light);color:var(--primary);padding:2px 6px;border-radius:50px;margin-left:4px">📍 Ver mapa</span>' : ''}</div>
+            <div class="item-nombre">${item.nombre}</div>
+            <div class="item-desc">${item.desc}</div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    diasEl.appendChild(block);
+  });
+
+  document.getElementById('btnVerMapa').onclick = () => verEnMapa(key, it.fbId || id);
+
+  // Mostrar links si existen
+  const detalleLinksEl = document.getElementById('detalleLinks');
+  const links = it.links || {};
+  const nVuelos = (links.vuelos||[]).length;
+  const nEnlaces = (links.enlaces||[]).length;
+  const nTours = (links.tours||[]).length;
+  const totalLinks = nVuelos + nEnlaces + nTours;
+  window._detalleLinks = links;
+
+  if (totalLinks > 0) {
+    detalleLinksEl.innerHTML = `
+      <button onclick="abrirLinksSheet()" style="width:100%;padding:13px 16px;background:var(--card);border:1.5px solid var(--border);border-radius:14px;display:flex;align-items:center;gap:12px;cursor:pointer;font-family:'Mulish',sans-serif">
+        <span style="font-size:1.3rem">🔗</span>
+        <div style="flex:1;text-align:left">
+          <div style="font-size:0.9rem;font-weight:700;color:var(--ink)">Vuelos · Alojamiento · Tours</div>
+          <div style="font-size:0.75rem;color:var(--muted);margin-top:2px">
+            ${[nVuelos?`${nVuelos} vuelo${nVuelos>1?'s':''}`:null, nEnlaces?`${nEnlaces} enlace${nEnlaces>1?'s':''}`:null, nTours?`${nTours} tour${nTours>1?'s':''}`:null].filter(Boolean).join(' · ')}
+          </div>
+        </div>
+        <span style="color:var(--muted);font-size:1.1rem">›</span>
+      </button>`;
+  } else {
+    detalleLinksEl.innerHTML = '';
+  }
+
+  _viajeCompartido = it;
+  navegarDetalle('screenDetalle');
+}
+
+function abrirLinksSheet(cat) {
+  const links = window._detalleLinks || {};
+  let sheet = document.getElementById('_linksSheet');
+  if (sheet) sheet.remove();
+  sheet = document.createElement('div');
+  sheet.id = '_linksSheet';
+  sheet.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:3000;display:flex;align-items:flex-end';
+
+  const CATS = [
+    { key:'vuelos',   icon:'✈️', label:'Vuelos' },
+    { key:'enlaces',  icon:'🔗', label:'Enlaces de interés' },
+    { key:'tours',    icon:'🎟️', label:'Tours y actividades' },
+  ];
+
+  if (!cat) {
+    // Mostrar los 3 botones de categoría
+    sheet.innerHTML = `
+      <div style="background:var(--bg);border-radius:20px 20px 0 0;width:100%;padding:20px 16px 36px">
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1rem;margin-bottom:16px;text-align:center">¿Qué buscas?</div>
+        ${CATS.map(c => {
+          const n = (links[c.key]||[]).length;
+          if (!n) return '';
+          return `<button onclick="document.getElementById('_linksSheet').remove();abrirLinksSheet('${c.key}')"
+            style="width:100%;padding:14px 16px;background:var(--card);border:1.5px solid var(--border);border-radius:14px;display:flex;align-items:center;gap:12px;cursor:pointer;font-family:'Mulish',sans-serif;margin-bottom:10px">
+            <span style="font-size:1.4rem">${c.icon}</span>
+            <div style="flex:1;text-align:left">
+              <div style="font-size:0.9rem;font-weight:700;color:var(--ink)">${c.label}</div>
+              <div style="font-size:0.75rem;color:var(--muted)">${n} enlace${n>1?'s':''}</div>
+            </div>
+            <span style="color:var(--muted)">›</span>
+          </button>`;
+        }).join('')}
+        <button onclick="document.getElementById('_linksSheet').remove()" style="width:100%;padding:12px;background:none;border:1.5px solid var(--border);border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;margin-top:4px">Cerrar</button>
+      </div>`;
+  } else {
+    // Mostrar links de esa categoría
+    const catInfo = CATS.find(c=>c.key===cat);
+    const lista = links[cat]||[];
+    sheet.innerHTML = `
+      <div style="background:var(--bg);border-radius:20px 20px 0 0;width:100%;padding:20px 16px 36px;max-height:80vh;overflow-y:auto">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+          <button onclick="document.getElementById('_linksSheet').remove();abrirLinksSheet()" style="background:#f0f0f0;border:none;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer">←</button>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1rem">${catInfo.icon} ${catInfo.label}</div>
+        </div>
+        ${lista.map(l => {
+          const plat = (LINKS_PLATAFORMAS[cat]||[]).find(p=>p.id===l.plataforma) || {icon:'🔗', color:'#666', label:'Link'};
+          return `<a href="${l.url}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:8px;text-decoration:none">
+            <div style="width:38px;height:38px;border-radius:10px;background:${plat.color}18;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0">${plat.icon}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:0.88rem;font-weight:700;color:var(--ink)">${l.titulo||plat.label}</div>
+              <div style="font-size:0.72rem;color:${plat.color};font-weight:600">${plat.label} · Abrir →</div>
+            </div>
+            <span style="color:var(--muted);font-size:1.1rem">›</span>
+          </a>`;
+        }).join('')}
+        <button onclick="document.getElementById('_linksSheet').remove()" style="width:100%;padding:12px;background:none;border:1.5px solid var(--border);border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;margin-top:4px">Cerrar</button>
+      </div>`;
+  }
+  document.body.appendChild(sheet);
+}
+
+function iconoTipo(t) { return (TIPOS_CONFIG[t] || TIPOS_CONFIG.visita).icon; }
+function labelTipo(t) { return (TIPOS_CONFIG[t] || TIPOS_CONFIG.visita).label; }
+
+// ══ BUSCADOR MAPA EDICIÓN ══════════════════════
+let _busquedaMapaTimer = null;
+
+async function buscarLugarMapa(q) {
+  const clearBtn = document.getElementById('mapaEditSearchClear');
+  if (clearBtn) clearBtn.style.display = q ? 'block' : 'none';
+  clearTimeout(_busquedaMapaTimer);
+  const resultsEl = document.getElementById('mapaEditResults');
+  if (!q || q.length < 2) { resultsEl.style.display = 'none'; return; }
+  _busquedaMapaTimer = setTimeout(async () => {
+    try {
+      let features = [];
+      try {
+        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=es`, {
+          headers: { 'User-Agent': 'YaEstuve/1.0' }
+        });
+        const data = await res.json();
+        features = data?.features || [];
+      } catch(e2) {}
+      if (!features.length) {
+        const res2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=1`, {
+          headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' }
+        });
+        const data2 = await res2.json();
+        features = (data2 || []).map(d => ({
+          geometry: { coordinates: [parseFloat(d.lon), parseFloat(d.lat)] },
+          properties: { name: d.display_name.split(',')[0], city: d.display_name.split(',').slice(1,3).join(','), country: '' }
+        }));
+      }
+      if (!features.length) {
+        resultsEl.innerHTML = '<div style="padding:14px;text-align:center;color:var(--muted);font-size:0.85rem">Sin resultados</div>';
+        resultsEl.style.display = 'block';
+        return;
+      }
+      resultsEl.innerHTML = features.map(f => {
+        const p = f.properties;
+        const lat = f.geometry.coordinates[1];
+        const lng = f.geometry.coordinates[0];
+        const nombre = p.name || p.street || q;
+        const detalle = [p.city, p.state, p.country].filter(Boolean).join(', ');
+        return `<div onclick="seleccionarLugarMapa(${lat},${lng},'${nombre.replace(/'/g,"\'")}',event)"
+          style="padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:10px;font-family:'Mulish',sans-serif">
+          <span style="font-size:1rem;flex-shrink:0">📍</span>
+          <div style="min-width:0">
+            <div style="font-size:0.85rem;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nombre}</div>
+            <div style="font-size:0.72rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${detalle}</div>
+          </div>
+        </div>`;
+      }).join('');
+      resultsEl.style.display = 'block';
+    } catch(e) { resultsEl.style.display = 'none'; }
+  }, 400);
+}
+
+let _searchMarker = null;
+
+function seleccionarLugarMapa(lat, lng, nombre, e) {
+  if (e) e.stopPropagation();
+  cerrarBusquedaMapa();
+  if (!mapEditFullInstance) return;
+
+  const latF = parseFloat(lat);
+  const lngF = parseFloat(lng);
+
+  mapEditFullInstance.setView([latF, lngF], 17, { animate: true });
+
+  // Quitar marcador anterior si existe
+  if (_searchMarker) {
+    mapEditFullInstance.removeLayer(_searchMarker);
+    _searchMarker = null;
+  }
+
+  // Marcador tipo Google Maps — pin rojo con punto blanco
+  const icon = L.divIcon({
+    className: '',
+    html: `<div style="
+      width:28px;height:38px;position:relative;
+      filter:drop-shadow(0 3px 6px rgba(0,0,0,0.4))">
+      <div style="
+        width:28px;height:28px;border-radius:50% 50% 50% 0;
+        background:#E8471C;transform:rotate(-45deg);
+        border:2px solid white">
+      </div>
+      <div style="
+        position:absolute;top:6px;left:6px;
+        width:12px;height:12px;border-radius:50%;
+        background:white">
+      </div>
+    </div>`,
+    iconSize: [28, 38],
+    iconAnchor: [14, 38]
+  });
+
+  _searchMarker = L.marker([latF, lngF], { icon, zIndexOffset: 1000 })
+    .addTo(mapEditFullInstance)
+    .bindPopup(`<div style="font-family:'Mulish',sans-serif;font-weight:700;font-size:0.85rem">${nombre}</div><div style="font-size:0.75rem;color:#666;margin-top:4px">Toca el mapa aquí para añadir el punto</div>`)
+    .openPopup();
+}
+
+function limpiarBusquedaMapa() {
+  const input = document.getElementById('mapaEditSearch');
+  if (input) input.value = '';
+  cerrarBusquedaMapa();
+  const clearBtn = document.getElementById('mapaEditSearchClear');
+  if (clearBtn) clearBtn.style.display = 'none';
+  // Quitar marcador de búsqueda
+  if (_searchMarker && mapEditFullInstance) {
+    mapEditFullInstance.removeLayer(_searchMarker);
+    _searchMarker = null;
+  }
+}
+
+function cerrarBusquedaMapa() {
+  const el = document.getElementById('mapaEditResults');
+  if (el) el.style.display = 'none';
+}
+
+// ══ MODO RÁPIDO ════════════════════════════════
+// ══ LINKS (vuelos, enlaces, tours) ══════════
+const LINKS_PLATAFORMAS = {
+  vuelos:   [{ id:'skyscanner', label:'Skyscanner', color:'#0770e3', icon:'✈️' }, { id:'google_flights', label:'Google Flights', color:'#4285f4', icon:'✈️' }, { id:'kayak', label:'Kayak', color:'#FF690F', icon:'✈️' }, { id:'otro', label:'Otro', color:'#666', icon:'🔗' }],
+  enlaces:  [{ id:'booking', label:'Booking', color:'#003580', icon:'🏨' }, { id:'airbnb', label:'Airbnb', color:'#FF5A5F', icon:'🏠' }, { id:'europcar', label:'Europcar', color:'#FF6600', icon:'🚗' }, { id:'renfe', label:'Renfe', color:'#C00', icon:'🚂' }, { id:'avis', label:'Avis', color:'#C00', icon:'🚗' }, { id:'otro', label:'Otro', color:'#666', icon:'🔗' }],
+  tours:    [{ id:'getyourguide', label:'GetYourGuide', color:'#FF5A00', icon:'🎟️' }, { id:'viator', label:'Viator', color:'#179BD7', icon:'🎟️' }, { id:'civitatis', label:'Civitatis', color:'#e30613', icon:'🎟️' }, { id:'otro', label:'Otro', color:'#666', icon:'🔗' }],
+};
+
+function renderLinks() {
+  if (!itinerarioGenerado) return;
+  const links = itinerarioGenerado.links || { vuelos:[], enlaces:[], tours:[] };
+  ['vuelos','enlaces','tours'].forEach(cat => {
+    const el = document.getElementById('links' + cat.charAt(0).toUpperCase() + cat.slice(1));
+    if (!el) return;
+    const plat = LINKS_PLATAFORMAS[cat];
+    el.innerHTML = (links[cat]||[]).map((l,i) => {
+      const p = plat.find(p=>p.id===l.plataforma) || {icon:'🔗', color:'#666', label:'Link'};
+      return `<div style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px">
+        <div style="width:36px;height:36px;border-radius:10px;background:${p.color}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0">${p.icon}</div>
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="window.open('${l.url}','_blank')">
+          <div style="font-size:0.85rem;font-weight:700;color:var(--ink)">${l.titulo||p.label}</div>
+          <div style="font-size:0.72rem;color:var(--primary);font-weight:600">${p.label} · Abrir →</div>
+        </div>
+        <button onclick="eliminarLink('${cat}',${i})" style="background:none;border:none;color:#ccc;font-size:1rem;cursor:pointer;flex-shrink:0;padding:4px">✕</button>
+      </div>`;
+    }).join('') || '';
+  });
+}
+
+let _linkSheet = null;
+let _linkCat = null;
+let _linkPlat = null;
+
+function añadirLink(cat) {
+  _linkCat = cat;
+  _linkPlat = null;
+  const plataformas = LINKS_PLATAFORMAS[cat];
+
+  if (_linkSheet) _linkSheet.remove();
+  _linkSheet = document.createElement('div');
+  _linkSheet.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:3000;display:flex;align-items:flex-end';
+  _linkSheet.innerHTML = `
+    <div style="background:var(--bg);border-radius:20px 20px 0 0;width:100%;padding:20px 16px 36px;max-height:80vh;overflow-y:auto">
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1rem;margin-bottom:16px">Añadir link</div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px" id="_platGrid">
+        ${plataformas.map(p=>`
+          <button data-pid="${p.id}" onclick="selLinkPlat(this,'${p.id}','${p.color}')"
+            style="padding:10px;border:1.5px solid var(--border);border-radius:10px;background:var(--card);font-size:0.82rem;font-weight:700;cursor:pointer">
+            ${p.icon} ${p.label}
+          </button>`).join('')}
+      </div>
+      <div class="form-group">
+        <label>Título</label>
+        <input type="text" id="_lTitulo" placeholder="Ej: Vuelo MAD-CDG ida y vuelta">
+      </div>
+      <div class="form-group">
+        <label>URL del link</label>
+        <input type="url" id="_lUrl" placeholder="https://...">
+      </div>
+      <button onclick="guardarLink()" style="width:100%;padding:13px;background:var(--primary);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.95rem;cursor:pointer;margin-bottom:8px">✓ Guardar</button>
+      <button onclick="cerrarLinkSheet()" style="width:100%;padding:13px;background:none;border:1.5px solid var(--border);border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">Cancelar</button>
+    </div>`;
+  document.body.appendChild(_linkSheet);
+}
+
+function selLinkPlat(btn, id, color) {
+  _linkPlat = id;
+  document.querySelectorAll('#_platGrid button').forEach(b => {
+    b.style.background = 'var(--card)';
+    b.style.borderColor = 'var(--border)';
+  });
+  btn.style.background = color + '22';
+  btn.style.borderColor = color;
+}
+
+function cerrarLinkSheet() {
+  if (_linkSheet) { _linkSheet.remove(); _linkSheet = null; }
+}
+
+function guardarLink() {
+  const url = document.getElementById('_lUrl')?.value.trim();
+  const titulo = document.getElementById('_lTitulo')?.value.trim();
+  if (!url) { mostrarToast('⚠️ Añade la URL'); return; }
+  if (!itinerarioGenerado.links) itinerarioGenerado.links = { vuelos:[], enlaces:[], tours:[] };
+  if (!itinerarioGenerado.links[_linkCat]) itinerarioGenerado.links[_linkCat] = [];
+  const platLabel = LINKS_PLATAFORMAS[_linkCat]?.find(p=>p.id===_linkPlat)?.label || 'Link';
+  itinerarioGenerado.links[_linkCat].push({
+    plataforma: _linkPlat || 'otro',
+    titulo: titulo || platLabel,
+    url
+  });
+  const fbId = itinerarioGenerado?.fbId;
+  if (fbId) fetch(`${FB_URL}/itinerarios/${fbId}/links.json`, {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(itinerarioGenerado.links)
+  }).catch(()=>{});
+  cerrarLinkSheet();
+  renderLinks();
+  mostrarToast('✅ Link añadido');
+}
+
+function eliminarLink(cat, idx) {
+  if (!itinerarioGenerado?.links?.[cat]) return;
+  itinerarioGenerado.links[cat].splice(idx, 1);
+  const fbId = itinerarioGenerado?.fbId;
+  if (fbId) fetch(`${FB_URL}/itinerarios/${fbId}/links.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(itinerarioGenerado.links) }).catch(()=>{});
+  renderLinks();
+}
+
+// ══ MAPA ══════════════════════════════════════
+let mapaMundial = null;
+
+function iniciarMapa() {
+  mapaIniciado = true;
+  const m = L.map('map', { center:[25,10], zoom:2, zoomControl:false });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(m);
+  L.control.zoom({ position:'topright' }).addTo(m);
+  mapaMundial = m;
+  // Añadir pins de destinos ya cargados
+  Object.entries(destinos).forEach(([key, d]) => añadirPinMundial(key, d));
+}
+
+function añadirPinMundial(key, d) {
+  if (!mapaMundial) return;
+  const icon = L.divIcon({
+    className: '',
+    html: `<div style="background:${d.color};color:white;border-radius:50px;padding:6px 12px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 3px 12px rgba(0,0,0,0.2);border:2px solid white;cursor:pointer">${d.emoji} ${d.nombre}</div>`,
+    iconSize: null, iconAnchor: [0,0]
+  });
+  L.marker([d.lat, d.lng], { icon }).addTo(mapaMundial).on('click', () => abrirDestino(key));
+}
+
+// ══ BÚSQUEDA ══════════════════════════════════
+function focusSearch() {
+  setTimeout(() => document.getElementById('searchInput').focus(), 100);
+}
+
+function buscar(q) {
+  const results = document.getElementById('searchResults');
+  if (!q || q.length < 2) { results.style.display = 'none'; return; }
+  const matches = Object.entries(destinos).filter(([k,d]) =>
+    d.nombre.toLowerCase().includes(q.toLowerCase()) ||
+    d.itinerarios.some(it => it.titulo.toLowerCase().includes(q.toLowerCase()))
+  );
+  if (!matches.length) { results.style.display = 'none'; return; }
+  results.style.display = 'block';
+  results.innerHTML = matches.map(([key,d]) => `
+    <div class="search-result-item" onmousedown="abrirDestino('${key}');cerrarBusqueda()">
+      <span>${d.emoji}</span><span>${d.nombre}</span>
+      <span style="margin-left:auto;font-size:0.75rem;opacity:0.5">${d.itinerarios.length} viajes</span>
+    </div>`).join('');
+}
+
+function cerrarBusqueda() {
+  setTimeout(() => { document.getElementById('searchResults').style.display = 'none'; }, 150);
+}
+
+// ══ WIZARD IA ══════════════════════════════════
+function irPaso(n) {
+  document.querySelectorAll('.paso').forEach(p => p.classList.remove('active'));
+  document.getElementById(`paso${n}`).classList.add('active');
+  document.querySelectorAll('.paso-dot').forEach((d,i) => {
+    d.classList.toggle('active', i < n);
+  });
+}
+
+function crearManualmente() {
+  const autor = document.getElementById('f-autor').value.trim();
+  if (!autor) { mostrarToast('⚠️ Pon primero tu nombre'); return; }
+  // Crear itinerario vacío y abrir edición directamente
+  itinerarioGenerado = {
+    titulo: 'Mi viaje',
+    destino: '',
+    emoji: '📍',
+    lat: null, lng: null,
+    color: '#E8471C',
+    dias: 1,
+    tipo: [],
+    presupuesto: '',
+    resumen: '',
+    autor,
+    id: Date.now(),
+    destinoKey: 'mi_viaje_' + Date.now(),
+    jornadas: [{ dia: 1, lugar: 'Día 1', items: [] }],
+    puntos: [],
+    fotos: [],
+    links: { vuelos:[], enlaces:[], tours:[] }
+  };
+  puntosEdicion = [];
+  // Inicializar estado central para viaje nuevo
+  state.viajeActual = itinerarioGenerado;
+  state.viajeActual.puntos = [];
+  state._dirty = false;
+  fotosBase64 = [];
+  navegarA('screenSubir', null);
+  setTimeout(() => abrirEdicion(), 100);
+}
+
+async function generarConIA() {
+  const autor = document.getElementById('f-autor').value.trim();
+  const desc = document.getElementById('f-descripcion').value.trim();
+  if (!autor || !desc) { mostrarToast('⚠️ Rellena tu nombre y el viaje'); return; }
+
+  // Limpiar estado anterior
+  puntosEdicion = [];
+  itinerarioGenerado = null;
+  state.viajeActual = null;
+
+  irPaso(2);
+
+  const loadEl = document.getElementById('iaLoading');
+  loadEl.style.display = 'block';
+  document.getElementById('iaError').style.display = 'none';
+
+  const apiKey = localStorage.getItem('ye_api_key');
+  if (!apiKey) {
+    loadEl.style.display = 'none';
+    document.getElementById('iaError').style.display = 'block';
+    document.getElementById('iaError').innerHTML = `
+      <p style="font-size:1.5rem">🔑</p>
+      <p style="font-weight:600;margin-bottom:8px">Necesitas una clave API</p>
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:16px">La generación con IA no está disponible en este momento.</p>
+      <button onclick="navegarA('screenPerfil')" style="padding:10px 20px;background:var(--primary);color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">Ir a Perfil</button>`;
+    return;
+  }
+
+  const prompt = `Eres un asistente de viajes experto en geografía mundial. El usuario describe su viaje y debes estructurarlo en JSON con coordenadas GPS precisas.
+
+Descripción: "${desc}"
+
+IMPORTANTE sobre las coordenadas:
+- Debes incluir "lat" y "lng" para CADA lugar (coordenadas GPS reales y precisas).
+- Usa tus conocimientos geográficos para dar coordenadas exactas de monumentos, restaurantes, hoteles, playas, etc.
+- Para parques naturales, playas, faros, miradores y zonas costeras: usa coordenadas MUY precisas del punto exacto, no del centro de la zona. Por ejemplo, el Faro de Cabo de Gata está en 36.7267, -2.1902; la Playa de Mónsul en 36.7225, -2.0583; la Playa de los Genoveses en 36.7433, -2.0817.
+- Para restaurantes y negocios locales poco conocidos: usa las coordenadas del pueblo o zona donde están ubicados.
+- Si no estás seguro de un lugar concreto, usa las coordenadas del centro del municipio más cercano, nunca inventes coordenadas que puedan caer en el mar.
+- Las coordenadas deben ser números decimales (ej: 41.3851, 2.1734).
+- NUNCA pongas coordenadas en el mar para lugares que están en tierra.
+
+Devuelve SOLO este JSON (sin texto extra, sin markdown):
+{
+  "titulo": "Título atractivo del viaje",
+  "destino": "Ciudad/región principal, País",
+  "lat": coordenada_latitud_destino_principal,
+  "lng": coordenada_longitud_destino_principal,
+  "dias": número_de_días,
+  "presupuesto": "~XX€/persona",
+  "resumen": "2-3 frases describiendo el viaje",
+  "emoji": "emoji representativo",
+  "jornadas": [
+    {
+      "dia": 1,
+      "lugar": "Ciudad del día",
+      "lat": coordenada_latitud_ciudad,
+      "lng": coordenada_longitud_ciudad,
+      "items": [
+        {
+          "tipo": "monumento|restaurante|hotel|atraccion|playa|mirador|museo|parque|iglesia|bar|compras|parking|visita|tip",
+          "nombre": "Nombre del lugar en español",
+          "desc": "descripción breve",
+          "lat": coordenada_latitud_lugar_exacto,
+          "lng": coordenada_longitud_lugar_exacto
+        }
+      ]
+    }
+  ]
+}`;
+
+  const apiCall = async (body) => {
+    for (let i = 0; i < 3; i++) {
+      if (i > 0) {
+        loadEl.innerHTML = `<div class="spinner"></div><p>Reintentando (${i+1}/3)...</p>`;
+        await new Promise(r => setTimeout(r, 2000));
+      }
+      const r = await fetch('https://yaestuve2.jaymaviajes.workers.dev/api/claude', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body)
+      });
+      const data = await r.json();
+      if (data.error?.type === 'overloaded_error') { loadEl.innerHTML = '<div class="spinner"></div><p>Mucha demanda, espera...</p>'; continue; }
+      if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+      return data;
+    }
+    throw new Error('El servicio está muy ocupado. Inténtalo en unos minutos.');
+  };
+
+  try {
+    const data = await apiCall({ model:'claude-sonnet-4-20250514', max_tokens:4000, messages:[{role:'user',content:prompt}] });
+    const txt = data.content.map(c=>c.text||'').join('');
+    const jsonMatch = txt.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('La IA no devolvió JSON válido');
+    const parsed = JSON.parse(jsonMatch[0]);
+    parsed.autor = autor;
+    parsed.id = Date.now();
+    parsed.destinoKey = 'viaje_' + Date.now();
+
+    // Guardar itinerario y construir puntos directamente (sin pantalla de validación)
+    itinerarioGenerado = parsed;
+    state.viajeActual = itinerarioGenerado;
+
+    await construirPuntosDesdeIA(parsed, loadEl);
+
+  } catch(e) {
+    console.error('Error IA:', e);
+    loadEl.style.display = 'none';
+    document.getElementById('iaError').style.display = 'block';
+    document.getElementById('iaError').innerHTML = `
+      <p style="color:var(--primary);margin-bottom:16px">😔 ${e.message}</p>
+      <button class="btn-secondary" onclick="irPaso(1)">← Volver a intentarlo</button>`;
+  }
+}
+
+// ══ NUEVO FLUJO DE VALIDACIÓN ══════════════════════════════
+// Renderiza el formulario de validación día por día
+
+// Construye los puntos del mapa a partir del JSON de la IA y abre la edición
+// Mapa de tipos de la app → clases OSM para búsqueda más precisa
+const OSM_TIPOS = {
+  monumento: ['historic=monument','historic=ruins','historic=archaeological_site','historic=castle','historic=memorial','tourism=attraction'],
+  museo:     ['tourism=museum','amenity=arts_centre'],
+  iglesia:   ['amenity=place_of_worship','historic=church','building=church','building=cathedral'],
+  restaurante: ['amenity=restaurant','amenity=cafe'],
+  bar:       ['amenity=bar','amenity=pub'],
+  mirador:   ['tourism=viewpoint'],
+  atraccion: ['tourism=attraction','leisure=park','tourism=theme_park'],
+  visita:    ['tourism=attraction','historic=monument','tourism=museum'],
+  compras:   ['shop=mall','landuse=retail','highway=pedestrian'],
+  playa:     ['natural=beach'],
+  parque:    ['leisure=park','leisure=nature_reserve'],
+};
+
+// Busca coords exactas en OSM usando Nominatim con tipo específico
+async function buscarCoordsOSM(nombre, ciudad, latRef, lngRef, tipo) {
+  const clases = OSM_TIPOS[tipo] || [];
+
+  // Intento 1: búsqueda con tipo específico OSM
+  for (const clase of clases) {
+    try {
+      const [key, val] = clase.split('=');
+      const q = encodeURIComponent(nombre);
+      const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1&countrycodes=&viewbox=${lngRef-0.3},${latRef+0.3},${lngRef+0.3},${latRef-0.3}&bounded=1`;
+      const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' } });
+      const data = await r.json();
+      // Filtrar por tipo OSM y proximidad
+      const match = data.find(d =>
+        (d.type === val || d.class === key) &&
+        Math.abs(parseFloat(d.lat) - latRef) < 0.4 &&
+        Math.abs(parseFloat(d.lon) - lngRef) < 0.4
+      );
+      if (match) return { lat: parseFloat(match.lat), lng: parseFloat(match.lon) };
+    } catch(e) {}
+    await new Promise(r => setTimeout(r, 100));
+  }
+
+  // Intento 2: búsqueda libre con nombre + ciudad dentro del viewbox
+  try {
+    const q = encodeURIComponent(`${nombre}, ${ciudad}`);
+    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1&viewbox=${lngRef-0.3},${latRef+0.3},${lngRef+0.3},${latRef-0.3}&bounded=1`;
+    const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' } });
+    const data = await r.json();
+    const cercano = data.find(d =>
+      Math.abs(parseFloat(d.lat) - latRef) < 0.4 &&
+      Math.abs(parseFloat(d.lon) - lngRef) < 0.4
+    );
+    if (cercano) return { lat: parseFloat(cercano.lat), lng: parseFloat(cercano.lon) };
+  } catch(e) {}
+
+  return null;
+}
+
+async function construirPuntosDesdeIA(parsed, loadEl) {
+  loadEl.innerHTML = '<div class="spinner"></div><p>Construyendo el mapa...</p>';
+
+  const jornadas = parsed.jornadas || [];
+  let puntosIA = [];
+  let sinCoords = [];
+  let mejorados = 0;
+
+  for (let ji = 0; ji < jornadas.length; ji++) {
+    const j = jornadas[ji];
+    const ciudadLat = j.lat || null;
+    const ciudadLng = j.lng || null;
+
+    for (let ii = 0; ii < (j.items||[]).length; ii++) {
+      const item = j.items[ii];
+      if (['tip','avion','barco','tren','metro','tranvia','transporte'].includes(item.tipo)) continue;
+
+      let lat = item._lat || item.lat || null;
+      let lng = item._lng || item.lng || null;
+      let esAproximado = false;
+
+      // Intentar mejorar coords con OSM para monumentos, museos, restaurantes...
+      if (lat && ciudadLat && ['monumento','museo','iglesia','restaurante','bar','mirador','atraccion','visita','compras','parking'].includes(item.tipo)) {
+        loadEl.innerHTML = `<div class="spinner"></div><p>Localizando ${item.nombre}...</p>`;
+        const coords = await buscarCoordsOSM(item.nombre, j.lugar, ciudadLat, ciudadLng, item.tipo);
+        if (coords) {
+          lat = coords.lat;
+          lng = coords.lng;
+          mejorados++;
+        }
+        await new Promise(r => setTimeout(r, 200)); // respetar límite Nominatim
+      }
+
+      // Fallback: coords de la ciudad con offset
+      if (!lat && ciudadLat) {
+        const offset = () => (Math.random()-0.5)*0.008;
+        lat = ciudadLat + offset();
+        lng = ciudadLng + offset();
+        esAproximado = true;
+        sinCoords.push(item.nombre);
+      }
+
+      puntosIA.push({
+        id: newPuntoId(),
+        tipo: item.tipo || 'visita',
+        nombre: item.nombre,
+        desc: item.desc || '',
+        dia: j.dia,
+        lat,
+        lng,
+        aproximado: esAproximado
+      });
+    }
+  }
+
+  // Coordenadas del destino principal — vienen directamente de la IA
+  if (!itinerarioGenerado.lat) {
+    const jornadasConCoords = jornadas.filter(j => j.lat);
+    if (jornadasConCoords.length > 0) {
+      itinerarioGenerado.lat = jornadasConCoords.reduce((s,j)=>s+j.lat,0) / jornadasConCoords.length;
+      itinerarioGenerado.lng = jornadasConCoords.reduce((s,j)=>s+j.lng,0) / jornadasConCoords.length;
+    }
+  }
+
+  const destinoNorm = (itinerarioGenerado.destino||'viaje').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_').slice(0,40);
+  itinerarioGenerado.destinoKey = destinoNorm + '_' + Date.now();
+
+  puntosEdicion = puntosIA;
+  itinerarioGenerado.puntos = puntosEdicion;
+  state.viajeActual = itinerarioGenerado;
+  state.viajeActual.puntos = puntosEdicion;
+  state._dirty = false;
+
+  loadEl.style.display = 'none';
+
+  if (sinCoords.length > 0) {
+    setTimeout(() => {
+      mostrarToast(`⚠️ ${sinCoords.length} punto${sinCoords.length > 1 ? 's' : ''} sin ubicación exacta — colócalos en el mapa`);
+    }, 800);
+  } else {
+    mostrarToast(`✨ ${puntosIA.length} puntos localizados${mejorados > 0 ? ` (${mejorados} con coords exactas)` : ''}`);
+  }
+
+  itinerarioGenerado.puntos = puntosEdicion.slice();
+  irPaso(1);
+  abrirEdicion();
+}
+
+// Alias por compatibilidad con cualquier llamada directa desde el HTML
+async function confirmarYPublicar() {
+  if (!itinerarioGenerado) return;
+  const loadEl = document.getElementById('iaLoading');
+  irPaso(2);
+  loadEl.style.display = 'block';
+  await construirPuntosDesdeIA(itinerarioGenerado, loadEl);
+}
+
+function rellenarResumen() {
+  if (!itinerarioGenerado) return;
+  itinerarioGenerado.titulo = document.getElementById('r-titulo').value;
+  itinerarioGenerado.destino = document.getElementById('r-destino').value;
+  itinerarioGenerado.dias = parseInt(document.getElementById('r-dias').value)||1;
+  itinerarioGenerado.presupuesto = document.getElementById('r-presupuesto').value;
+  itinerarioGenerado.resumen = document.getElementById('r-resumen').value;
+
+  document.getElementById('resumenCard').innerHTML = `
+    <div class="resumen-row"><div class="resumen-label">Destino</div><div class="resumen-val">${itinerarioGenerado.emoji||'📍'} ${itinerarioGenerado.destino}</div></div>
+    <div class="resumen-row"><div class="resumen-label">Título</div><div class="resumen-val">${itinerarioGenerado.titulo}</div></div>
+    <div class="resumen-row"><div class="resumen-label">Autor</div><div class="resumen-val">${itinerarioGenerado.autor}</div></div>
+    <div class="resumen-row"><div class="resumen-label">Duración · Presupuesto</div><div class="resumen-val">${itinerarioGenerado.dias} días · ${itinerarioGenerado.presupuesto}</div></div>`;
+}
+
+async function publicarViaje() {
+  const it = itinerarioGenerado;
+  const key = it.destinoKey;
+
+  // Recoger cambios de edición si estamos en pantalla editar
+  it.titulo = document.getElementById('e-titulo')?.value || it.titulo;
+  it.destino = document.getElementById('e-destino')?.value || it.destino;
+
+  // Verificar destino obligatorio
+  if (!it.destino?.trim()) { mostrarToast('⚠️ Escribe el destino del viaje'); return; }
+
+  // Geocodificar destino si no tiene coords (texto escrito sin seleccionar del autocomplete)
+  if (!it.lat || !it.lng) {
+    try {
+      const geoR = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`);
+      const geoData = await geoR.json();
+      const f = geoData?.features?.[0];
+      if (f) { it.lat = f.geometry.coordinates[1]; it.lng = f.geometry.coordinates[0]; }
+    } catch(e) {}
+  }
+  it.dias = parseInt(document.getElementById('e-dias')?.value) || it.dias;
+  it.presupuesto = document.getElementById('e-presupuesto')?.value || it.presupuesto;
+  it.resumen = document.getElementById('e-resumen')?.value || it.resumen;
+  it.fotos = fotosBase64 || [];
+  it.autorUid = usuarioActual?.uid || null;
+  it.autorEmail = usuarioActual?.email || null;
+  it.autorNombre = usuarioActual?.displayName || it.autor || 'Anónimo';
+  fotosBase64 = [];
+
+  // Sincronizar puntos desde estado central antes de publicar
+  if (state.viajeActual?.puntos?.length > 0) {
+    it.puntos = state.viajeActual.puntos;
+  }
+
+  // Si es edición, cargar puntos frescos de Firebase para no machacarlos
+  if (it.fbId) {
+    try {
+      const rp = await fetch(`${FB_URL}/itinerarios/${it.fbId}/puntos.json`);
+      const puntosFirebase = await rp.json();
+      if (Array.isArray(puntosFirebase) && puntosFirebase.length > 0) {
+        it.puntos = puntosFirebase;
+      } else {
+        it.puntos = puntosEdicion.filter(p => p && p.tipo);
+      }
+    } catch(e) {
+      it.puntos = puntosEdicion.filter(p => p && p.tipo);
+    }
+  } else {
+    it.puntos = puntosEdicion.filter(p => p && p.tipo);
+  }
+
+  const btn = document.querySelector('#screenEditar button[onclick="publicarViaje()"]') || 
+               document.querySelector('.btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+  try {
+    // Si tiene fbId es una edición — actualizar en Firebase
+    if (it.fbId) {
+      await fetch(`${FB_URL}/itinerarios/${it.fbId}.json`, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(it)
+      });
+      // Actualizar en memoria local
+      const k = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_');
+      if (destinos[k]) {
+        const idx = destinos[k].itinerarios.findIndex(i => i.fbId === it.fbId);
+        if (idx >= 0) destinos[k].itinerarios[idx] = it;
+      }
+      mostrarToast('✅ Viaje actualizado');
+    } else {
+      // Viaje nuevo
+      const r = await fetch(`${FB_URL}/itinerarios.json`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(it)
+      });
+      const data = await r.json();
+      it.fbId = data.name;
+      // Guardar fbId dentro del objeto en Firebase para que el lookup funcione siempre
+      await fetch(`${FB_URL}/itinerarios/${it.fbId}/fbId.json`, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(it.fbId)
+      });
+
+      if (!destinos[key]) {
+        destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
+        // Si no hay coords, buscarlas por Nominatim
+        if (!destinos[key].lat) {
+          fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`)
+            .then(r=>r.json()).then(g=>{
+              const f = g?.features?.[0];
+              if (f) {
+                destinos[key].lat = f.geometry.coordinates[1];
+                destinos[key].lng = f.geometry.coordinates[0];
+                añadirPinMundial(key, destinos[key]);
+              }
+            }).catch(()=>{});
+        }
+      }
+      destinos[key].itinerarios.push(it);
+      if (destinos[key].lat) añadirPinMundial(key, destinos[key]);
+      mostrarToast('✅ ¡Viaje publicado!');
+    }
+
+    renderHome();
+    navegarA('screenHome','navHome');
+    setTimeout(() => abrirDestino(it.destinoKey), 400);
+    irPaso(1);
+    document.getElementById('f-autor').value = '';
+    document.getElementById('f-descripcion').value = '';
+    itinerarioGenerado = null;
+    fotosBase64 = [];
+  } catch(e) {
+    mostrarToast('❌ Error guardando. Inténtalo de nuevo.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Publicar'; }
+  }
+}
+
+// ══ FIREBASE — cargar al arrancar ═════════════
+async function cargarDeFirebase() {
+  try {
+    const r = await fetch(`${FB_URL}/itinerarios.json`);
+    const data = await r.json();
+    if (!data) return;
+    Object.entries(data).forEach(([fbKey, it]) => {
+      // Asegurar que el fbId siempre está presente (viajes viejos pueden no tenerlo)
+      if (!it.fbId) it.fbId = fbKey;
+      const key = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_');
+      if (!key) return;
+      if (!destinos[key]) {
+        destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
+        if (!destinos[key].lat) {
+          fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`)
+            .then(r=>r.json()).then(g=>{
+              const f = g?.features?.[0];
+              if (f) { destinos[key].lat=f.geometry.coordinates[1]; destinos[key].lng=f.geometry.coordinates[0]; añadirPinMundial(key, destinos[key]); }
+            }).catch(()=>{});
+        }
+      }
+      const esNuevo = !destinos[key].itinerarios.find(i => i.fbId === it.fbId);
+      if (esNuevo) {
+        it.fotos = it.fotos || [];
+        it.puntos = it.puntos || [];
+        destinos[key].itinerarios.push(it);
+      }
+    });
+    renderHome();
+    // Añadir pins al mapa mundial si ya está iniciado
+    if (mapaIniciado) {
+      Object.entries(destinos).forEach(([key, d]) => añadirPinMundial(key, d));
+    }
+  } catch(e) { console.log('Error cargando Firebase:', e); }
+}
+
+// ══ UTILS ══════════════════════════════════════
+let lbFotos = [];
+let lbIndex = 0;
+
+function abrirLightbox(src, fotos) {
+  lbFotos = fotos || [src];
+  lbIndex = lbFotos.indexOf(src);
+  if (lbIndex < 0) lbIndex = 0;
+  lbMostrar();
+  document.getElementById('lightbox').classList.add('active');
+  // Swipe táctil
+  const lb = document.getElementById('lightbox');
+  let startX = 0;
+  lb._touchStart = e => { startX = e.touches[0].clientX; };
+  lb._touchEnd = e => {
+    const diff = startX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) lbNavegar(diff > 0 ? 1 : -1);
+  };
+  lb.removeEventListener('touchstart', lb._touchStart);
+  lb.removeEventListener('touchend', lb._touchEnd);
+  lb.addEventListener('touchstart', lb._touchStart, { passive: true });
+  lb.addEventListener('touchend', lb._touchEnd, { passive: true });
+}
+
+function lbMostrar() {
+  document.getElementById('lightboxImg').src = lbFotos[lbIndex];
+  const counter = document.getElementById('lbCounter');
+  const prev = document.getElementById('lbPrev');
+  const next = document.getElementById('lbNext');
+  if (lbFotos.length > 1) {
+    counter.textContent = `${lbIndex + 1} / ${lbFotos.length}`;
+    prev.style.display = lbIndex > 0 ? 'flex' : 'none';
+    next.style.display = lbIndex < lbFotos.length - 1 ? 'flex' : 'none';
+  } else {
+    counter.textContent = '';
+    prev.style.display = 'none';
+    next.style.display = 'none';
+  }
+}
+
+function lbNavegar(dir) {
+  lbIndex = Math.max(0, Math.min(lbFotos.length - 1, lbIndex + dir));
+  lbMostrar();
+}
+
+function cerrarLightbox() {
+  document.getElementById('lightbox').classList.remove('active');
+}
+
+function mostrarToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ══ INIT ══════════════════════════════════════
+function mostrarPantallaAuth() {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active','behind'));
+  document.getElementById('screenAuth').classList.add('active');
+  
+  navHistory.length = 0;
+  navHistory.push('screenAuth');
+}
+
+function mostrarPantallaHome() {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active','behind'));
+  document.getElementById('screenHome').classList.add('active');
+  
+  navHistory.length = 0;
+  navHistory.push('screenHome');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('navHome').classList.add('active');
+}
+
+renderHome();
+cargarDeFirebase().then(() => comprobarUrlViaje());
+
+// Comprobar sesión guardada y mostrar pantalla inicial
+const sesionGuardada = localStorage.getItem('ye_user');
+if (sesionGuardada) {
+  try { usuarioActual = JSON.parse(sesionGuardada); actualizarPerfil(); }
+  catch(e) { localStorage.removeItem('ye_user'); }
+}
+if (window._fbOnAuth) {
+  window._fbOnAuth((user) => {
+    if (user) {
+      usuarioActual = { nombre:user.displayName, email:user.email, foto:user.photoURL, uid:user.uid };
+      localStorage.setItem('ye_user', JSON.stringify(usuarioActual));
+      actualizarPerfil();
+    } else if (usuarioActual?.uid) {
+      usuarioActual = null; localStorage.removeItem('ye_user'); actualizarPerfil();
+    }
+  });
+}
+
+// ── ARRANQUE: mostrar la primera pantalla ───────────────────────────────────
+// Sin esta llamada todas las pantallas quedan ocultas y la app no sale del splash
+navegarA('screenHome', 'navHome');
+
+// ── PWA SERVICE WORKER — desregistrar si existe para limpiar caché ──
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(regs => { regs.forEach(reg => reg.unregister()); });
+  if (window.caches) caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+}
+
+
+function instalarApp() {
+  if (!_installPrompt) return;
+  _installPrompt.prompt();
+  _installPrompt.userChoice.then(result => {
+    if (result.outcome === 'accepted') {
+      const btn = document.getElementById('btnInstalarApp');
+      if (btn) btn.style.display = 'none';
+    }
+    _installPrompt = null;
+  });
+}
+
+let _viajeCompartido = null;
+let _pinsMundiales = [];
+
+// ══ COMPARTIR VIAJE ══════════════════════════════════════════════
+function compartirViaje() {
+  if (!_viajeCompartido) return;
+  const it = _viajeCompartido;
+  const fbId = it.fbId;
+  if (!fbId) { mostrarToast('⚠️ Publica el viaje primero'); return; }
+  const url = `${location.origin}${location.pathname}?viaje=${fbId}`;
+  const sheet = document.createElement('div');
+  sheet.id = '_shareSheet';
+  sheet.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:5000;display:flex;align-items:flex-end';
+  sheet.innerHTML = `
+    <div style="background:var(--bg);border-radius:20px 20px 0 0;width:100%;padding:24px 20px 40px">
+      <div style="width:36px;height:4px;background:var(--border);border-radius:4px;margin:0 auto 20px"></div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.1rem;margin-bottom:4px">Compartir viaje</div>
+      <div style="font-size:0.82rem;color:var(--muted);margin-bottom:20px">${it.titulo}</div>
+      <div style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <div style="flex:1;font-size:0.78rem;color:var(--muted);word-break:break-all">${url}</div>
+        <button onclick="copiarLinkViaje('${url}')" style="background:var(--ink);color:white;border:none;padding:8px 14px;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;flex-shrink:0">Copiar</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <button onclick="compartirNativo('${url}','${it.titulo.replace(/'/g,'')}')" style="padding:14px;background:var(--ink);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer">📤 Compartir</button>
+        <button onclick="compartirWhatsApp('${url}','${it.titulo.replace(/'/g,'').replace(/"/g,'')}','${it.destino||''}')" style="padding:14px;background:#25D366;color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer">💬 WhatsApp</button>
+      </div>
+      <button onclick="document.getElementById('_shareSheet').remove()" style="width:100%;padding:13px;background:none;border:1.5px solid var(--border);border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">Cerrar</button>
+    </div>`;
+  sheet.addEventListener('click', e => { if(e.target===sheet) sheet.remove(); });
+  document.body.appendChild(sheet);
+}
+function copiarLinkViaje(url) {
+  navigator.clipboard.writeText(url).then(() => { mostrarToast('✅ Link copiado'); document.getElementById('_shareSheet')?.remove(); }).catch(() => {
+    const ta = document.createElement('textarea'); ta.value = url; ta.style.cssText='position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); mostrarToast('✅ Link copiado'); document.getElementById('_shareSheet')?.remove();
+  });
+}
+function compartirNativo(url, titulo) {
+  if (navigator.share) navigator.share({ title:titulo, url }).catch(()=>{});
+  else copiarLinkViaje(url);
+  document.getElementById('_shareSheet')?.remove();
+}
+function compartirWhatsApp(url, titulo, destino) {
+  window.open(`https://wa.me/?text=${encodeURIComponent('✈️ *'+titulo+'*\n📍 '+destino+'\n\n'+url)}`, '_blank');
+  document.getElementById('_shareSheet')?.remove();
+}
+function comprobarUrlViaje() {
+  const params = new URLSearchParams(location.search);
+  const fbId = params.get('viaje');
+  if (!fbId) return;
+  let intentos = 0;
+  const buscar = setInterval(() => {
+    intentos++;
+    for (const [key, d] of Object.entries(destinos)) {
+      const it = d.itinerarios.find(i => i.fbId === fbId);
+      if (it) { clearInterval(buscar); setTimeout(() => abrirItinerario(key, fbId), 300); return; }
+    }
+    if (intentos > 20) clearInterval(buscar);
+  }, 200);
+}
+
+// ══ DESCARGAR PDF ════════════════════════════════════════════════
+function descargarPDF() {
+  const it = _viajeCompartido;
+  if (!it) return;
+  const iconoT = (t) => ({hotel:'🏨',restaurante:'🍽️',atraccion:'🎡',monumento:'🏛️',museo:'🖼️',playa:'🏖️',mirador:'🔭',bar:'🍻',iglesia:'⛪',parque:'🌳',visita:'📍',tip:'💡',transporte:'🚌',compras:'🛍️',avion:'✈️',tren:'🚂',barco:'🚢'}[t]||'📍');
+  const diasHTML = (it.jornadas||[]).map(j => `<div class="dia"><div class="dia-header"><span class="dia-num">DÍA ${j.dia}</span><span class="dia-lugar">${j.lugar||''}</span></div>${(j.items||[]).map(item=>`<div class="item"><span class="item-icon">${iconoT(item.tipo)}</span><div><div class="item-nombre">${item.nombre}</div>${item.desc?`<div class="item-desc">${item.desc}</div>`:''}</div></div>`).join('')}</div>`).join('');
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${it.titulo}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:sans-serif;background:#fff;color:#1C1917;padding:32px;max-width:680px;margin:0 auto}h1{font-size:24px;font-weight:800;margin-bottom:8px}.meta{font-size:13px;color:#5C8C6A;margin-bottom:16px}.dia{margin-bottom:20px}.dia-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #eee}.dia-num{background:#E8471C;color:white;font-size:10px;font-weight:700;padding:3px 10px;border-radius:50px}.dia-lugar{font-size:15px;font-weight:700}.item{display:flex;gap:10px;padding:8px;border-radius:8px;margin-bottom:6px;background:#fafafa;border:1px solid #eee}.item-icon{font-size:16px;flex-shrink:0}.item-nombre{font-size:13px;font-weight:700}.item-desc{font-size:11px;color:#999}@media print{body{padding:16px}}</style></head><body><h1>${it.emoji||'✈️'} ${it.titulo}</h1><div class="meta">📍 ${it.destino} · 📅 ${it.dias} días · 👤 ${it.autor}</div>${diasHTML}<script>window.onload=()=>window.print()<\/script></body></html>`;
+  const win = window.open('', '_blank');
+  if (!win) { mostrarToast('⚠️ Permite ventanas emergentes'); return; }
+  win.document.write(html); win.document.close();
+}
+
+// ══ MAPA MUNDIAL CON CLUSTERS ════════════════════════════════════
+function renderPinsMundiales() {
+  if (!mapaMundial) return;
+  _pinsMundiales.forEach(m => mapaMundial.removeLayer(m));
+  _pinsMundiales = [];
+  const entries = Object.entries(destinos).filter(([,d]) => d.lat && d.lng);
+  if (!entries.length) return;
+  const CLUSTER_PX = 80;
+  const toPixel = (lat, lng) => mapaMundial.latLngToContainerPoint([lat, lng]);
+  const usados = new Set();
+  const grupos = [];
+  for (let i = 0; i < entries.length; i++) {
+    if (usados.has(i)) continue;
+    const [ki, di] = entries[i];
+    const piI = toPixel(di.lat, di.lng);
+    const grupo = { keys:[ki], destinos:[di], lat:di.lat, lng:di.lng };
+    for (let j = i+1; j < entries.length; j++) {
+      if (usados.has(j)) continue;
+      const [kj, dj] = entries[j];
+      const piJ = toPixel(dj.lat, dj.lng);
+      const dx = piI.x-piJ.x, dy = piI.y-piJ.y;
+      if (Math.sqrt(dx*dx+dy*dy) < CLUSTER_PX) { grupo.keys.push(kj); grupo.destinos.push(dj); usados.add(j); }
+    }
+    usados.add(i); grupos.push(grupo);
+  }
+  grupos.forEach(g => {
+    const lat = g.destinos.reduce((s,d)=>s+d.lat,0)/g.destinos.length;
+    const lng = g.destinos.reduce((s,d)=>s+d.lng,0)/g.destinos.length;
+    let html, onClick;
+    if (g.destinos.length === 1) {
+      const d = g.destinos[0]; const key = g.keys[0];
+      html = `<div style="background:${d.color||'#E8471C'};color:white;border-radius:50px;padding:6px 12px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 3px 12px rgba(0,0,0,0.25);border:2px solid white;cursor:pointer">${d.emoji||'📍'} ${d.nombre}</div>`;
+      onClick = () => abrirDestino(key);
+    } else {
+      const total = g.destinos.reduce((s,d)=>s+(d.itinerarios?.length||0),0);
+      const emojis = g.destinos.slice(0,3).map(d=>d.emoji||'📍').join('');
+      html = `<div style="background:var(--ink);color:white;border-radius:50px;padding:8px 16px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.3);border:2.5px solid white;cursor:pointer;display:flex;align-items:center;gap:6px"><span>${emojis}</span><span>${g.destinos.length} destinos</span><span style="background:var(--primary);border-radius:50px;padding:2px 7px;font-size:10px">${total} viajes</span></div>`;
+      onClick = () => { const bounds = L.latLngBounds(g.destinos.map(d=>[d.lat,d.lng])); mapaMundial.fitBounds(bounds,{padding:[80,80],maxZoom:10}); renderPinsMundiales(); };
+    }
+    const icon = L.divIcon({ className:'', html, iconSize:'auto', iconAnchor:[-4, 16] });
+    const marker = L.marker([lat,lng],{icon}).addTo(mapaMundial).on('click', onClick);
+    _pinsMundiales.push(marker);
+  });
+}
+function añadirPinMundial(key, d) { if (mapaMundial) renderPinsMundiales(); }
+
+
+</script>
+</body>
+</html
+function abrirLoginSheet() {
+  document.getElementById('loginSheet').style.display = 'block';
+  document.getElementById('loginError').textContent = '';
+}
+function cerrarLogin() {
+  document.getElementById('loginSheet').style.display = 'none';
+}
+async function loginConGoogle() {
+  const btn = document.getElementById('btnGoogleLogin');
+  const errEl = document.getElementById('loginError');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;margin:0 auto"></div>';
+  errEl.textContent = '';
+  try {
+    const result = await window._fbSignInWithGoogle();
+    const user = result.user;
+    await fetch(`${FB_URL}/usuarios/${user.uid}.json`, {
+      method: 'PATCH', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ nombre:user.displayName, email:user.email, foto:user.photoURL, uid:user.uid, ultimoAcceso:Date.now() })
+    });
+    usuarioActual = { nombre:user.displayName, email:user.email, foto:user.photoURL, uid:user.uid };
+    localStorage.setItem('ye_user', JSON.stringify(usuarioActual));
+    cerrarLogin(); actualizarPerfil();
+    mostrarToast('👋 Bienvenido, ' + user.displayName.split(' ')[0] + '!');
+  } catch(e) {
+    console.error('Google login error:', e.code, e.message);
+    const msgs = {
+      'auth/popup-closed-by-user':'Inicio cancelado',
+      'auth/popup-blocked':'Permite ventanas emergentes para esta página',
+      'auth/unauthorized-domain':'Dominio no autorizado en Firebase',
+      'auth/cancelled-popup-request':'Inicio cancelado',
+      'auth/network-request-failed':'Error de red'
+    };
+    errEl.textContent = msgs[e.code] || e.message || 'Error al iniciar sesión';
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.6 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34 6.4 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/></svg> Continuar con Google';
+  }
+}
+function cerrarSesion() {
+  window._fbSignOut?.();
+  usuarioActual = null;
+  localStorage.removeItem('ye_user');
+  actualizarPerfil();
+  mostrarToast('👋 Sesión cerrada');
+}
+
+
+
+function actualizarPerfil() {
+  const u = usuarioActual;
+  const avatarEl = document.getElementById('perfilAvatar');
+  const nombreEl = document.getElementById('perfilNombre');
+  const emailEl = document.getElementById('perfilEmail');
+  const logoutBtn = document.getElementById('perfilLogoutBtn');
+  const loginBtn = document.getElementById('perfilLoginBtn');
+
+  if (u) {
+    if (avatarEl) {
+      if (u.foto) avatarEl.innerHTML = `<img src="${u.foto}" style="width:100%;height:100%;border-radius:50%;object-fit:cover" referrerpolicy="no-referrer">`;
+      else avatarEl.textContent = (u.nombre||u.email||'?')[0].toUpperCase();
+    }
+    if (nombreEl) nombreEl.textContent = u.nombre || u.displayName || 'Usuario';
+    if (emailEl) emailEl.textContent = u.email || '';
+    if (logoutBtn) logoutBtn.style.display = 'block';
+    if (loginBtn) loginBtn.style.display = 'none';
+    cargarMisViajes();
+  } else {
+    if (avatarEl) avatarEl.textContent = '?';
+    if (nombreEl) nombreEl.textContent = 'Sin cuenta';
+    if (emailEl) emailEl.textContent = '';
+    if (logoutBtn) logoutBtn.style.display = 'none';
+    if (loginBtn) loginBtn.style.display = 'block';
+    const misViajes = document.getElementById('perfilMisViajes');
+    if (misViajes) misViajes.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:0.85rem;padding:20px">Inicia sesión para ver tus viajes</p>';
+  }
+}
+
+async function cargarMisViajes() {
+  if (!usuarioActual) return;
+  const container = document.getElementById('perfilMisViajes');
+  if (!container) return;
+  container.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;padding:8px">Cargando tus viajes...</p>';
+
+  try {
+    const r = await fetch(`${FB_URL}/itinerarios.json`);
+    const data = await r.json();
+    if (!data) {
+      container.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:0.85rem;padding:20px">Aún no has subido viajes ✈️</p>';
+      return;
+    }
+
+    const misViajes = Object.entries(data)
+      .filter(([k,v]) => 
+        v.autorUid === usuarioActual.uid || 
+        v.autorEmail === usuarioActual.email ||
+        v.autor === usuarioActual.nombre ||
+        v.autorNombre === usuarioActual.nombre
+      )
+      .map(([k,v]) => ({...v, fbId: k, id: k}));
+
+    if (!misViajes.length) {
+      container.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:0.85rem;padding:20px">Aún no has subido viajes ✈️</p>';
+      return;
+    }
+
+    container.innerHTML = '<div style="font-size:0.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:12px">Mis viajes</div>' +
+      misViajes.map(it => `
+        <div style="background:white;border-radius:14px;padding:14px;margin-bottom:10px;border:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="flex:1;cursor:pointer" onclick="editarViajeFirebase('${it.fbId}')">
+              <div style="font-family:'Syne',sans-serif;font-size:0.9rem;font-weight:700">${it.titulo || it.destino}</div>
+              <div style="font-size:0.75rem;color:var(--muted);margin-top:2px">${it.destino} · ${it.dias} días</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;margin-left:10px">
+              <div style="color:var(--primary);font-size:0.8rem;font-weight:700;cursor:pointer" onclick="editarViajeFirebase('${it.fbId}')">Editar →</div>
+              <div style="color:#ccc;font-size:0.8rem;font-weight:700;cursor:pointer" onclick="eliminarViaje('${it.fbId}','${(it.titulo||it.destino).replace(/'/g,'').substring(0,20)}')">🗑️</div>
+            </div>
+          </div>
+        </div>`).join('');
+  } catch(e) {
+    container.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;padding:8px">Error cargando viajes</p>';
+  }
+}
+
+async function editarViajeFirebase(fbId) {
+  try {
+    mostrarToast('Cargando viaje...');
+    const r = await fetch(`${FB_URL}/itinerarios/${fbId}.json`);
+    const it = await r.json();
+    it.fbId = fbId;
+    itinerarioGenerado = it;
+    // Asegurar IDs en puntos existentes
+    (it.puntos || []).forEach(p => { if (!p.id) p.id = newPuntoId(); });
+    puntosEdicion = (it.puntos || []).slice();
+    // Sincronizar estado central
+    state.viajeActual = itinerarioGenerado;
+    state.viajeActual.puntos = puntosEdicion;
+    state._dirty = false;
+    // Cargar jornadas frescas si existen en Firebase
+    try {
+      const rj = await fetch(`${FB_URL}/itinerarios/${fbId}/jornadas.json`);
+      const jornadasFb = await rj.json();
+      if (Array.isArray(jornadasFb) && jornadasFb.length > 0) {
+        it.jornadas = jornadasFb;
+      }
+    } catch(e) {}
+    fotosBase64 = it.fotos || [];
+    if (!itinerarioGenerado.links) itinerarioGenerado.links = { vuelos:[], enlaces:[], tours:[] };
+    // Navegar desde perfil a edición limpiamente
+    navegarA('screenSubir', null);
+    setTimeout(() => {
+      abrirEdicion();
+    }, 100);
+  } catch(e) {
+    mostrarToast('Error cargando el viaje');
+  }
+}
+
+async function eliminarViaje(fbId, titulo) {
+  if (!confirm(`¿Eliminar "${titulo}"?`)) return;
+  try {
+    await fetch(`${FB_URL}/itinerarios/${fbId}.json`, { method:'DELETE' });
+    mostrarToast('🗑️ Viaje eliminado');
+    // Limpiar de memoria local inmediatamente
+    Object.values(destinos).forEach(d => {
+      d.itinerarios = d.itinerarios.filter(i => i.fbId !== fbId);
+    });
+    // Eliminar destinos vacíos
+    Object.keys(destinos).forEach(k => {
+      if (!destinos[k].itinerarios?.length) delete destinos[k];
+    });
+    renderHome();
+    await cargarMisViajes();
   } catch(e) {
     mostrarToast('❌ Error eliminando');
   }
@@ -3637,7 +6371,7 @@ async function generarConIA() {
     document.getElementById('iaError').innerHTML = `
       <p style="font-size:1.5rem">🔑</p>
       <p style="font-weight:600;margin-bottom:8px">Necesitas una clave API</p>
-      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:16px">Ve a Perfil → Clave API y añade tu clave de Anthropic.</p>
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:16px">La generación con IA no está disponible en este momento.</p>
       <button onclick="navegarA('screenPerfil')" style="padding:10px 20px;background:var(--primary);color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">Ir a Perfil</button>`;
     return;
   }
@@ -4156,23 +6890,6 @@ if ('serviceWorker' in navigator) {
 }
 
 
-function actualizarEstadoApiKey() {
-  const el = document.getElementById('apiKeyEstado');
-  const input = document.getElementById('apiKeyInput');
-  if (!el || !input) return;
-  const val = input.value.trim();
-  if (val.startsWith('sk-ant-') && val.length > 20) {
-    el.textContent = '✅ Clave válida';
-    el.style.color = '#388E3C';
-  } else if (val.length > 0) {
-    el.textContent = '⚠️ Debe empezar por sk-ant-';
-    el.style.color = '#E65100';
-  } else {
-    const saved = localStorage.getItem('ye_api_key');
-    el.textContent = saved ? '✅ Clave guardada' : '⚠️ Sin clave — IA no disponible';
-    el.style.color = saved ? '#388E3C' : '#E65100';
-  }
-}
 
 
 let _installPrompt = null;
@@ -4314,7 +7031,7 @@ function renderPinsMundiales() {
       html = `<div style="background:var(--ink);color:white;border-radius:50px;padding:8px 16px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.3);border:2.5px solid white;cursor:pointer;display:flex;align-items:center;gap:6px"><span>${emojis}</span><span>${g.destinos.length} destinos</span><span style="background:var(--primary);border-radius:50px;padding:2px 7px;font-size:10px">${total} viajes</span></div>`;
       onClick = () => { const bounds = L.latLngBounds(g.destinos.map(d=>[d.lat,d.lng])); mapaMundial.fitBounds(bounds,{padding:[60,60],maxZoom:8}); };
     }
-    const icon = L.divIcon({ className:'', html, iconSize:null, iconAnchor:[0,0] });
+    const icon = L.divIcon({ className:'', html, iconSize:'auto', iconAnchor:[-4, 16] });
     const marker = L.marker([lat,lng],{icon}).addTo(mapaMundial).on('click', onClick);
     _pinsMundiales.push(marker);
   });
