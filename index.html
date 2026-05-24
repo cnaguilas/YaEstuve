@@ -1177,7 +1177,7 @@ html, body {
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
       <button id="btnVerMapa" onclick="" style="padding:12px;background:var(--ink);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">🗺️ Ver mapa</button>
-      <button onclick="descargarPDF()" style="padding:12px;background:var(--primary);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">📄 Descargar PDF</button>
+      <button onclick="compartirViaje()" style="padding:12px;background:var(--primary);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">⬆️ Compartir</button>
     </div>
     <div id="detalleLinks" style="margin-bottom:16px"></div>
     <div id="detalleDias"></div>
@@ -2170,11 +2170,20 @@ function buscarEnModalDestino(q) {
         const lat = f.geometry.coordinates[1];
         const lng = f.geometry.coordinates[0];
         const nombre = [p.name, p.city, p.state, p.country].filter(Boolean).join(', ');
-        return `<div onclick="seleccionarDestinoModal('${nombre.replace(/'/g,"\\'")}',${lat},${lng})"
-          style="padding:12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:0.9rem">
+        const b64 = btoa(unescape(encodeURIComponent(nombre)));
+        return `<div class="_modal-dest-item" data-b64="${b64}" data-lat="${lat}" data-lng="${lng}"
+          style="padding:12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:0.9rem"
+          onmousedown="event.preventDefault()">
           📍 ${nombre}
         </div>`;
       }).join('');
+      // Attach click handlers safely
+      box.querySelectorAll('._modal-dest-item').forEach(el => {
+        el.addEventListener('click', () => {
+          const nombre = decodeURIComponent(escape(atob(el.dataset.b64)));
+          seleccionarDestinoModal(nombre, parseFloat(el.dataset.lat), parseFloat(el.dataset.lng));
+        });
+      });
     } catch(e) { box.innerHTML = '<p style="padding:12px;color:#888">Error al buscar</p>'; }
   }, 500);
 }
@@ -3509,9 +3518,12 @@ function cerrarLinkSheet() {
 }
 
 function guardarLink() {
-  const url = document.getElementById('_lUrl')?.value.trim();
-  const titulo = document.getElementById('_lTitulo')?.value.trim();
-  if (!url) { mostrarToast('⚠️ Añade la URL'); return; }
+  // Read from the active sheet, not document-level getElementById which may find wrong element
+  const urlInput = _linkSheet?.querySelector('#_lUrl') || document.getElementById('_lUrl');
+  const tituloInput = _linkSheet?.querySelector('#_lTitulo') || document.getElementById('_lTitulo');
+  const url = urlInput?.value?.trim();
+  const titulo = tituloInput?.value?.trim();
+  if (!url || !url.startsWith('http')) { mostrarToast('⚠️ Añade una URL válida (empieza por http)'); return; }
   if (!itinerarioGenerado.links) itinerarioGenerado.links = { vuelos:[], enlaces:[], tours:[] };
   if (!itinerarioGenerado.links[_linkCat]) itinerarioGenerado.links[_linkCat] = [];
   const platLabel = LINKS_PLATAFORMAS[_linkCat]?.find(p=>p.id===_linkPlat)?.label || 'Link';
@@ -4200,7 +4212,17 @@ function compartirViaje() {
   const it = _viajeCompartido;
   const fbId = it.fbId;
   if (!fbId) { mostrarToast('⚠️ Publica el viaje primero'); return; }
-  const url = `${location.origin}${location.pathname}?viaje=${fbId}`;
+  const url = `https://yaestuve3.netlify.app/?viaje=${fbId}`;
+  const texto = `✈️ ${it.titulo}\n📍 ${it.destino || ''}\n\nMira este itinerario en YaEstuve:\n${url}`;
+  
+  // Usar share nativo del sistema si está disponible
+  if (navigator.share) {
+    navigator.share({ title: it.titulo, text: texto, url })
+      .catch(() => {});
+    return;
+  }
+  // Fallback: mostrar sheet con opciones
+  const url2 = url;
   const sheet = document.createElement('div');
   sheet.id = '_shareSheet';
   sheet.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:5000;display:flex;align-items:flex-end';
