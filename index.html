@@ -1556,6 +1556,20 @@ html, body {
 // ══ DATOS ══════════════════════════════════════════
 const FB_URL = 'https://yaestuve-app-default-rtdb.europe-west1.firebasedatabase.app';
 
+// ── Firebase REST con autenticación automática ──
+// Todas las escrituras a Firebase necesitan el token de Google
+async function fbFetch(url, options = {}) {
+  let token = null;
+  try {
+    const user = _fbAuth?.currentUser;
+    if (user) token = await user.getIdToken();
+  } catch(e) {}
+
+  // Añadir token como query param (forma más fiable con Firebase REST)
+  const authUrl = token ? `${url}${url.includes('?') ? '&' : '?'}auth=${token}` : url;
+  return fetch(authUrl, options);
+}
+
 const destinos = {};
 
 
@@ -1580,7 +1594,7 @@ async function loginConGoogle() {
   try {
     const result = await window._fbSignInWithGoogle();
     const user = result.user;
-    await fetch(`${FB_URL}/usuarios/${user.uid}.json`, {
+    await fbFetch(`${FB_URL}/usuarios/${user.uid}.json`, {
       method: 'PATCH', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ nombre:user.displayName, email:user.email, foto:user.photoURL, uid:user.uid, ultimoAcceso:Date.now() })
     });
@@ -1725,7 +1739,7 @@ async function editarViajeFirebase(fbId) {
 async function eliminarViaje(fbId, titulo) {
   if (!confirm(`¿Eliminar "${titulo}"?`)) return;
   try {
-    await fetch(`${FB_URL}/itinerarios/${fbId}.json`, { method:'DELETE' });
+    await fbFetch(`${FB_URL}/itinerarios/${fbId}.json`, { method:'DELETE' });
     mostrarToast('🗑️ Viaje eliminado');
     // Limpiar de memoria local inmediatamente
     Object.values(destinos).forEach(d => {
@@ -1758,7 +1772,7 @@ function getJornadas() {
 function guardarJornadasEnFirebase() {
   const fbId = itinerarioGenerado?.fbId;
   if (!fbId || !itinerarioGenerado?.jornadas) return;
-  fetch(`${FB_URL}/itinerarios/${fbId}/jornadas.json`, {
+  fbFetch(`${FB_URL}/itinerarios/${fbId}/jornadas.json`, {
     method: 'PUT',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(itinerarioGenerado.jornadas)
@@ -2407,7 +2421,7 @@ async function guardarPunto() {
         const fbId2 = itinerarioGenerado?.fbId;
         if (fbId2) {
           const puntosLimpios2 = puntosEdicion.filter(p => p && p.tipo);
-          fetch(`${FB_URL}/itinerarios/${fbId2}/puntos.json`, {
+          fbFetch(`${FB_URL}/itinerarios/${fbId2}/puntos.json`, {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(puntosLimpios2)
@@ -2443,7 +2457,7 @@ async function guardarPunto() {
   const fbId = itinerarioGenerado?.fbId;
   if (fbId) {
     const puntosLimpios = puntosEdicion.filter(p => p && p.tipo);
-    await fetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`, {
+    await fbFetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`, {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(puntosLimpios)
@@ -3507,7 +3521,7 @@ function guardarLink() {
     url
   });
   const fbId = itinerarioGenerado?.fbId;
-  if (fbId) fetch(`${FB_URL}/itinerarios/${fbId}/links.json`, {
+  if (fbId) fbFetch(`${FB_URL}/itinerarios/${fbId}/links.json`, {
     method:'PUT', headers:{'Content-Type':'application/json'},
     body:JSON.stringify(itinerarioGenerado.links)
   }).catch(()=>{});
@@ -3520,7 +3534,7 @@ function eliminarLink(cat, idx) {
   if (!itinerarioGenerado?.links?.[cat]) return;
   itinerarioGenerado.links[cat].splice(idx, 1);
   const fbId = itinerarioGenerado?.fbId;
-  if (fbId) fetch(`${FB_URL}/itinerarios/${fbId}/links.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(itinerarioGenerado.links) }).catch(()=>{});
+  if (fbId) fbFetch(`${FB_URL}/itinerarios/${fbId}/links.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(itinerarioGenerado.links) }).catch(()=>{});
   renderLinks();
 }
 
@@ -3959,7 +3973,7 @@ async function publicarViaje() {
   try {
     // Si tiene fbId es una edición — actualizar en Firebase
     if (it.fbId) {
-      await fetch(`${FB_URL}/itinerarios/${it.fbId}.json`, {
+      await fbFetch(`${FB_URL}/itinerarios/${it.fbId}.json`, {
         method:'PUT',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(it)
@@ -3973,7 +3987,7 @@ async function publicarViaje() {
       mostrarToast('✅ Viaje actualizado');
     } else {
       // Viaje nuevo
-      const r = await fetch(`${FB_URL}/itinerarios.json`, {
+      const r = await fbFetch(`${FB_URL}/itinerarios.json`, {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(it)
@@ -3981,7 +3995,7 @@ async function publicarViaje() {
       const data = await r.json();
       it.fbId = data.name;
       // Guardar fbId dentro del objeto en Firebase para que el lookup funcione siempre
-      await fetch(`${FB_URL}/itinerarios/${it.fbId}/fbId.json`, {
+      await fbFetch(`${FB_URL}/itinerarios/${it.fbId}/fbId.json`, {
         method:'PUT',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(it.fbId)
@@ -4315,7 +4329,7 @@ async function loginConGoogle() {
   try {
     const result = await window._fbSignInWithGoogle();
     const user = result.user;
-    await fetch(`${FB_URL}/usuarios/${user.uid}.json`, {
+    await fbFetch(`${FB_URL}/usuarios/${user.uid}.json`, {
       method: 'PATCH', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ nombre:user.displayName, email:user.email, foto:user.photoURL, uid:user.uid, ultimoAcceso:Date.now() })
     });
@@ -4460,7 +4474,7 @@ async function editarViajeFirebase(fbId) {
 async function eliminarViaje(fbId, titulo) {
   if (!confirm(`¿Eliminar "${titulo}"?`)) return;
   try {
-    await fetch(`${FB_URL}/itinerarios/${fbId}.json`, { method:'DELETE' });
+    await fbFetch(`${FB_URL}/itinerarios/${fbId}.json`, { method:'DELETE' });
     mostrarToast('🗑️ Viaje eliminado');
     // Limpiar de memoria local inmediatamente
     Object.values(destinos).forEach(d => {
@@ -4493,7 +4507,7 @@ function getJornadas() {
 function guardarJornadasEnFirebase() {
   const fbId = itinerarioGenerado?.fbId;
   if (!fbId || !itinerarioGenerado?.jornadas) return;
-  fetch(`${FB_URL}/itinerarios/${fbId}/jornadas.json`, {
+  fbFetch(`${FB_URL}/itinerarios/${fbId}/jornadas.json`, {
     method: 'PUT',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(itinerarioGenerado.jornadas)
@@ -5142,7 +5156,7 @@ async function guardarPunto() {
         const fbId2 = itinerarioGenerado?.fbId;
         if (fbId2) {
           const puntosLimpios2 = puntosEdicion.filter(p => p && p.tipo);
-          fetch(`${FB_URL}/itinerarios/${fbId2}/puntos.json`, {
+          fbFetch(`${FB_URL}/itinerarios/${fbId2}/puntos.json`, {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(puntosLimpios2)
@@ -5178,7 +5192,7 @@ async function guardarPunto() {
   const fbId = itinerarioGenerado?.fbId;
   if (fbId) {
     const puntosLimpios = puntosEdicion.filter(p => p && p.tipo);
-    await fetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`, {
+    await fbFetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`, {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(puntosLimpios)
@@ -6242,7 +6256,7 @@ function guardarLink() {
     url
   });
   const fbId = itinerarioGenerado?.fbId;
-  if (fbId) fetch(`${FB_URL}/itinerarios/${fbId}/links.json`, {
+  if (fbId) fbFetch(`${FB_URL}/itinerarios/${fbId}/links.json`, {
     method:'PUT', headers:{'Content-Type':'application/json'},
     body:JSON.stringify(itinerarioGenerado.links)
   }).catch(()=>{});
@@ -6255,7 +6269,7 @@ function eliminarLink(cat, idx) {
   if (!itinerarioGenerado?.links?.[cat]) return;
   itinerarioGenerado.links[cat].splice(idx, 1);
   const fbId = itinerarioGenerado?.fbId;
-  if (fbId) fetch(`${FB_URL}/itinerarios/${fbId}/links.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(itinerarioGenerado.links) }).catch(()=>{});
+  if (fbId) fbFetch(`${FB_URL}/itinerarios/${fbId}/links.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(itinerarioGenerado.links) }).catch(()=>{});
   renderLinks();
 }
 
@@ -6684,7 +6698,7 @@ async function publicarViaje() {
   try {
     // Si tiene fbId es una edición — actualizar en Firebase
     if (it.fbId) {
-      await fetch(`${FB_URL}/itinerarios/${it.fbId}.json`, {
+      await fbFetch(`${FB_URL}/itinerarios/${it.fbId}.json`, {
         method:'PUT',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(it)
@@ -6698,7 +6712,7 @@ async function publicarViaje() {
       mostrarToast('✅ Viaje actualizado');
     } else {
       // Viaje nuevo
-      const r = await fetch(`${FB_URL}/itinerarios.json`, {
+      const r = await fbFetch(`${FB_URL}/itinerarios.json`, {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(it)
@@ -6706,7 +6720,7 @@ async function publicarViaje() {
       const data = await r.json();
       it.fbId = data.name;
       // Guardar fbId dentro del objeto en Firebase para que el lookup funcione siempre
-      await fetch(`${FB_URL}/itinerarios/${it.fbId}/fbId.json`, {
+      await fbFetch(`${FB_URL}/itinerarios/${it.fbId}/fbId.json`, {
         method:'PUT',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(it.fbId)
