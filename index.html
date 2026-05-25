@@ -4091,7 +4091,7 @@ async function publicarViaje() {
         body:JSON.stringify(it.fbId)
       });
 
-      if (!destinos[key]) {
+      if (!destinos[it.destinoKey]) {
         destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
         // Si no hay coords, buscarlas por Nominatim
         if (!destinos[key].lat) {
@@ -4137,7 +4137,7 @@ async function cargarDeFirebase() {
       if (!it.fbId) it.fbId = fbKey;
       const key = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_');
       if (!key) return;
-      if (!destinos[key]) {
+      if (!destinos[it.destinoKey]) {
         destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
         if (!destinos[key].lat) {
           fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`)
@@ -6783,7 +6783,7 @@ async function publicarViaje() {
         body:JSON.stringify(it.fbId)
       });
 
-      if (!destinos[key]) {
+      if (!destinos[it.destinoKey]) {
         destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
         // Si no hay coords, buscarlas por Nominatim
         if (!destinos[key].lat) {
@@ -6829,7 +6829,7 @@ async function cargarDeFirebase() {
       if (!it.fbId) it.fbId = fbKey;
       const key = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_');
       if (!key) return;
-      if (!destinos[key]) {
+      if (!destinos[it.destinoKey]) {
         destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
         if (!destinos[key].lat) {
           fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`)
