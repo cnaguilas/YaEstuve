@@ -2251,17 +2251,26 @@ function buscarDestinoEdicion(q) {
   _destTimer = setTimeout(async () => {
     try {
       let features = [];
+      // Nominatim como fuente principal (más fiable en móvil)
       try {
-        const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=es`, { headers: {'User-Agent':'YaEstuve/1.0'} });
-        features = (await r.json())?.features || [];
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&addressdetails=1`, {
+          headers: {'Accept-Language':'es','User-Agent':'YaEstuve/1.0'}
+        });
+        const data = await r.json();
+        features = (data||[]).map(d => ({
+          geometry: { coordinates: [parseFloat(d.lon), parseFloat(d.lat)] },
+          properties: {
+            name: d.display_name.split(',')[0].trim(),
+            city: d.display_name.split(',')[1]?.trim()||'',
+            country: d.display_name.split(',').slice(-1)[0]?.trim()||''
+          }
+        }));
       } catch(e2) {}
+      // Fallback a Photon si Nominatim falla
       if (!features.length) {
         try {
-          const r2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&addressdetails=1`, { headers: {'Accept-Language':'es','User-Agent':'YaEstuve/1.0'} });
-          features = (await r2.json() || []).map(d => ({
-            geometry: { coordinates: [parseFloat(d.lon), parseFloat(d.lat)] },
-            properties: { name: d.display_name.split(',')[0], city: d.display_name.split(',')[1]||'', state: '', country: d.display_name.split(',').slice(-1)[0]||'' }
-          }));
+          const r2 = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=es`);
+          features = (await r2.json())?.features || [];
         } catch(e3) {}
       }
       if (!features.length) {
@@ -2273,23 +2282,13 @@ function buscarDestinoEdicion(q) {
         const p = f.properties;
         const lat = f.geometry.coordinates[1];
         const lng = f.geometry.coordinates[0];
-        const partes = [p.name, p.city && p.city!==p.name?p.city:null, p.state && p.state!==p.name?p.state:null, p.country].filter(Boolean);
-        const nombre = partes.join(', ');
-        const b64 = btoa(unescape(encodeURIComponent(nombre)));
-        return `<div class="_dest-sug-item" data-b64="${b64}" data-lat="${lat}" data-lng="${lng}"
-          style="padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer;font-family:'Mulish',sans-serif"
-          onmouseover="this.style.background='var(--card)'" onmouseout="this.style.background=''">
+        const nombre = [p.name, p.city, p.country].filter(Boolean).join(', ');
+        return `<div style="padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer;font-family:'Mulish',sans-serif"
+          onclick="seleccionarDestinoEdicion('${nombre.replace(/'/g,"\'")}',${lat},${lng})">
           <div style="font-size:0.88rem;font-weight:700">${p.name||q}</div>
-          <div style="font-size:0.75rem;color:var(--muted)">${partes.slice(1).join(', ')}</div>
+          <div style="font-size:0.75rem;color:var(--muted)">${[p.city,p.country].filter(Boolean).join(', ')}</div>
         </div>`;
       }).join('');
-      box.querySelectorAll('._dest-sug-item').forEach(el => {
-        el.addEventListener('mousedown', ev => {
-          ev.preventDefault();
-          const nombre = decodeURIComponent(escape(atob(el.dataset.b64)));
-          seleccionarDestinoEdicion(nombre, parseFloat(el.dataset.lat), parseFloat(el.dataset.lng));
-        });
-      });
     } catch(e) { box.style.display='none'; }
   }, 400);
 }
@@ -3978,155 +3977,6 @@ function rellenarResumen() {
     <div class="resumen-row"><div class="resumen-label">Duración · Presupuesto</div><div class="resumen-val">${itinerarioGenerado.dias} días · ${itinerarioGenerado.presupuesto}</div></div>`;
 }
 
-async function publicarViaje() {
-  const it = itinerarioGenerado;
-  const key = it.destinoKey;
-
-  // Recoger cambios de edición si estamos en pantalla editar
-  it.titulo = document.getElementById('e-titulo')?.value || it.titulo;
-  it.destino = document.getElementById('e-destino')?.value || it.destino;
-
-  // Verificar destino obligatorio
-  if (!it.destino?.trim()) { mostrarToast('⚠️ Escribe el destino del viaje'); return; }
-
-  // Regenerar siempre el destinoKey basado en el destino real
-  const destinoNorm = it.destino.toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g,'')
-    .replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
-  if (!it.destinoKey || it.destinoKey.startsWith('mi_viaje_')) {
-    it.destinoKey = destinoNorm + '_' + Date.now();
-  }
-
-  // Si no tiene coords de destino, buscarlas ahora
-  if (!it.lat && it.destino) {
-    try {
-      let features = [];
-      try {
-        const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`, { headers: {'User-Agent':'YaEstuve/1.0'} });
-        features = (await r.json())?.features || [];
-      } catch(e2) {}
-      if (!features.length) {
-        const r2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(it.destino)}&format=json&limit=1`, { headers: {'Accept-Language':'es','User-Agent':'YaEstuve/1.0'} });
-        const d2 = await r2.json();
-        if (d2?.[0]) { it.lat = parseFloat(d2[0].lat); it.lng = parseFloat(d2[0].lon); }
-      } else {
-        it.lat = features[0].geometry.coordinates[1];
-        it.lng = features[0].geometry.coordinates[0];
-      }
-    } catch(e) {}
-  }
-
-  // Geocodificar destino si no tiene coords (texto escrito sin seleccionar del autocomplete)
-  if (!it.lat || !it.lng) {
-    try {
-      const geoR = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`);
-      const geoData = await geoR.json();
-      const f = geoData?.features?.[0];
-      if (f) { it.lat = f.geometry.coordinates[1]; it.lng = f.geometry.coordinates[0]; }
-    } catch(e) {}
-  }
-  it.dias = parseInt(document.getElementById('e-dias')?.value) || it.dias;
-  it.presupuesto = document.getElementById('e-presupuesto')?.value || it.presupuesto;
-  it.resumen = document.getElementById('e-resumen')?.value || it.resumen;
-  it.fotos = fotosBase64 || [];
-  it.autorUid = usuarioActual?.uid || null;
-  it.autorEmail = usuarioActual?.email || null;
-  it.autorNombre = usuarioActual?.displayName || it.autor || 'Anónimo';
-  fotosBase64 = [];
-
-  // Sincronizar puntos desde estado central antes de publicar
-  if (state.viajeActual?.puntos?.length > 0) {
-    it.puntos = state.viajeActual.puntos;
-  }
-
-  // Si es edición, cargar puntos frescos de Firebase para no machacarlos
-  if (it.fbId) {
-    try {
-      const rp = await fetch(`${FB_URL}/itinerarios/${it.fbId}/puntos.json`);
-      const puntosFirebase = await rp.json();
-      if (Array.isArray(puntosFirebase) && puntosFirebase.length > 0) {
-        it.puntos = puntosFirebase;
-      } else {
-        it.puntos = puntosEdicion.filter(p => p && p.tipo);
-      }
-    } catch(e) {
-      it.puntos = puntosEdicion.filter(p => p && p.tipo);
-    }
-  } else {
-    it.puntos = puntosEdicion.filter(p => p && p.tipo);
-  }
-
-  const btn = document.querySelector('#screenEditar button[onclick="publicarViaje()"]') || 
-               document.querySelector('.btn-primary');
-  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
-
-  try {
-    // Si tiene fbId es una edición — actualizar en Firebase
-    if (it.fbId) {
-      await fbFetch(`${FB_URL}/itinerarios/${it.fbId}.json`, {
-        method:'PUT',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(it)
-      });
-      // Actualizar en memoria local
-      const k = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_');
-      if (destinos[k]) {
-        const idx = destinos[k].itinerarios.findIndex(i => i.fbId === it.fbId);
-        if (idx >= 0) destinos[k].itinerarios[idx] = it;
-      }
-      mostrarToast('✅ Viaje actualizado');
-    } else {
-      // Viaje nuevo
-      const r = await fbFetch(`${FB_URL}/itinerarios.json`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(it)
-      });
-      const data = await r.json();
-      it.fbId = data.name;
-      // Guardar fbId dentro del objeto en Firebase para que el lookup funcione siempre
-      await fbFetch(`${FB_URL}/itinerarios/${it.fbId}/fbId.json`, {
-        method:'PUT',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(it.fbId)
-      });
-
-      if (!destinos[it.destinoKey]) {
-        destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
-        // Si no hay coords, buscarlas por Nominatim
-        if (!destinos[key].lat) {
-          fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`)
-            .then(r=>r.json()).then(g=>{
-              const f = g?.features?.[0];
-              if (f) {
-                destinos[key].lat = f.geometry.coordinates[1];
-                destinos[key].lng = f.geometry.coordinates[0];
-                añadirPinMundial(key, destinos[key]);
-              }
-            }).catch(()=>{});
-        }
-      }
-      destinos[key].itinerarios.push(it);
-      if (destinos[key].lat) añadirPinMundial(key, destinos[key]);
-      mostrarToast('✅ ¡Viaje publicado!');
-    }
-
-    renderHome();
-    navegarA('screenHome','navHome');
-    setTimeout(() => abrirDestino(it.destinoKey), 400);
-    irPaso(1);
-    document.getElementById('f-autor').value = '';
-    document.getElementById('f-descripcion').value = '';
-    itinerarioGenerado = null;
-    fotosBase64 = [];
-  } catch(e) {
-    mostrarToast('❌ Error guardando. Inténtalo de nuevo.');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Publicar'; }
-  }
-}
-
-// ══ FIREBASE — cargar al arrancar ═════════════
 async function cargarDeFirebase() {
   try {
     const r = await fetch(`${FB_URL}/itinerarios.json`);
@@ -6784,22 +6634,21 @@ async function publicarViaje() {
       });
 
       if (!destinos[it.destinoKey]) {
-        destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
-        // Si no hay coords, buscarlas por Nominatim
-        if (!destinos[key].lat) {
+        destinos[it.destinoKey] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
+        if (!destinos[it.destinoKey].lat) {
           fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`)
             .then(r=>r.json()).then(g=>{
               const f = g?.features?.[0];
               if (f) {
-                destinos[key].lat = f.geometry.coordinates[1];
-                destinos[key].lng = f.geometry.coordinates[0];
-                añadirPinMundial(key, destinos[key]);
+                destinos[it.destinoKey].lat = f.geometry.coordinates[1];
+                destinos[it.destinoKey].lng = f.geometry.coordinates[0];
+                añadirPinMundial(it.destinoKey, destinos[it.destinoKey]);
               }
             }).catch(()=>{});
         }
       }
-      destinos[key].itinerarios.push(it);
-      if (destinos[key].lat) añadirPinMundial(key, destinos[key]);
+      destinos[it.destinoKey].itinerarios.push(it);
+      if (destinos[it.destinoKey].lat) añadirPinMundial(it.destinoKey, destinos[it.destinoKey]);
       mostrarToast('✅ ¡Viaje publicado!');
     }
 
