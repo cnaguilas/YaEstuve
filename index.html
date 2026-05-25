@@ -1275,6 +1275,7 @@ html, body {
         <button type="button" onclick="abrirBuscadorDestino()" style="background:var(--primary);color:white;border:none;padding:10px 14px;border-radius:10px;font-size:1rem;cursor:pointer;white-space:nowrap">📍</button>
       </div>
       <div id="e-destino-coords" style="font-size:0.75rem;color:var(--primary);margin-top:4px;display:none">✅ Ubicación guardada</div>
+      <div id="e-destino-sugerencias" style="display:none;background:white;border:1px solid var(--border);border-radius:10px;margin-top:4px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.1);z-index:100;position:relative"></div>
     </div>
     <div class="form-group">
       <label>Días</label>
@@ -3987,6 +3988,14 @@ async function publicarViaje() {
 
   // Verificar destino obligatorio
   if (!it.destino?.trim()) { mostrarToast('⚠️ Escribe el destino del viaje'); return; }
+
+  // Regenerar siempre el destinoKey basado en el destino real
+  const destinoNorm = it.destino.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+  if (!it.destinoKey || it.destinoKey.startsWith('mi_viaje_')) {
+    it.destinoKey = destinoNorm + '_' + Date.now();
+  }
 
   // Si no tiene coords de destino, buscarlas ahora
   if (!it.lat && it.destino) {
