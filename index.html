@@ -1268,13 +1268,10 @@ html, body {
       <label>Título</label>
       <input type="text" id="e-titulo">
     </div>
-    <div class="form-group" style="position:relative">
+        <div class="form-group">
       <label>Destino</label>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input type="text" id="e-destino" style="flex:1" placeholder="Ej: Cazorla, Jaén" oninput="buscarDestinoEdicion(this.value)" autocomplete="off">
-        <button type="button" onclick="abrirBuscadorDestino()" style="background:var(--primary);color:white;border:none;padding:10px 14px;border-radius:10px;font-size:1rem;cursor:pointer;white-space:nowrap">📍</button>
-      </div>
-      <div id="e-destino-coords" style="font-size:0.75rem;color:var(--primary);margin-top:4px;display:none">✅ Ubicación guardada</div>
+      <input type="text" id="e-destino" placeholder="Ej: Valencia, Roma, París..." autocomplete="off" style="width:100%;box-sizing:border-box">
+      <div id="e-destino-coords" style="font-size:0.75rem;color:#5C8C6A;margin-top:4px;display:none">✅ Destino localizado en el mapa</div>
     </div>
     <div class="form-group">
       <label>Días</label>
