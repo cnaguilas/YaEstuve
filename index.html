@@ -2884,7 +2884,7 @@ async function infoConIA(nombre, destino) {
 
   try {
     const apiKey = localStorage.getItem('ye_api_key') || '';
-    if (!apiKey) { el.textContent = 'Añade tu clave API en Perfil para ver info.'; return; }
+    if (!apiKey) { el.textContent = ''; return; }
     const r = await fetch('https://yaestuve2.jaymaviajes.workers.dev/api/claude', {
       method: 'POST',
       headers: {
@@ -5593,7 +5593,7 @@ async function infoConIA(nombre, destino) {
 
   try {
     const apiKey = localStorage.getItem('ye_api_key') || '';
-    if (!apiKey) { el.textContent = 'Añade tu clave API en Perfil para ver info.'; return; }
+    if (!apiKey) { el.textContent = ''; return; }
     const r = await fetch('https://yaestuve2.jaymaviajes.workers.dev/api/claude', {
       method: 'POST',
       headers: {
@@ -6684,118 +6684,7 @@ function rellenarResumen() {
     <div class="resumen-row"><div class="resumen-label">Duración · Presupuesto</div><div class="resumen-val">${itinerarioGenerado.dias} días · ${itinerarioGenerado.presupuesto}</div></div>`;
 }
 
-async function publicarViaje() {
-  const it = itinerarioGenerado;
-  const key = it.destinoKey;
 
-  // Recoger cambios de edición si estamos en pantalla editar
-  it.titulo = document.getElementById('e-titulo')?.value || it.titulo;
-  it.destino = document.getElementById('e-destino')?.value || it.destino;
-
-  // Verificar destino obligatorio
-  if (!it.destino?.trim()) { mostrarToast('⚠️ Escribe el destino del viaje'); return; }
-  it.dias = parseInt(document.getElementById('e-dias')?.value) || it.dias;
-  it.presupuesto = document.getElementById('e-presupuesto')?.value || it.presupuesto;
-  it.resumen = document.getElementById('e-resumen')?.value || it.resumen;
-  it.fotos = fotosBase64 || [];
-  it.autorUid = usuarioActual?.uid || null;
-  it.autorEmail = usuarioActual?.email || null;
-  it.autorNombre = usuarioActual?.displayName || it.autor || 'Anónimo';
-  fotosBase64 = [];
-
-  // Sincronizar puntos desde estado central antes de publicar
-  if (state.viajeActual?.puntos?.length > 0) {
-    it.puntos = state.viajeActual.puntos;
-  }
-
-  // Si es edición, cargar puntos frescos de Firebase para no machacarlos
-  if (it.fbId) {
-    try {
-      const rp = await fetch(`${FB_URL}/itinerarios/${it.fbId}/puntos.json`);
-      const puntosFirebase = await rp.json();
-      if (Array.isArray(puntosFirebase) && puntosFirebase.length > 0) {
-        it.puntos = puntosFirebase;
-      } else {
-        it.puntos = puntosEdicion.filter(p => p && p.tipo);
-      }
-    } catch(e) {
-      it.puntos = puntosEdicion.filter(p => p && p.tipo);
-    }
-  } else {
-    it.puntos = puntosEdicion.filter(p => p && p.tipo);
-  }
-
-  const btn = document.querySelector('#screenEditar button[onclick="publicarViaje()"]') || 
-               document.querySelector('.btn-primary');
-  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
-
-  try {
-    // Si tiene fbId es una edición — actualizar en Firebase
-    if (it.fbId) {
-      await fbFetch(`${FB_URL}/itinerarios/${it.fbId}.json`, {
-        method:'PUT',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(it)
-      });
-      // Actualizar en memoria local
-      const k = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_');
-      if (destinos[k]) {
-        const idx = destinos[k].itinerarios.findIndex(i => i.fbId === it.fbId);
-        if (idx >= 0) destinos[k].itinerarios[idx] = it;
-      }
-      mostrarToast('✅ Viaje actualizado');
-    } else {
-      // Viaje nuevo
-      const r = await fbFetch(`${FB_URL}/itinerarios.json`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(it)
-      });
-      const data = await r.json();
-      it.fbId = data.name;
-      // Guardar fbId dentro del objeto en Firebase para que el lookup funcione siempre
-      await fbFetch(`${FB_URL}/itinerarios/${it.fbId}/fbId.json`, {
-        method:'PUT',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(it.fbId)
-      });
-
-      if (!destinos[key]) {
-        destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
-        // Si no hay coords, buscarlas por Nominatim
-        if (!destinos[key].lat) {
-          fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`)
-            .then(r=>r.json()).then(g=>{
-              const f = g?.features?.[0];
-              if (f) {
-                destinos[key].lat = f.geometry.coordinates[1];
-                destinos[key].lng = f.geometry.coordinates[0];
-                añadirPinMundial(key, destinos[key]);
-              }
-            }).catch(()=>{});
-        }
-      }
-      destinos[key].itinerarios.push(it);
-      if (destinos[key].lat) añadirPinMundial(key, destinos[key]);
-      mostrarToast('✅ ¡Viaje publicado!');
-    }
-
-    renderHome();
-    navegarA('screenHome','navHome');
-    setTimeout(() => abrirDestino(it.destinoKey), 400);
-    irPaso(1);
-    document.getElementById('f-autor').value = '';
-    document.getElementById('f-descripcion').value = '';
-    itinerarioGenerado = null;
-    fotosBase64 = [];
-  } catch(e) {
-    mostrarToast('❌ Error guardando. Inténtalo de nuevo.');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Publicar'; }
-  }
-}
-
-// ══ FIREBASE — cargar al arrancar ═════════════
 async function cargarDeFirebase() {
   try {
     const r = await fetch(`${FB_URL}/itinerarios.json`);
