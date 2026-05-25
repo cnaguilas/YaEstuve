@@ -2194,7 +2194,7 @@ function buscarEnModalDestino(q) {
     try {
       const r = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&addressdetails=1&accept-language=es`,
-        { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve3.netlify.app)' } }
+        { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve4.netlify.app)' } }
       );
       const raw = await r.json();
       // Convert Nominatim format to features-like format
@@ -2255,7 +2255,7 @@ function buscarDestinoEdicion(q) {
     try {
       const r = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&addressdetails=1&accept-language=es`,
-        { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve3.netlify.app)' } }
+        { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve4.netlify.app)' } }
       );
       const raw = await r.json();
       // Convert Nominatim format to features-like format
@@ -3998,7 +3998,7 @@ async function publicarViaje() {
     try {
       const geoR = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(it.destino)}&format=json&limit=1&accept-language=es`,
-        { headers: { 'User-Agent': 'YaEstuve/1.0 (yaestuve3.netlify.app)' } }
+        { headers: { 'User-Agent': 'YaEstuve/1.0 (yaestuve4.netlify.app)' } }
       );
       const geoData = await geoR.json();
       const f = geoData?.[0];
@@ -4270,7 +4270,7 @@ function compartirViaje() {
   const it = _viajeCompartido;
   const fbId = it.fbId;
   if (!fbId) { mostrarToast('⚠️ Publica el viaje primero'); return; }
-  const url = `https://yaestuve3.netlify.app/?viaje=${fbId}`;
+  const url = `https://yaestuve4.netlify.app/?viaje=${fbId}`;
   const texto = `✈️ ${it.titulo}\n📍 ${it.destino || ''}\n\nMira este itinerario en YaEstuve:\n${url}`;
   
   // Usar share nativo del sistema si está disponible
