@@ -2883,8 +2883,6 @@ async function infoConIA(nombre, destino) {
   el.textContent = '✨ Buscando info...';
 
   try {
-    const apiKey = localStorage.getItem('ye_api_key') || '';
-    if (!apiKey) { el.textContent = ''; return; }
     const r = await fetch('https://yaestuve2.jaymaviajes.workers.dev/api/claude', {
       method: 'POST',
       headers: {
