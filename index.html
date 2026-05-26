@@ -328,6 +328,102 @@ html, body {
 .it-presupuesto { font-size: 0.8rem; color: var(--muted); }
 .it-presupuesto strong { color: var(--sage); }
 
+/* ── FEED SOCIAL ── */
+.feed-card {
+  background: white;
+  border-radius: 20px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.feed-card:active { transform: scale(0.98); }
+.feed-card-img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  background: linear-gradient(135deg, #E8471C22, #C4522A44);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4rem;
+  position: relative;
+}
+.feed-card-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+  inset: 0;
+}
+.feed-card-body {
+  padding: 14px 16px;
+}
+.feed-card-title {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 1.05rem;
+  margin-bottom: 6px;
+  color: var(--ink);
+  line-height: 1.3;
+}
+.feed-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.feed-card-author {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.feed-card-author-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.feed-card-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.feed-like-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  padding: 4px 0;
+  transition: color 0.15s;
+}
+.feed-like-btn.liked { color: #E8471C; }
+.feed-card-dias {
+  background: var(--primary);
+  color: white;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 50px;
+  font-family: 'Syne', sans-serif;
+}
+
 /* ── PANTALLA DETALLE ── */
 #screenDetalle .nav-bar { background: transparent; position: absolute; top: 0; left: 0; right: 0; z-index: 10; padding-top: 48px; }
 #screenDetalle .nav-bar .back-btn { background: rgba(28,25,23,0.6); backdrop-filter: blur(8px); }
@@ -1129,11 +1225,9 @@ html, body {
     </div>
     <div class="search-results" id="searchResults"></div>
   </div>
-  <div class="home-body">
-    <div style="margin-bottom:20px">
-      <div class="section-label" style="margin-bottom:12px">Destinos</div>
-      <div id="destinosGrid"></div>
-    </div>
+  <div class="home-body" style="padding:0">
+    <!-- Feed social -->
+    <div id="socialFeed" style="padding:12px 16px 80px"></div>
   </div>
   <!-- Botón instalar app -->
   <div id="btnInstalarApp" onclick="instalarApp()" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--ink);color:white;padding:11px 22px;border-radius:50px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.85rem;cursor:pointer;align-items:center;gap:8px;box-shadow:0 4px 20px rgba(0,0,0,0.3);z-index:500;white-space:nowrap">
@@ -3157,28 +3251,118 @@ function goBack() {
 
 // ══ HOME — renderizar destinos ════════════════
 function renderHome() {
-  const grid = document.getElementById('destinosGrid');
-  grid.innerHTML = '';
+  renderSocialFeed();
+}
+
+// Todos los itinerarios cargados de Firebase (para el feed social)
+let _todosItinerarios = [];
+
+function renderSocialFeed() {
+  const feed = document.getElementById('socialFeed');
+  if (!feed) return;
+
+  // Recoger todos los itinerarios de todos los destinos
+  let todos = [];
   Object.entries(destinos).forEach(([key, d]) => {
+    d.itinerarios.forEach(it => {
+      todos.push({ ...it, _destinoKey: key, _destinoEmoji: d.emoji, _destinoColor: d.color });
+    });
+  });
+
+  if (!todos.length) {
+    feed.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--muted)">
+      <div style="font-size:3rem;margin-bottom:12px">✈️</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1.1rem;margin-bottom:8px">¡Aún no hay viajes!</div>
+      <div style="font-size:0.85rem">Sé el primero en compartir uno</div>
+    </div>`;
+    return;
+  }
+
+  // Mezclar aleatoriamente (estilo explorar)
+  todos = todos.sort(() => Math.random() - 0.5);
+  _todosItinerarios = todos;
+
+  const likes = JSON.parse(localStorage.getItem('ye_likes') || '{}');
+
+  feed.innerHTML = '';
+  todos.forEach(it => {
     const card = document.createElement('div');
-    card.className = 'destino-card';
+    card.className = 'feed-card';
+    
+    const fbId = it.fbId;
+    const liked = likes[fbId] ? true : false;
+    const likeCount = it.likes || 0;
+    const dias = it.dias || '?';
+    const autor = it.autor || it.autorNombre || 'Viajero';
+    const inicial = autor[0]?.toUpperCase() || '?';
+    const foto = it.fotos?.[0];
+    const emoji = it._destinoEmoji || it.emoji || '✈️';
+
     card.innerHTML = `
-      <div class="card-body">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <div>
-            <div style="font-size:1.6rem;margin-bottom:4px">${d.emoji}</div>
-            <div class="card-dest-name">${d.nombre}</div>
-            <div class="card-count">${d.itinerarios.length} itinerario${d.itinerarios.length!==1?'s':''}</div>
+      <div class="feed-card-img">
+        ${foto ? `<img src="${foto}" alt="${it.titulo}" loading="lazy">` : ''}
+        <span style="position:relative;z-index:1">${foto ? '' : emoji}</span>
+        <div style="position:absolute;top:12px;right:12px;z-index:2">
+          <span class="feed-card-dias">${dias} día${dias!=1?'s':''}</span>
+        </div>
+      </div>
+      <div class="feed-card-body">
+        <div class="feed-card-title">${it.titulo}</div>
+        <div class="feed-card-meta">
+          <div class="feed-card-author">
+            <div class="feed-card-author-avatar">${it.autorFoto ? `<img src="${it.autorFoto}" style="width:100%;height:100%;object-fit:cover" referrerpolicy="no-referrer">` : inicial}</div>
+            ${autor}
           </div>
-          <div class="card-arrow">→</div>
+          <div class="feed-card-stats">
+            <span>📍 ${it.destino || ''}</span>
+            <button class="feed-like-btn ${liked?'liked':''}" onclick="toggleLike(event,'${fbId}',this)">
+              ${liked?'❤️':'🤍'} <span class="like-count">${likeCount}</span>
+            </button>
+          </div>
         </div>
       </div>`;
-    card.onclick = () => abrirDestino(key);
-    grid.appendChild(card);
+
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.feed-like-btn')) return;
+      abrirItinerario(it._destinoKey, fbId);
+    });
+
+    feed.appendChild(card);
   });
 }
 
-// ══ LISTA ITINERARIOS ════════════════════════
+async function toggleLike(e, fbId, btn) {
+  e.stopPropagation();
+  if (!usuarioActual) { mostrarToast('⚠️ Inicia sesión para dar likes'); return; }
+  
+  const likes = JSON.parse(localStorage.getItem('ye_likes') || '{}');
+  const liked = likes[fbId] ? true : false;
+  const countEl = btn.querySelector('.like-count');
+  const current = parseInt(countEl.textContent) || 0;
+
+  if (liked) {
+    delete likes[fbId];
+    btn.classList.remove('liked');
+    btn.innerHTML = `🤍 <span class="like-count">${Math.max(0, current-1)}</span>`;
+    await fbFetch(`${FB_URL}/itinerarios/${fbId}/likes.json`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(Math.max(0, current-1))
+    });
+  } else {
+    likes[fbId] = true;
+    btn.classList.add('liked');
+    btn.innerHTML = `❤️ <span class="like-count">${current+1}</span>`;
+    await fbFetch(`${FB_URL}/itinerarios/${fbId}/likes.json`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(current+1)
+    });
+  }
+  localStorage.setItem('ye_likes', JSON.stringify(likes));
+}
+
+
 function abrirDestino(key) {
   const d = destinos[key];
   document.getElementById('listaTitulo').textContent = `${d.emoji} ${d.nombre}`;
