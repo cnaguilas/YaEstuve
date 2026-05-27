@@ -1413,7 +1413,7 @@ html, body {
   <!-- Tab Fotos -->
   <div class="editar-panel" id="tabFotos">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <p style="font-size:0.82rem;color:var(--muted);margin:0">La <strong style="color:var(--ink)">1ª foto es la portada</strong>. Arrastra para reordenar.</p>
+      <p style="font-size:0.82rem;color:var(--muted);margin:0">La <strong style="color:var(--ink)">1ª foto es la portada</strong>. Mantén pulsado para reordenar.</p>
       <button onclick="document.getElementById('fotoInputEditar').click()" style="background:var(--primary);color:white;border:none;padding:8px 14px;border-radius:50px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;white-space:nowrap;flex-shrink:0;margin-left:10px">+ Fotos</button>
     </div>
     <div id="fotoGridEditar" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px"></div>
@@ -2759,18 +2759,47 @@ function renderFotosEditar() {
     return;
   }
 
+  // Estado drag compartido entre todos los items del grid
   let dragSrcIdx = null;
-  let touchStartX = 0, touchStartY = 0, touchClone = null, touchTarget = null;
+  let longPressTimer = null;
+  let isDragging = false;
+  let touchClone = null;
+  let touchTarget = null;
+  let touchStartX = 0, touchStartY = 0;
+
+  // Limpiar cualquier clon huérfano que pudiera haber quedado de antes
+  document.querySelectorAll('.foto-drag-clone').forEach(el => el.remove());
+
+  function cancelDrag() {
+    isDragging = false;
+    dragSrcIdx = null;
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+    if (touchClone) { touchClone.remove(); touchClone = null; }
+    grid.querySelectorAll('[data-idx]').forEach(c => {
+      c.style.transform = '';
+      c.style.opacity = '';
+    });
+  }
+
+  // Limpiar clon si el usuario levanta el dedo en cualquier parte de la página
+  document.addEventListener('touchend', function globalTouchEnd() {
+    if (touchClone) { touchClone.remove(); touchClone = null; }
+    isDragging = false;
+    dragSrcIdx = null;
+  }, { once: true, passive: true });
 
   fotosBase64.forEach((src, i) => {
     const wrap = document.createElement('div');
     wrap.dataset.idx = i;
-    wrap.style.cssText = 'position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;touch-action:none;cursor:grab;transition:opacity 0.12s,transform 0.12s';
+    // Sin touch-action:none global — solo se activa al confirmar drag
+    wrap.style.cssText = 'position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;cursor:grab;transition:opacity 0.12s,transform 0.12s';
 
     const img = document.createElement('img');
     img.src = src;
     img.style.cssText = 'width:100%;height:100%;object-fit:cover;pointer-events:none;user-select:none;-webkit-user-drag:none';
 
+    // Badge portada
     if (i === 0) {
       const badge = document.createElement('div');
       badge.textContent = '⭐ Portada';
@@ -2778,6 +2807,7 @@ function renderFotosEditar() {
       wrap.appendChild(badge);
     }
 
+    // Botón eliminar
     const del = document.createElement('button');
     del.innerHTML = '✕';
     del.style.cssText = 'position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.65);color:white;border:none;border-radius:50%;width:24px;height:24px;font-size:0.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;line-height:1';
@@ -2792,28 +2822,54 @@ function renderFotosEditar() {
     wrap.appendChild(del);
     grid.appendChild(wrap);
 
-    // ── TOUCH DRAG (móvil) ──────────────────────────────────────────────────
+    // ── TOUCH: long press 300ms para activar drag ────────────────────────────
     wrap.addEventListener('touchstart', (e) => {
       if (e.target === del) return;
       const touch = e.touches[0];
       touchStartX = touch.clientX;
       touchStartY = touch.clientY;
-      dragSrcIdx = i;
-      touchTarget = wrap;
-      const rect = wrap.getBoundingClientRect();
-      touchClone = wrap.cloneNode(true);
-      touchClone.style.cssText = 'position:fixed;left:' + rect.left + 'px;top:' + rect.top + 'px;width:' + rect.width + 'px;height:' + rect.height + 'px;border-radius:10px;overflow:hidden;opacity:0.85;pointer-events:none;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.35);transform:scale(1.07);transition:none';
-      document.body.appendChild(touchClone);
-      wrap.style.opacity = '0.3';
+
+      longPressTimer = setTimeout(() => {
+        // Confirmar drag: bloquear scroll y crear clon
+        isDragging = true;
+        dragSrcIdx = i;
+        touchTarget = wrap;
+        wrap.style.touchAction = 'none';
+
+        const rect = wrap.getBoundingClientRect();
+        touchClone = wrap.cloneNode(true);
+        touchClone.className = 'foto-drag-clone';
+        touchClone.style.cssText = 'position:fixed;left:' + rect.left + 'px;top:' + rect.top + 'px;width:' + rect.width + 'px;height:' + rect.height + 'px;border-radius:10px;overflow:hidden;opacity:0.88;pointer-events:none;z-index:9999;box-shadow:0 8px 28px rgba(0,0,0,0.4);transform:scale(1.08);transition:none';
+        document.body.appendChild(touchClone);
+        wrap.style.opacity = '0.3';
+
+        // Vibración leve para confirmar al usuario que empezó el drag
+        if (navigator.vibrate) navigator.vibrate(40);
+      }, 300);
     }, { passive: true });
 
     wrap.addEventListener('touchmove', (e) => {
-      if (dragSrcIdx === null || !touchClone) return;
-      e.preventDefault();
       const touch = e.touches[0];
+      const dx = Math.abs(touch.clientX - touchStartX);
+      const dy = Math.abs(touch.clientY - touchStartY);
+
+      // Si se mueve antes de que se confirme el drag, cancelar el long press
+      if (!isDragging) {
+        if (dx > 8 || dy > 8) {
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
+        return; // dejar pasar el scroll
+      }
+
+      e.preventDefault(); // solo bloquear scroll cuando ya está en modo drag
+      if (!touchClone || !touchTarget) return;
+
       const rect = touchTarget.getBoundingClientRect();
       touchClone.style.left = (rect.left + touch.clientX - touchStartX) + 'px';
       touchClone.style.top  = (rect.top  + touch.clientY - touchStartY) + 'px';
+
+      // Resaltar celda destino
       grid.querySelectorAll('[data-idx]').forEach(cell => {
         const cr = cell.getBoundingClientRect();
         const over = touch.clientX >= cr.left && touch.clientX <= cr.right &&
@@ -2823,10 +2879,19 @@ function renderFotosEditar() {
     }, { passive: false });
 
     wrap.addEventListener('touchend', (e) => {
-      if (dragSrcIdx === null) return;
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+      wrap.style.touchAction = '';
+
+      if (!isDragging) return;
+
       const touch = e.changedTouches[0];
+
+      // Limpiar siempre el clon
       if (touchClone) { touchClone.remove(); touchClone = null; }
       grid.querySelectorAll('[data-idx]').forEach(c => { c.style.transform = ''; c.style.opacity = ''; });
+
+      // Detectar destino
       let destIdx = null;
       grid.querySelectorAll('[data-idx]').forEach(cell => {
         const cr = cell.getBoundingClientRect();
@@ -2835,17 +2900,26 @@ function renderFotosEditar() {
           destIdx = parseInt(cell.dataset.idx);
         }
       });
-      if (destIdx !== null && destIdx !== dragSrcIdx) {
-        const moved = fotosBase64.splice(dragSrcIdx, 1)[0];
+
+      const from = dragSrcIdx;
+      isDragging = false;
+      dragSrcIdx = null;
+
+      if (destIdx !== null && destIdx !== from) {
+        const moved = fotosBase64.splice(from, 1)[0];
         fotosBase64.splice(destIdx, 0, moved);
         renderFotosEditar();
         guardarFotosEnFirebase();
-        if (destIdx === 0 || dragSrcIdx === 0) mostrarToast('⭐ Portada actualizada');
+        if (destIdx === 0 || from === 0) mostrarToast('⭐ Portada actualizada');
       }
-      dragSrcIdx = null;
     }, { passive: true });
 
-    // ── DRAG DESKTOP ────────────────────────────────────────────────────────
+    wrap.addEventListener('touchcancel', () => {
+      cancelDrag();
+      wrap.style.touchAction = '';
+    }, { passive: true });
+
+    // ── DRAG DESKTOP ──────────────────────────────────────────────────────────
     wrap.draggable = true;
     wrap.addEventListener('dragstart', e => {
       e.dataTransfer.effectAllowed = 'move';
@@ -5671,18 +5745,47 @@ function renderFotosEditar() {
     return;
   }
 
+  // Estado drag compartido entre todos los items del grid
   let dragSrcIdx = null;
-  let touchStartX = 0, touchStartY = 0, touchClone = null, touchTarget = null;
+  let longPressTimer = null;
+  let isDragging = false;
+  let touchClone = null;
+  let touchTarget = null;
+  let touchStartX = 0, touchStartY = 0;
+
+  // Limpiar cualquier clon huérfano que pudiera haber quedado de antes
+  document.querySelectorAll('.foto-drag-clone').forEach(el => el.remove());
+
+  function cancelDrag() {
+    isDragging = false;
+    dragSrcIdx = null;
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+    if (touchClone) { touchClone.remove(); touchClone = null; }
+    grid.querySelectorAll('[data-idx]').forEach(c => {
+      c.style.transform = '';
+      c.style.opacity = '';
+    });
+  }
+
+  // Limpiar clon si el usuario levanta el dedo en cualquier parte de la página
+  document.addEventListener('touchend', function globalTouchEnd() {
+    if (touchClone) { touchClone.remove(); touchClone = null; }
+    isDragging = false;
+    dragSrcIdx = null;
+  }, { once: true, passive: true });
 
   fotosBase64.forEach((src, i) => {
     const wrap = document.createElement('div');
     wrap.dataset.idx = i;
-    wrap.style.cssText = 'position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;touch-action:none;cursor:grab;transition:opacity 0.12s,transform 0.12s';
+    // Sin touch-action:none global — solo se activa al confirmar drag
+    wrap.style.cssText = 'position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;cursor:grab;transition:opacity 0.12s,transform 0.12s';
 
     const img = document.createElement('img');
     img.src = src;
     img.style.cssText = 'width:100%;height:100%;object-fit:cover;pointer-events:none;user-select:none;-webkit-user-drag:none';
 
+    // Badge portada
     if (i === 0) {
       const badge = document.createElement('div');
       badge.textContent = '⭐ Portada';
@@ -5690,6 +5793,7 @@ function renderFotosEditar() {
       wrap.appendChild(badge);
     }
 
+    // Botón eliminar
     const del = document.createElement('button');
     del.innerHTML = '✕';
     del.style.cssText = 'position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.65);color:white;border:none;border-radius:50%;width:24px;height:24px;font-size:0.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;line-height:1';
@@ -5704,28 +5808,54 @@ function renderFotosEditar() {
     wrap.appendChild(del);
     grid.appendChild(wrap);
 
-    // ── TOUCH DRAG (móvil) ──────────────────────────────────────────────────
+    // ── TOUCH: long press 300ms para activar drag ────────────────────────────
     wrap.addEventListener('touchstart', (e) => {
       if (e.target === del) return;
       const touch = e.touches[0];
       touchStartX = touch.clientX;
       touchStartY = touch.clientY;
-      dragSrcIdx = i;
-      touchTarget = wrap;
-      const rect = wrap.getBoundingClientRect();
-      touchClone = wrap.cloneNode(true);
-      touchClone.style.cssText = 'position:fixed;left:' + rect.left + 'px;top:' + rect.top + 'px;width:' + rect.width + 'px;height:' + rect.height + 'px;border-radius:10px;overflow:hidden;opacity:0.85;pointer-events:none;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.35);transform:scale(1.07);transition:none';
-      document.body.appendChild(touchClone);
-      wrap.style.opacity = '0.3';
+
+      longPressTimer = setTimeout(() => {
+        // Confirmar drag: bloquear scroll y crear clon
+        isDragging = true;
+        dragSrcIdx = i;
+        touchTarget = wrap;
+        wrap.style.touchAction = 'none';
+
+        const rect = wrap.getBoundingClientRect();
+        touchClone = wrap.cloneNode(true);
+        touchClone.className = 'foto-drag-clone';
+        touchClone.style.cssText = 'position:fixed;left:' + rect.left + 'px;top:' + rect.top + 'px;width:' + rect.width + 'px;height:' + rect.height + 'px;border-radius:10px;overflow:hidden;opacity:0.88;pointer-events:none;z-index:9999;box-shadow:0 8px 28px rgba(0,0,0,0.4);transform:scale(1.08);transition:none';
+        document.body.appendChild(touchClone);
+        wrap.style.opacity = '0.3';
+
+        // Vibración leve para confirmar al usuario que empezó el drag
+        if (navigator.vibrate) navigator.vibrate(40);
+      }, 300);
     }, { passive: true });
 
     wrap.addEventListener('touchmove', (e) => {
-      if (dragSrcIdx === null || !touchClone) return;
-      e.preventDefault();
       const touch = e.touches[0];
+      const dx = Math.abs(touch.clientX - touchStartX);
+      const dy = Math.abs(touch.clientY - touchStartY);
+
+      // Si se mueve antes de que se confirme el drag, cancelar el long press
+      if (!isDragging) {
+        if (dx > 8 || dy > 8) {
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
+        return; // dejar pasar el scroll
+      }
+
+      e.preventDefault(); // solo bloquear scroll cuando ya está en modo drag
+      if (!touchClone || !touchTarget) return;
+
       const rect = touchTarget.getBoundingClientRect();
       touchClone.style.left = (rect.left + touch.clientX - touchStartX) + 'px';
       touchClone.style.top  = (rect.top  + touch.clientY - touchStartY) + 'px';
+
+      // Resaltar celda destino
       grid.querySelectorAll('[data-idx]').forEach(cell => {
         const cr = cell.getBoundingClientRect();
         const over = touch.clientX >= cr.left && touch.clientX <= cr.right &&
@@ -5735,10 +5865,19 @@ function renderFotosEditar() {
     }, { passive: false });
 
     wrap.addEventListener('touchend', (e) => {
-      if (dragSrcIdx === null) return;
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+      wrap.style.touchAction = '';
+
+      if (!isDragging) return;
+
       const touch = e.changedTouches[0];
+
+      // Limpiar siempre el clon
       if (touchClone) { touchClone.remove(); touchClone = null; }
       grid.querySelectorAll('[data-idx]').forEach(c => { c.style.transform = ''; c.style.opacity = ''; });
+
+      // Detectar destino
       let destIdx = null;
       grid.querySelectorAll('[data-idx]').forEach(cell => {
         const cr = cell.getBoundingClientRect();
@@ -5747,17 +5886,26 @@ function renderFotosEditar() {
           destIdx = parseInt(cell.dataset.idx);
         }
       });
-      if (destIdx !== null && destIdx !== dragSrcIdx) {
-        const moved = fotosBase64.splice(dragSrcIdx, 1)[0];
+
+      const from = dragSrcIdx;
+      isDragging = false;
+      dragSrcIdx = null;
+
+      if (destIdx !== null && destIdx !== from) {
+        const moved = fotosBase64.splice(from, 1)[0];
         fotosBase64.splice(destIdx, 0, moved);
         renderFotosEditar();
         guardarFotosEnFirebase();
-        if (destIdx === 0 || dragSrcIdx === 0) mostrarToast('⭐ Portada actualizada');
+        if (destIdx === 0 || from === 0) mostrarToast('⭐ Portada actualizada');
       }
-      dragSrcIdx = null;
     }, { passive: true });
 
-    // ── DRAG DESKTOP ────────────────────────────────────────────────────────
+    wrap.addEventListener('touchcancel', () => {
+      cancelDrag();
+      wrap.style.touchAction = '';
+    }, { passive: true });
+
+    // ── DRAG DESKTOP ──────────────────────────────────────────────────────────
     wrap.draggable = true;
     wrap.addEventListener('dragstart', e => {
       e.dataTransfer.effectAllowed = 'move';
