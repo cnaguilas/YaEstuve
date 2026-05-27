@@ -1412,11 +1412,11 @@ html, body {
 
   <!-- Tab Fotos -->
   <div class="editar-panel" id="tabFotos">
-    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:16px">Añade fotos de tu viaje.</p>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <p style="font-size:0.85rem;color:var(--muted);margin:0">La <strong style="color:var(--ink)">1ª foto es la portada</strong>. Arrastra para reordenar.</p>
+      <button onclick="document.getElementById('fotoInputEditar').click()" style="background:var(--primary);color:white;border:none;padding:8px 14px;border-radius:50px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;white-space:nowrap;flex-shrink:0">+ Fotos</button>
+    </div>
     <div id="fotoGridEditar" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px"></div>
-    <button onclick="document.getElementById('fotoInputEditar').click()" style="width:100%;padding:13px;border:2px dashed var(--border);border-radius:12px;background:var(--card);color:var(--muted);font-family:'Mulish',sans-serif;font-size:0.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
-      📷 Añadir fotos
-    </button>
     <input type="file" id="fotoInputEditar" accept="image/*" multiple style="display:none" onchange="procesarFotosEditar(this)">
   </div>
 
@@ -2745,34 +2745,6 @@ function editarPunto(i) {
   document.getElementById('puntoForm').classList.add('active');
 }
 
-function renderFotosEditar() {
-  const grid = document.getElementById('fotoGridEditar');
-  if (!grid) return;
-  grid.innerHTML = '';
-  fotosBase64.forEach((src, i) => {
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden';
-    const img = document.createElement('img');
-    img.src = src;
-    img.style.cssText = 'width:100%;height:100%;object-fit:cover';
-    const btn = document.createElement('button');
-    btn.textContent = '✕';
-    btn.style.cssText = 'position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.6);color:white;border:none;border-radius:50%;width:22px;height:22px;font-size:0.7rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1';
-    btn.onclick = (e) => { e.stopPropagation(); fotosBase64.splice(i, 1); renderFotosEditar(); };
-    wrap.appendChild(img);
-    wrap.appendChild(btn);
-    grid.appendChild(wrap);
-  });
-}
-
-function procesarFotosEditar(input) {
-  const files = Array.from(input.files);
-  input.value = '';
-  Promise.all(files.map(comprimirFoto)).then(b64s => {
-    fotosBase64.push(...b64s);
-    renderFotosEditar();
-  });
-}
 
 // ══ VER EN MAPA ════════════════════════════════
 // Índice de marcadores del mapa de ver, por nombre
@@ -5546,20 +5518,109 @@ function renderFotosEditar() {
   const grid = document.getElementById('fotoGridEditar');
   if (!grid) return;
   grid.innerHTML = '';
+
+  if (!fotosBase64.length) {
+    grid.innerHTML = `<div onclick="document.getElementById('fotoInputEditar').click()" style="grid-column:1/-1;border:2px dashed var(--border);border-radius:12px;padding:28px;text-align:center;color:var(--muted);cursor:pointer;font-size:0.85rem">
+      📷 Toca para añadir fotos
+    </div>`;
+    return;
+  }
+
   fotosBase64.forEach((src, i) => {
     const wrap = document.createElement('div');
-    wrap.style.cssText = 'position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden';
+    wrap.dataset.idx = i;
+    wrap.draggable = true;
+    wrap.style.cssText = 'position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;touch-action:none;';
+
     const img = document.createElement('img');
     img.src = src;
-    img.style.cssText = 'width:100%;height:100%;object-fit:cover';
-    const btn = document.createElement('button');
-    btn.textContent = '✕';
-    btn.style.cssText = 'position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.6);color:white;border:none;border-radius:50%;width:22px;height:22px;font-size:0.7rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1';
-    btn.onclick = (e) => { e.stopPropagation(); fotosBase64.splice(i, 1); renderFotosEditar(); };
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover;pointer-events:none;user-select:none;-webkit-user-drag:none';
+
+    // Portada badge (solo foto 0)
+    if (i === 0) {
+      const badge = document.createElement('div');
+      badge.textContent = '⭐ Portada';
+      badge.style.cssText = 'position:absolute;bottom:0;left:0;right:0;background:linear-gradient(to top,rgba(0,0,0,0.72),transparent);color:white;font-size:0.62rem;font-weight:700;font-family:\'Syne\',sans-serif;padding:10px 6px 5px;text-align:center;letter-spacing:0.5px;pointer-events:none';
+      wrap.appendChild(badge);
+    }
+
+    // Botón eliminar
+    const del = document.createElement('button');
+    del.innerHTML = '✕';
+    del.style.cssText = 'position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.65);color:white;border:none;border-radius:50%;width:22px;height:22px;font-size:0.7rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;z-index:2';
+    del.onclick = (e) => { e.stopPropagation(); fotosBase64.splice(i, 1); renderFotosEditar(); guardarFotosEnFirebase(); };
+
+    // Flechas ← → para mover (modo móvil principal)
+    if (fotosBase64.length > 1) {
+      const arrowBar = document.createElement('div');
+      arrowBar.style.cssText = 'position:absolute;top:4px;left:4px;display:flex;gap:3px;z-index:2';
+      if (i > 0) {
+        const prev = document.createElement('button');
+        prev.innerHTML = '←';
+        prev.style.cssText = 'background:rgba(0,0,0,0.65);color:white;border:none;border-radius:4px;width:22px;height:22px;font-size:0.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0';
+        prev.onclick = (e) => {
+          e.stopPropagation();
+          [fotosBase64[i], fotosBase64[i-1]] = [fotosBase64[i-1], fotosBase64[i]];
+          renderFotosEditar();
+          guardarFotosEnFirebase();
+          mostrarToast(i-1===0 ? '⭐ ¡Ahora es la portada!' : '↩️ Foto movida');
+        };
+        arrowBar.appendChild(prev);
+      }
+      if (i < fotosBase64.length - 1) {
+        const next = document.createElement('button');
+        next.innerHTML = '→';
+        next.style.cssText = 'background:rgba(0,0,0,0.65);color:white;border:none;border-radius:4px;width:22px;height:22px;font-size:0.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0';
+        next.onclick = (e) => {
+          e.stopPropagation();
+          [fotosBase64[i], fotosBase64[i+1]] = [fotosBase64[i+1], fotosBase64[i]];
+          renderFotosEditar();
+          guardarFotosEnFirebase();
+          mostrarToast(i===0 ? '⭐ Nueva portada seleccionada' : '↪️ Foto movida');
+        };
+        arrowBar.appendChild(next);
+      }
+      wrap.appendChild(arrowBar);
+    }
+
     wrap.appendChild(img);
-    wrap.appendChild(btn);
+    wrap.appendChild(del);
     grid.appendChild(wrap);
+
+    // ── Drag & drop (desktop) ──
+    wrap.addEventListener('dragstart', e => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(i));
+      setTimeout(() => { wrap.style.opacity = '0.4'; }, 0);
+    });
+    wrap.addEventListener('dragend', () => { wrap.style.opacity = '1'; });
+    wrap.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+    wrap.addEventListener('drop', e => {
+      e.preventDefault();
+      const from = parseInt(e.dataTransfer.getData('text/plain'));
+      const to = parseInt(wrap.dataset.idx);
+      if (from === to || isNaN(from) || isNaN(to)) return;
+      const moved = fotosBase64.splice(from, 1)[0];
+      fotosBase64.splice(to, 0, moved);
+      renderFotosEditar();
+      guardarFotosEnFirebase();
+      if (to === 0 || from === 0) mostrarToast('⭐ Portada actualizada');
+    });
   });
+}
+
+function guardarFotosEnFirebase() {
+  const fbId = itinerarioGenerado?.fbId;
+  if (!fbId) return;
+  clearTimeout(guardarFotosEnFirebase._t);
+  guardarFotosEnFirebase._t = setTimeout(() => {
+    fbFetch(`${FB_URL}/itinerarios/${fbId}/fotos.json`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(fotosBase64)
+    }).catch(() => {});
+    if (itinerarioGenerado) itinerarioGenerado.fotos = fotosBase64.slice();
+  }, 800);
 }
 
 function procesarFotosEditar(input) {
