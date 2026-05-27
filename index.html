@@ -1412,9 +1412,9 @@ html, body {
 
   <!-- Tab Fotos -->
   <div class="editar-panel" id="tabFotos">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <p style="font-size:0.85rem;color:var(--muted);margin:0">La <strong style="color:var(--ink)">1ª foto es la portada</strong>. Arrastra para reordenar.</p>
-      <button onclick="document.getElementById('fotoInputEditar').click()" style="background:var(--primary);color:white;border:none;padding:8px 14px;border-radius:50px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;white-space:nowrap;flex-shrink:0">+ Fotos</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <p style="font-size:0.82rem;color:var(--muted);margin:0">La <strong style="color:var(--ink)">1ª foto es la portada</strong>. Arrastra para reordenar.</p>
+      <button onclick="document.getElementById('fotoInputEditar').click()" style="background:var(--primary);color:white;border:none;padding:8px 14px;border-radius:50px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;white-space:nowrap;flex-shrink:0;margin-left:10px">+ Fotos</button>
     </div>
     <div id="fotoGridEditar" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px"></div>
     <input type="file" id="fotoInputEditar" accept="image/*" multiple style="display:none" onchange="procesarFotosEditar(this)">
@@ -2745,6 +2745,149 @@ function editarPunto(i) {
   document.getElementById('puntoForm').classList.add('active');
 }
 
+function renderFotosEditar() {
+  const grid = document.getElementById('fotoGridEditar');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  if (!fotosBase64.length) {
+    const ph = document.createElement('div');
+    ph.onclick = () => document.getElementById('fotoInputEditar').click();
+    ph.style.cssText = 'grid-column:1/-1;border:2px dashed var(--border);border-radius:12px;padding:32px 20px;text-align:center;color:var(--muted);cursor:pointer;font-size:0.88rem;display:flex;flex-direction:column;align-items:center;gap:8px;background:var(--card)';
+    ph.innerHTML = '<span style="font-size:2rem">📷</span>Toca para añadir fotos';
+    grid.appendChild(ph);
+    return;
+  }
+
+  let dragSrcIdx = null;
+  let touchStartX = 0, touchStartY = 0, touchClone = null, touchTarget = null;
+
+  fotosBase64.forEach((src, i) => {
+    const wrap = document.createElement('div');
+    wrap.dataset.idx = i;
+    wrap.style.cssText = 'position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;touch-action:none;cursor:grab;transition:opacity 0.12s,transform 0.12s';
+
+    const img = document.createElement('img');
+    img.src = src;
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover;pointer-events:none;user-select:none;-webkit-user-drag:none';
+
+    if (i === 0) {
+      const badge = document.createElement('div');
+      badge.textContent = '⭐ Portada';
+      badge.style.cssText = 'position:absolute;bottom:0;left:0;right:0;background:linear-gradient(to top,rgba(0,0,0,0.75),transparent);color:white;font-size:0.6rem;font-weight:700;font-family:\'Syne\',sans-serif;padding:12px 6px 5px;text-align:center;letter-spacing:0.5px;pointer-events:none;z-index:1';
+      wrap.appendChild(badge);
+    }
+
+    const del = document.createElement('button');
+    del.innerHTML = '✕';
+    del.style.cssText = 'position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.65);color:white;border:none;border-radius:50%;width:24px;height:24px;font-size:0.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;line-height:1';
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fotosBase64.splice(i, 1);
+      renderFotosEditar();
+      guardarFotosEnFirebase();
+    });
+
+    wrap.appendChild(img);
+    wrap.appendChild(del);
+    grid.appendChild(wrap);
+
+    // ── TOUCH DRAG (móvil) ──────────────────────────────────────────────────
+    wrap.addEventListener('touchstart', (e) => {
+      if (e.target === del) return;
+      const touch = e.touches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+      dragSrcIdx = i;
+      touchTarget = wrap;
+      const rect = wrap.getBoundingClientRect();
+      touchClone = wrap.cloneNode(true);
+      touchClone.style.cssText = 'position:fixed;left:' + rect.left + 'px;top:' + rect.top + 'px;width:' + rect.width + 'px;height:' + rect.height + 'px;border-radius:10px;overflow:hidden;opacity:0.85;pointer-events:none;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.35);transform:scale(1.07);transition:none';
+      document.body.appendChild(touchClone);
+      wrap.style.opacity = '0.3';
+    }, { passive: true });
+
+    wrap.addEventListener('touchmove', (e) => {
+      if (dragSrcIdx === null || !touchClone) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const rect = touchTarget.getBoundingClientRect();
+      touchClone.style.left = (rect.left + touch.clientX - touchStartX) + 'px';
+      touchClone.style.top  = (rect.top  + touch.clientY - touchStartY) + 'px';
+      grid.querySelectorAll('[data-idx]').forEach(cell => {
+        const cr = cell.getBoundingClientRect();
+        const over = touch.clientX >= cr.left && touch.clientX <= cr.right &&
+                     touch.clientY >= cr.top  && touch.clientY <= cr.bottom;
+        cell.style.transform = (over && parseInt(cell.dataset.idx) !== dragSrcIdx) ? 'scale(0.88)' : '';
+      });
+    }, { passive: false });
+
+    wrap.addEventListener('touchend', (e) => {
+      if (dragSrcIdx === null) return;
+      const touch = e.changedTouches[0];
+      if (touchClone) { touchClone.remove(); touchClone = null; }
+      grid.querySelectorAll('[data-idx]').forEach(c => { c.style.transform = ''; c.style.opacity = ''; });
+      let destIdx = null;
+      grid.querySelectorAll('[data-idx]').forEach(cell => {
+        const cr = cell.getBoundingClientRect();
+        if (touch.clientX >= cr.left && touch.clientX <= cr.right &&
+            touch.clientY >= cr.top  && touch.clientY <= cr.bottom) {
+          destIdx = parseInt(cell.dataset.idx);
+        }
+      });
+      if (destIdx !== null && destIdx !== dragSrcIdx) {
+        const moved = fotosBase64.splice(dragSrcIdx, 1)[0];
+        fotosBase64.splice(destIdx, 0, moved);
+        renderFotosEditar();
+        guardarFotosEnFirebase();
+        if (destIdx === 0 || dragSrcIdx === 0) mostrarToast('⭐ Portada actualizada');
+      }
+      dragSrcIdx = null;
+    }, { passive: true });
+
+    // ── DRAG DESKTOP ────────────────────────────────────────────────────────
+    wrap.draggable = true;
+    wrap.addEventListener('dragstart', e => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(i));
+      setTimeout(() => { wrap.style.opacity = '0.3'; }, 0);
+    });
+    wrap.addEventListener('dragend', () => { wrap.style.opacity = ''; });
+    wrap.addEventListener('dragover', e => { e.preventDefault(); });
+    wrap.addEventListener('drop', e => {
+      e.preventDefault();
+      const from = parseInt(e.dataTransfer.getData('text/plain'));
+      if (from === i || isNaN(from)) return;
+      const moved = fotosBase64.splice(from, 1)[0];
+      fotosBase64.splice(i, 0, moved);
+      renderFotosEditar();
+      guardarFotosEnFirebase();
+      if (i === 0 || from === 0) mostrarToast('⭐ Portada actualizada');
+    });
+  });
+}
+
+function guardarFotosEnFirebase() {
+  const fbId = itinerarioGenerado?.fbId;
+  if (!fbId) return;
+  clearTimeout(guardarFotosEnFirebase._t);
+  guardarFotosEnFirebase._t = setTimeout(() => {
+    fbFetch(FB_URL + '/itinerarios/' + fbId + '/fotos.json', {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(fotosBase64)
+    }).catch(() => {});
+    if (itinerarioGenerado) itinerarioGenerado.fotos = fotosBase64.slice();
+  }, 800);
+}
+
+function procesarFotosEditar(input) {
+  const files = Array.from(input.files);
+  input.value = '';
+  Promise.all(files.map(comprimirFoto)).then(b64s => {
+    fotosBase64.push(...b64s);
+    renderFotosEditar();
+  });
+}
 
 // ══ VER EN MAPA ════════════════════════════════
 // Índice de marcadores del mapa de ver, por nombre
@@ -5520,91 +5663,118 @@ function renderFotosEditar() {
   grid.innerHTML = '';
 
   if (!fotosBase64.length) {
-    grid.innerHTML = `<div onclick="document.getElementById('fotoInputEditar').click()" style="grid-column:1/-1;border:2px dashed var(--border);border-radius:12px;padding:28px;text-align:center;color:var(--muted);cursor:pointer;font-size:0.85rem">
-      📷 Toca para añadir fotos
-    </div>`;
+    const ph = document.createElement('div');
+    ph.onclick = () => document.getElementById('fotoInputEditar').click();
+    ph.style.cssText = 'grid-column:1/-1;border:2px dashed var(--border);border-radius:12px;padding:32px 20px;text-align:center;color:var(--muted);cursor:pointer;font-size:0.88rem;display:flex;flex-direction:column;align-items:center;gap:8px;background:var(--card)';
+    ph.innerHTML = '<span style="font-size:2rem">📷</span>Toca para añadir fotos';
+    grid.appendChild(ph);
     return;
   }
+
+  let dragSrcIdx = null;
+  let touchStartX = 0, touchStartY = 0, touchClone = null, touchTarget = null;
 
   fotosBase64.forEach((src, i) => {
     const wrap = document.createElement('div');
     wrap.dataset.idx = i;
-    wrap.draggable = true;
-    wrap.style.cssText = 'position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;touch-action:none;';
+    wrap.style.cssText = 'position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;touch-action:none;cursor:grab;transition:opacity 0.12s,transform 0.12s';
 
     const img = document.createElement('img');
     img.src = src;
     img.style.cssText = 'width:100%;height:100%;object-fit:cover;pointer-events:none;user-select:none;-webkit-user-drag:none';
 
-    // Portada badge (solo foto 0)
     if (i === 0) {
       const badge = document.createElement('div');
       badge.textContent = '⭐ Portada';
-      badge.style.cssText = 'position:absolute;bottom:0;left:0;right:0;background:linear-gradient(to top,rgba(0,0,0,0.72),transparent);color:white;font-size:0.62rem;font-weight:700;font-family:\'Syne\',sans-serif;padding:10px 6px 5px;text-align:center;letter-spacing:0.5px;pointer-events:none';
+      badge.style.cssText = 'position:absolute;bottom:0;left:0;right:0;background:linear-gradient(to top,rgba(0,0,0,0.75),transparent);color:white;font-size:0.6rem;font-weight:700;font-family:\'Syne\',sans-serif;padding:12px 6px 5px;text-align:center;letter-spacing:0.5px;pointer-events:none;z-index:1';
       wrap.appendChild(badge);
     }
 
-    // Botón eliminar
     const del = document.createElement('button');
     del.innerHTML = '✕';
-    del.style.cssText = 'position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.65);color:white;border:none;border-radius:50%;width:22px;height:22px;font-size:0.7rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;z-index:2';
-    del.onclick = (e) => { e.stopPropagation(); fotosBase64.splice(i, 1); renderFotosEditar(); guardarFotosEnFirebase(); };
-
-    // Flechas ← → para mover (modo móvil principal)
-    if (fotosBase64.length > 1) {
-      const arrowBar = document.createElement('div');
-      arrowBar.style.cssText = 'position:absolute;top:4px;left:4px;display:flex;gap:3px;z-index:2';
-      if (i > 0) {
-        const prev = document.createElement('button');
-        prev.innerHTML = '←';
-        prev.style.cssText = 'background:rgba(0,0,0,0.65);color:white;border:none;border-radius:4px;width:22px;height:22px;font-size:0.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0';
-        prev.onclick = (e) => {
-          e.stopPropagation();
-          [fotosBase64[i], fotosBase64[i-1]] = [fotosBase64[i-1], fotosBase64[i]];
-          renderFotosEditar();
-          guardarFotosEnFirebase();
-          mostrarToast(i-1===0 ? '⭐ ¡Ahora es la portada!' : '↩️ Foto movida');
-        };
-        arrowBar.appendChild(prev);
-      }
-      if (i < fotosBase64.length - 1) {
-        const next = document.createElement('button');
-        next.innerHTML = '→';
-        next.style.cssText = 'background:rgba(0,0,0,0.65);color:white;border:none;border-radius:4px;width:22px;height:22px;font-size:0.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0';
-        next.onclick = (e) => {
-          e.stopPropagation();
-          [fotosBase64[i], fotosBase64[i+1]] = [fotosBase64[i+1], fotosBase64[i]];
-          renderFotosEditar();
-          guardarFotosEnFirebase();
-          mostrarToast(i===0 ? '⭐ Nueva portada seleccionada' : '↪️ Foto movida');
-        };
-        arrowBar.appendChild(next);
-      }
-      wrap.appendChild(arrowBar);
-    }
+    del.style.cssText = 'position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.65);color:white;border:none;border-radius:50%;width:24px;height:24px;font-size:0.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;line-height:1';
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fotosBase64.splice(i, 1);
+      renderFotosEditar();
+      guardarFotosEnFirebase();
+    });
 
     wrap.appendChild(img);
     wrap.appendChild(del);
     grid.appendChild(wrap);
 
-    // ── Drag & drop (desktop) ──
+    // ── TOUCH DRAG (móvil) ──────────────────────────────────────────────────
+    wrap.addEventListener('touchstart', (e) => {
+      if (e.target === del) return;
+      const touch = e.touches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+      dragSrcIdx = i;
+      touchTarget = wrap;
+      const rect = wrap.getBoundingClientRect();
+      touchClone = wrap.cloneNode(true);
+      touchClone.style.cssText = 'position:fixed;left:' + rect.left + 'px;top:' + rect.top + 'px;width:' + rect.width + 'px;height:' + rect.height + 'px;border-radius:10px;overflow:hidden;opacity:0.85;pointer-events:none;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.35);transform:scale(1.07);transition:none';
+      document.body.appendChild(touchClone);
+      wrap.style.opacity = '0.3';
+    }, { passive: true });
+
+    wrap.addEventListener('touchmove', (e) => {
+      if (dragSrcIdx === null || !touchClone) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const rect = touchTarget.getBoundingClientRect();
+      touchClone.style.left = (rect.left + touch.clientX - touchStartX) + 'px';
+      touchClone.style.top  = (rect.top  + touch.clientY - touchStartY) + 'px';
+      grid.querySelectorAll('[data-idx]').forEach(cell => {
+        const cr = cell.getBoundingClientRect();
+        const over = touch.clientX >= cr.left && touch.clientX <= cr.right &&
+                     touch.clientY >= cr.top  && touch.clientY <= cr.bottom;
+        cell.style.transform = (over && parseInt(cell.dataset.idx) !== dragSrcIdx) ? 'scale(0.88)' : '';
+      });
+    }, { passive: false });
+
+    wrap.addEventListener('touchend', (e) => {
+      if (dragSrcIdx === null) return;
+      const touch = e.changedTouches[0];
+      if (touchClone) { touchClone.remove(); touchClone = null; }
+      grid.querySelectorAll('[data-idx]').forEach(c => { c.style.transform = ''; c.style.opacity = ''; });
+      let destIdx = null;
+      grid.querySelectorAll('[data-idx]').forEach(cell => {
+        const cr = cell.getBoundingClientRect();
+        if (touch.clientX >= cr.left && touch.clientX <= cr.right &&
+            touch.clientY >= cr.top  && touch.clientY <= cr.bottom) {
+          destIdx = parseInt(cell.dataset.idx);
+        }
+      });
+      if (destIdx !== null && destIdx !== dragSrcIdx) {
+        const moved = fotosBase64.splice(dragSrcIdx, 1)[0];
+        fotosBase64.splice(destIdx, 0, moved);
+        renderFotosEditar();
+        guardarFotosEnFirebase();
+        if (destIdx === 0 || dragSrcIdx === 0) mostrarToast('⭐ Portada actualizada');
+      }
+      dragSrcIdx = null;
+    }, { passive: true });
+
+    // ── DRAG DESKTOP ────────────────────────────────────────────────────────
+    wrap.draggable = true;
     wrap.addEventListener('dragstart', e => {
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', String(i));
-      setTimeout(() => { wrap.style.opacity = '0.4'; }, 0);
+      setTimeout(() => { wrap.style.opacity = '0.3'; }, 0);
     });
-    wrap.addEventListener('dragend', () => { wrap.style.opacity = '1'; });
-    wrap.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+    wrap.addEventListener('dragend', () => { wrap.style.opacity = ''; });
+    wrap.addEventListener('dragover', e => { e.preventDefault(); });
     wrap.addEventListener('drop', e => {
       e.preventDefault();
       const from = parseInt(e.dataTransfer.getData('text/plain'));
-      const to = parseInt(wrap.dataset.idx);
-      if (from === to || isNaN(from) || isNaN(to)) return;
+      if (from === i || isNaN(from)) return;
       const moved = fotosBase64.splice(from, 1)[0];
-      fotosBase64.splice(to, 0, moved);
+      fotosBase64.splice(i, 0, moved);
       renderFotosEditar();
       guardarFotosEnFirebase();
-      if (to === 0 || from === 0) mostrarToast('⭐ Portada actualizada');
+      if (i === 0 || from === 0) mostrarToast('⭐ Portada actualizada');
     });
   });
 }
@@ -5614,9 +5784,8 @@ function guardarFotosEnFirebase() {
   if (!fbId) return;
   clearTimeout(guardarFotosEnFirebase._t);
   guardarFotosEnFirebase._t = setTimeout(() => {
-    fbFetch(`${FB_URL}/itinerarios/${fbId}/fotos.json`, {
-      method: 'PUT',
-      headers: {'Content-Type':'application/json'},
+    fbFetch(FB_URL + '/itinerarios/' + fbId + '/fotos.json', {
+      method:'PUT', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(fotosBase64)
     }).catch(() => {});
     if (itinerarioGenerado) itinerarioGenerado.fotos = fotosBase64.slice();
