@@ -1223,11 +1223,7 @@ html, body {
   font-family: 'Mulish', sans-serif;
   color: var(--ink);
 }
-.filter-chip.active {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: white;
-}
+.filter-chip.active { background: var(--primary); border-color: var(--primary); color: white; }
 .filter-chip:active { transform: scale(0.95); }
 
 /* ── PERFIL STATS ── */
@@ -1239,98 +1235,27 @@ html, body {
   border-top: 1px solid rgba(255,255,255,0.12);
   margin-top: 14px;
 }
-.perfil-stat {
-  padding: 12px 8px;
-  text-align: center;
-  background: var(--ink);
-}
-.perfil-stat-num {
-  font-family: 'Syne', sans-serif;
-  font-size: 1.3rem;
-  font-weight: 800;
-  color: white;
-  line-height: 1;
-  margin-bottom: 3px;
-}
-.perfil-stat-label {
-  font-size: 0.62rem;
-  color: rgba(255,255,255,0.5);
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-/* Mis viajes card mejorada */
-.mi-viaje-card {
-  background: white;
-  border-radius: 14px;
-  padding: 14px;
-  margin-bottom: 10px;
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.04);
-}
-.mi-viaje-emoji {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: var(--primary-light);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.3rem;
-  flex-shrink: 0;
-}
+.perfil-stat { padding: 12px 8px; text-align: center; background: var(--ink); }
+.perfil-stat-num { font-family: 'Syne', sans-serif; font-size: 1.3rem; font-weight: 800; color: white; line-height: 1; margin-bottom: 3px; }
+.perfil-stat-label { font-size: 0.62rem; color: rgba(255,255,255,0.5); font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+
+/* ── MIS VIAJES CARDS ── */
+.mi-viaje-card { background: white; border-radius: 14px; padding: 14px; margin-bottom: 10px; border: 1px solid var(--border); display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 6px rgba(0,0,0,0.04); }
+.mi-viaje-emoji { width: 44px; height: 44px; border-radius: 12px; background: var(--primary-light); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; }
 .mi-viaje-info { flex: 1; min-width: 0; cursor: pointer; }
-.mi-viaje-titulo {
-  font-family: 'Syne', sans-serif;
-  font-size: 0.9rem;
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+.mi-viaje-titulo { font-family: 'Syne', sans-serif; font-size: 0.9rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mi-viaje-meta { font-size: 0.73rem; color: var(--muted); margin-top: 2px; }
 .mi-viaje-actions { display: flex; gap: 6px; flex-shrink: 0; }
-.mi-viaje-btn {
-  width: 32px; height: 32px;
-  border-radius: 50%;
-  border: none;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 0.85rem;
-  transition: transform 0.15s;
-}
+.mi-viaje-btn { width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; transition: transform 0.15s; }
 .mi-viaje-btn:active { transform: scale(0.9); }
 .mi-viaje-btn.edit { background: var(--primary-light); color: var(--primary); }
 .mi-viaje-btn.del { background: #fee; color: #c44; }
 
-@keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-.skeleton-card {
-  background: white;
-  border-radius: 20px;
-  overflow: hidden;
-  margin-bottom: 16px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.07);
-}
-.skeleton-img {
-  height: 180px;
-  background: linear-gradient(90deg, #f0ece5 25%, #e8e2d9 50%, #f0ece5 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s infinite;
-}
-.skeleton-line {
-  height: 13px;
-  background: linear-gradient(90deg, #f0ece5 25%, #e8e2d9 50%, #f0ece5 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s infinite;
-  border-radius: 8px;
-  margin-bottom: 8px;
-}
+/* ── SKELETON ── */
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.skeleton-card { background: white; border-radius: 20px; overflow: hidden; margin-bottom: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+.skeleton-img { height: 180px; background: linear-gradient(90deg,#f0ece5 25%,#e8e2d9 50%,#f0ece5 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+.skeleton-line { height: 13px; background: linear-gradient(90deg,#f0ece5 25%,#e8e2d9 50%,#f0ece5 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 8px; margin-bottom: 8px; }
 </style>
 </head>
 <body>
@@ -1363,8 +1288,7 @@ html, body {
     <div class="search-results" id="searchResults"></div>
   </div>
   <div class="home-body" style="padding:0">
-    <!-- Filtros -->
-    <div class="feed-filters" id="feedFilters">
+    <div class="feed-filters">
       <div class="filter-chip active" onclick="filtrarFeed('todos',this)">✈️ Todos</div>
       <div class="filter-chip" onclick="filtrarFeed('recientes',this)">🕐 Recientes</div>
       <div class="filter-chip" onclick="filtrarFeed('populares',this)">❤️ Populares</div>
@@ -1372,7 +1296,6 @@ html, body {
       <div class="filter-chip" onclick="filtrarFeed('semana',this)">📅 1 semana</div>
       <div class="filter-chip" onclick="filtrarFeed('largos',this)">🌍 +7 días</div>
     </div>
-    <!-- Feed social -->
     <div id="socialFeed" style="padding:8px 16px 80px"></div>
   </div>
   <!-- Botón instalar app -->
@@ -1718,18 +1641,9 @@ html, body {
     <div class="perfil-nombre" id="perfilNombre">Sin cuenta</div>
     <div class="perfil-email" id="perfilEmail"></div>
     <div class="perfil-stats" id="perfilStats" style="display:none">
-      <div class="perfil-stat">
-        <div class="perfil-stat-num" id="statViajes">0</div>
-        <div class="perfil-stat-label">Viajes</div>
-      </div>
-      <div class="perfil-stat">
-        <div class="perfil-stat-num" id="statDias">0</div>
-        <div class="perfil-stat-label">Días</div>
-      </div>
-      <div class="perfil-stat">
-        <div class="perfil-stat-num" id="statLikes">0</div>
-        <div class="perfil-stat-label">Likes</div>
-      </div>
+      <div class="perfil-stat"><div class="perfil-stat-num" id="statViajes">0</div><div class="perfil-stat-label">Viajes</div></div>
+      <div class="perfil-stat"><div class="perfil-stat-num" id="statDias">0</div><div class="perfil-stat-label">Días</div></div>
+      <div class="perfil-stat"><div class="perfil-stat-num" id="statLikes">0</div><div class="perfil-stat-label">Likes</div></div>
     </div>
   </div>
   <div class="screen-body">
@@ -1875,13 +1789,6 @@ async function loginConGoogle() {
     btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.6 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34 6.4 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/></svg> Continuar con Google';
   }
 }
-function cerrarSesion() {
-  window._fbSignOut?.();
-  usuarioActual = null;
-  localStorage.removeItem('ye_user');
-  actualizarPerfil();
-  mostrarToast('👋 Sesión cerrada');
-}
 
 
 
@@ -1910,13 +1817,7 @@ function actualizarPerfil() {
     if (logoutBtn) logoutBtn.style.display = 'none';
     if (loginBtn) loginBtn.style.display = 'block';
     const misViajes = document.getElementById('perfilMisViajes');
-    if (misViajes) misViajes.innerHTML = `<div style="text-align:center;padding:32px 20px;color:var(--muted)">
-      <div style="font-size:2.5rem;margin-bottom:10px">👤</div>
-      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:0.95rem;margin-bottom:6px">Sin cuenta</div>
-      <div style="font-size:0.82rem">Inicia sesión para ver tus viajes</div>
-    </div>`;
-    const statsEl2 = document.getElementById('perfilStats');
-    if (statsEl2) statsEl2.style.display = 'none';
+    if (misViajes) misViajes.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:0.85rem;padding:20px">Inicia sesión para ver tus viajes</p>';
   }
 }
 
@@ -1924,20 +1825,15 @@ async function cargarMisViajes() {
   if (!usuarioActual) return;
   const container = document.getElementById('perfilMisViajes');
   if (!container) return;
-  container.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;padding:8px 0">Cargando tus viajes...</p>';
+  container.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;padding:8px 0">Cargando...</p>';
 
   try {
     const r = await fetch(`${FB_URL}/itinerarios.json`);
     const data = await r.json();
-
     const statsEl = document.getElementById('perfilStats');
 
     if (!data) {
-      container.innerHTML = `<div style="text-align:center;padding:32px 20px;color:var(--muted)">
-        <div style="font-size:2.5rem;margin-bottom:10px">✈️</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:0.95rem;margin-bottom:6px">Aún no has subido viajes</div>
-        <div style="font-size:0.82rem">¡Comparte tu primer itinerario!</div>
-      </div>`;
+      container.innerHTML = `<div style="text-align:center;padding:32px 20px;color:var(--muted)"><div style="font-size:2.5rem;margin-bottom:10px">✈️</div><div style="font-family:'Syne',sans-serif;font-weight:700;font-size:0.95rem;margin-bottom:6px">Aún no has subido viajes</div><div style="font-size:0.82rem">¡Comparte tu primer itinerario!</div></div>`;
       if (statsEl) statsEl.style.display = 'none';
       return;
     }
@@ -1949,49 +1845,40 @@ async function cargarMisViajes() {
         v.autor === usuarioActual.nombre ||
         v.autorNombre === usuarioActual.nombre
       )
-      .map(([k,v]) => ({...v, fbId: k, id: k}))
+      .map(([k,v]) => ({...v, fbId: k}))
       .sort((a,b) => (b.fechaPublicacion||0) - (a.fechaPublicacion||0));
 
-    // Update stats
+    // Stats
     if (statsEl) {
       statsEl.style.display = 'grid';
-      const totalDias = misViajes.reduce((s, v) => s + (parseInt(v.dias)||0), 0);
-      const totalLikes = misViajes.reduce((s, v) => s + (v.likes||0), 0);
       document.getElementById('statViajes').textContent = misViajes.length;
-      document.getElementById('statDias').textContent = totalDias;
-      document.getElementById('statLikes').textContent = totalLikes;
+      document.getElementById('statDias').textContent = misViajes.reduce((s,v) => s + (parseInt(v.dias)||0), 0);
+      document.getElementById('statLikes').textContent = misViajes.reduce((s,v) => s + (v.likes||0), 0);
     }
 
     if (!misViajes.length) {
-      container.innerHTML = `<div style="text-align:center;padding:32px 20px;color:var(--muted)">
-        <div style="font-size:2.5rem;margin-bottom:10px">✈️</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:0.95rem;margin-bottom:6px">Aún no has subido viajes</div>
-        <div style="font-size:0.82rem">¡Comparte tu primer itinerario!</div>
-      </div>`;
+      container.innerHTML = `<div style="text-align:center;padding:32px 20px;color:var(--muted)"><div style="font-size:2.5rem;margin-bottom:10px">✈️</div><div style="font-family:'Syne',sans-serif;font-weight:700;font-size:0.95rem;margin-bottom:6px">Aún no has subido viajes</div></div>`;
       return;
     }
 
-    const secLabel = '<div style="font-size:0.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:12px;margin-top:4px">Mis viajes</div>';
-
-    container.innerHTML = secLabel + misViajes.map(it => {
-      const emoji = it.emoji || '📍';
-      const titulo = it.titulo || it.destino || 'Sin título';
-      const meta = [it.destino, it.dias ? it.dias + ' días' : null, it.likes ? '❤️ ' + it.likes : null].filter(Boolean).join(' · ');
-      const safeId = it.fbId;
-      const safeTitulo = titulo.replace(/\/g,'').replace(/'/g,'').substring(0,24);
-      return `<div class="mi-viaje-card">
-        <div class="mi-viaje-emoji">${emoji}</div>
-        <div class="mi-viaje-info" onclick="editarViajeFirebase('${safeId}')">
-          <div class="mi-viaje-titulo">${titulo}</div>
-          <div class="mi-viaje-meta">${meta}</div>
-        </div>
-        <div class="mi-viaje-actions">
-          <button class="mi-viaje-btn edit" onclick="editarViajeFirebase('${safeId}')" title="Editar">✏️</button>
-          <button class="mi-viaje-btn del" onclick="eliminarViaje('${safeId}','${safeTitulo}')" title="Eliminar">🗑️</button>
-        </div>
-      </div>`;
-    }).join('');
-
+    container.innerHTML = '<div style="font-size:0.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:12px;margin-top:4px">Mis viajes</div>' +
+      misViajes.map(it => {
+        const titulo = it.titulo || it.destino || 'Sin título';
+        const meta = [it.destino, it.dias ? it.dias+' días' : null, it.likes ? '❤️ '+it.likes : null].filter(Boolean).join(' · ');
+        const safeId = it.fbId;
+        const safeTit = titulo.replace(/'/g,'').substring(0,24);
+        return `<div class="mi-viaje-card">
+          <div class="mi-viaje-emoji">${it.emoji||'📍'}</div>
+          <div class="mi-viaje-info" onclick="editarViajeFirebase('${safeId}')">
+            <div class="mi-viaje-titulo">${titulo}</div>
+            <div class="mi-viaje-meta">${meta}</div>
+          </div>
+          <div class="mi-viaje-actions">
+            <button class="mi-viaje-btn edit" onclick="editarViajeFirebase('${safeId}')" title="Editar">✏️</button>
+            <button class="mi-viaje-btn del" onclick="eliminarViaje('${safeId}','${safeTit}')" title="Eliminar">🗑️</button>
+          </div>
+        </div>`;
+      }).join('');
   } catch(e) {
     container.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;padding:8px">Error cargando viajes</p>';
   }
@@ -2032,7 +1919,6 @@ async function editarViajeFirebase(fbId) {
 }
 
 function eliminarViaje(fbId, titulo) {
-  // Custom confirm sheet
   const sheet = document.createElement('div');
   sheet.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:6000;display:flex;align-items:flex-end';
   sheet.innerHTML = `
@@ -2041,7 +1927,7 @@ function eliminarViaje(fbId, titulo) {
       <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem;margin-bottom:6px">¿Eliminar viaje?</div>
       <div style="font-size:0.85rem;color:var(--muted);margin-bottom:24px">"${titulo}"</div>
       <button id="_delConfirm" style="width:100%;padding:14px;background:#E8471C;color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.95rem;cursor:pointer;margin-bottom:10px">Sí, eliminar</button>
-      <button onclick="this.closest('[style]').remove()" style="width:100%;padding:13px;background:none;border:1.5px solid var(--border);border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">Cancelar</button>
+      <button onclick="this.closest('div[style]').remove()" style="width:100%;padding:13px;background:none;border:1.5px solid var(--border);border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">Cancelar</button>
     </div>`;
   document.body.appendChild(sheet);
   sheet.querySelector('#_delConfirm').onclick = async () => {
@@ -2057,10 +1943,16 @@ function eliminarViaje(fbId, titulo) {
       });
       renderHome();
       await cargarMisViajes();
-    } catch(e) {
-      mostrarToast('❌ Error eliminando');
-    }
+    } catch(e) { mostrarToast('❌ Error eliminando'); }
   };
+}
+
+function cerrarSesion() {
+  window._fbSignOut?.();
+  localStorage.removeItem('ye_user');
+  usuarioActual = null;
+  actualizarPerfil();
+  mostrarToast('Sesión cerrada');
 }
 
 // ══ EDICIÓN DÍAS ══════════════════════════════
@@ -3661,7 +3553,6 @@ function renderSocialFeed() {
   const feed = document.getElementById('socialFeed');
   if (!feed) return;
 
-  // Recoger todos los itinerarios de todos los destinos
   let todos = [];
   Object.entries(destinos).forEach(([key, d]) => {
     d.itinerarios.forEach(it => {
@@ -3669,7 +3560,7 @@ function renderSocialFeed() {
     });
   });
 
-  // Aplicar búsqueda activa si hay texto
+  // Filtro por texto de búsqueda
   const searchVal = document.getElementById('searchInput')?.value?.trim().toLowerCase();
   if (searchVal) {
     todos = todos.filter(it =>
@@ -3679,12 +3570,11 @@ function renderSocialFeed() {
     );
   }
 
-  // Aplicar filtro
-  const ahora = Date.now();
+  // Filtro por chip activo
   if (_feedFiltro === 'recientes') {
-    todos = todos.sort((a, b) => (b.fechaPublicacion||0) - (a.fechaPublicacion||0));
+    todos = todos.sort((a,b) => (b.fechaPublicacion||0) - (a.fechaPublicacion||0));
   } else if (_feedFiltro === 'populares') {
-    todos = todos.sort((a, b) => (b.likes||0) - (a.likes||0));
+    todos = todos.sort((a,b) => (b.likes||0) - (a.likes||0));
   } else if (_feedFiltro === 'cortos') {
     todos = todos.filter(it => (it.dias||0) <= 3).sort(() => Math.random() - 0.5);
   } else if (_feedFiltro === 'semana') {
@@ -3704,6 +3594,7 @@ function renderSocialFeed() {
     return;
   }
 
+  todos = todos.sort ? todos : [...todos];
   _todosItinerarios = todos;
 
   const likes = JSON.parse(localStorage.getItem('ye_likes') || '{}');
@@ -4221,15 +4112,6 @@ function iniciarMapa() {
   Object.entries(destinos).forEach(([key, d]) => añadirPinMundial(key, d));
 }
 
-function añadirPinMundial(key, d) {
-  if (!mapaMundial) return;
-  const icon = L.divIcon({
-    className: '',
-    html: `<div style="background:${d.color};color:white;border-radius:50px;padding:6px 12px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 3px 12px rgba(0,0,0,0.2);border:2px solid white;cursor:pointer">${d.emoji} ${d.nombre}</div>`,
-    iconSize: null, iconAnchor: [0,0]
-  });
-  L.marker([d.lat, d.lng], { icon }).addTo(mapaMundial).on('click', () => abrirDestino(key));
-}
 
 // ══ BÚSQUEDA ══════════════════════════════════
 function focusSearch() {
@@ -4238,6 +4120,7 @@ function focusSearch() {
 
 function buscar(q) {
   const results = document.getElementById('searchResults');
+  renderSocialFeed(); // filtra el feed en tiempo real
   if (!q || q.length < 2) { results.style.display = 'none'; return; }
   const matches = Object.entries(destinos).filter(([k,d]) =>
     d.nombre.toLowerCase().includes(q.toLowerCase()) ||
@@ -4667,7 +4550,6 @@ async function publicarViaje() {
       });
       const data = await r.json();
       it.fbId = data.name;
-      it.fechaPublicacion = Date.now();
       // Guardar fbId dentro del objeto en Firebase para que el lookup funcione siempre
       await fbFetch(`${FB_URL}/itinerarios/${it.fbId}/fbId.json`, {
         method:'PUT',
@@ -4712,7 +4594,7 @@ async function publicarViaje() {
 
 // ══ FIREBASE — cargar al arrancar ═════════════
 async function cargarDeFirebase() {
-  // Mostrar skeleton de carga
+  // Skeleton mientras carga
   const feed = document.getElementById('socialFeed');
   if (feed && !Object.keys(destinos).length) {
     feed.innerHTML = `
@@ -4751,11 +4633,7 @@ async function cargarDeFirebase() {
     if (mapaIniciado) {
       Object.entries(destinos).forEach(([key, d]) => añadirPinMundial(key, d));
     }
-  } catch(e) {
-    console.error('Error cargando Firebase:', e);
-    // Mostrar feed vacío aunque falle Firebase
-    renderSocialFeed();
-  }
+  } catch(e) { console.log('Error cargando Firebase:', e); }
 }
 
 // ══ UTILS ══════════════════════════════════════
@@ -4833,10 +4711,11 @@ function mostrarPantallaHome() {
   document.getElementById('navHome').classList.add('active');
 }
 
-// ── ARRANQUE: mostrar la primera pantalla ───────────────────────────────────
+renderHome();
+// ── ARRANQUE ──────────────────────────────────────────────────────────────
 navegarA('screenHome', 'navHome');
 
-// Comprobar sesión guardada y mostrar pantalla inicial
+// Sesión guardada
 const sesionGuardada = localStorage.getItem('ye_user');
 if (sesionGuardada) {
   try { usuarioActual = JSON.parse(sesionGuardada); actualizarPerfil(); }
@@ -5001,6 +4880,8 @@ function renderPinsMundiales() {
     _pinsMundiales.push(marker);
   });
 }
+function añadirPinMundial(key, d) { if (mapaMundial) renderPinsMundiales(); }
+
 
 </script>
 </body>
