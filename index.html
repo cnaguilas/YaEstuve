@@ -4720,7 +4720,7 @@ function cargarDesdeCache() {
       if (!destinos[k]) destinos[k] = d;
     });
     renderHome();
-    mostrarToast(`📦 Datos en caché (hace ${mins < 60 ? mins + ' min' : Math.round(mins/60) + 'h'})`);
+    if (mins > 5) mostrarToast(`📦 Sin conexión · caché de hace ${mins < 60 ? mins + ' min' : Math.round(mins/60) + 'h'}`);
   } catch(e) {}
 }
 
@@ -4954,19 +4954,42 @@ function compartirWhatsApp(url, titulo, destino) {
   window.open(`https://wa.me/?text=${encodeURIComponent('✈️ *'+titulo+'*\n📍 '+destino+'\n\n'+url)}`, '_blank');
   document.getElementById('_shareSheet')?.remove();
 }
-function comprobarUrlViaje() {
+async function comprobarUrlViaje() {
   const params = new URLSearchParams(location.search);
   const fbId = params.get('viaje');
   if (!fbId) return;
-  let intentos = 0;
-  const buscar = setInterval(() => {
-    intentos++;
-    for (const [key, d] of Object.entries(destinos)) {
-      const it = d.itinerarios.find(i => i.fbId === fbId);
-      if (it) { clearInterval(buscar); setTimeout(() => abrirItinerario(key, fbId), 300); return; }
+
+  // Limpiar el ?viaje= de la URL sin recargar
+  history.replaceState({}, '', location.pathname);
+
+  // 1. Buscar en destinos ya cargados
+  for (const [key, d] of Object.entries(destinos)) {
+    const it = d.itinerarios.find(i => i.fbId === fbId);
+    if (it) { setTimeout(() => abrirItinerario(key, fbId), 100); return; }
+  }
+
+  // 2. No está en caché — buscar directamente en Firebase por fbId
+  mostrarToast('🔍 Cargando viaje compartido...');
+  try {
+    const r = await fetch(`${FB_URL}/itinerarios/${fbId}.json`);
+    const it = await r.json();
+    if (!it || !it.destino) {
+      mostrarToast('❌ Viaje no encontrado');
+      return;
     }
-    if (intentos > 20) clearInterval(buscar);
-  }, 200);
+    it.fbId = fbId;
+    // Inyectar en destinos para que abrirItinerario lo encuentre
+    const key = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_') || fbId;
+    if (!destinos[key]) {
+      destinos[key] = { nombre: it.destino, emoji: it.emoji||'📍', lat: it.lat||null, lng: it.lng||null, color: it.color||'#C4522A', itinerarios: [] };
+    }
+    if (!destinos[key].itinerarios.find(i => i.fbId === fbId)) {
+      destinos[key].itinerarios.push(it);
+    }
+    setTimeout(() => abrirItinerario(key, fbId), 100);
+  } catch(e) {
+    mostrarToast('❌ Error cargando el viaje');
+  }
 }
 
 
