@@ -1256,6 +1256,25 @@ html, body {
 .skeleton-card { background: white; border-radius: 20px; overflow: hidden; margin-bottom: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
 .skeleton-img { height: 180px; background: linear-gradient(90deg,#f0ece5 25%,#e8e2d9 50%,#f0ece5 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
 .skeleton-line { height: 13px; background: linear-gradient(90deg,#f0ece5 25%,#e8e2d9 50%,#f0ece5 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 8px; margin-bottom: 8px; }
+
+/* ── BADGE NUEVOS ── */
+.nav-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: var(--primary);
+  color: white;
+  font-size: 0.6rem;
+  font-weight: 800;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  pointer-events: none;
+}
 </style>
 </head>
 <body>
@@ -2274,6 +2293,24 @@ function abrirEdicion() {
 
   // Usar estado central como fuente de verdad
   syncState();
+
+  // Precargar fotos existentes en el previsualizador
+  const preview = document.getElementById('fotoPreview');
+  const placeholder = document.getElementById('fotoPlaceholder');
+  if (preview && placeholder) {
+    preview.innerHTML = '';
+    fotosBase64 = it.fotos || [];
+    if (fotosBase64.length) {
+      placeholder.style.display = 'none';
+      fotosBase64.forEach(b64 => {
+        const img = document.createElement('img');
+        img.src = b64;
+        preview.appendChild(img);
+      });
+    } else {
+      placeholder.style.display = '';
+    }
+  }
 
   renderPuntos();
   cambiarTab('tabInfo');
@@ -3615,8 +3652,11 @@ function renderSocialFeed() {
 
     card.innerHTML = `
       <div class="feed-card-img">
-        ${foto ? `<img src="${foto}" alt="${it.titulo}" loading="lazy">` : ''}
-        <span style="position:relative;z-index:1">${foto ? '' : emoji}</span>
+        ${foto
+          ? `<img src="${foto}" alt="${it.titulo}" loading="lazy" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0">`
+          : `<img src="https://source.unsplash.com/600x400/?${encodeURIComponent(it.destino||'travel')},travel" alt="${it.destino}" loading="lazy" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;opacity:0.85">`
+        }
+        <span style="position:relative;z-index:1">${foto ? '' : ''}</span>
         <div style="position:absolute;top:12px;right:12px;z-index:2">
           <span class="feed-card-dias">${dias} día${dias!=1?'s':''}</span>
         </div>
@@ -4495,6 +4535,7 @@ async function publicarViaje() {
   it.presupuesto = document.getElementById('e-presupuesto')?.value || it.presupuesto;
   it.resumen = document.getElementById('e-resumen')?.value || it.resumen;
   it.fotos = fotosBase64 || [];
+  if (!it.fechaPublicacion) it.fechaPublicacion = Date.now();
   it.autorUid = usuarioActual?.uid || null;
   it.autorEmail = usuarioActual?.email || null;
   it.autorNombre = usuarioActual?.displayName || it.autor || 'Anónimo';
@@ -4628,12 +4669,114 @@ async function cargarDeFirebase() {
         destinos[key].itinerarios.push(it);
       }
     });
+    // Detectar viajes nuevos vs última visita
+    const lastVisit = parseInt(localStorage.getItem('ye_lastVisit') || '0');
+    const nuevosCount = Object.values(destinos)
+      .flatMap(d => d.itinerarios)
+      .filter(it => (it.fechaPublicacion||0) > lastVisit && it.autorUid !== usuarioActual?.uid)
+      .length;
+    localStorage.setItem('ye_lastVisit', Date.now().toString());
+    const navHome = document.getElementById('navHome');
+    if (navHome && nuevosCount > 0) {
+      const badge = navHome.querySelector('.nav-badge') || document.createElement('span');
+      badge.className = 'nav-badge';
+      badge.textContent = nuevosCount > 9 ? '9+' : nuevosCount;
+      if (!navHome.querySelector('.nav-badge')) navHome.style.position = 'relative', navHome.appendChild(badge);
+    }
+
     renderHome();
+    // Guardar en caché local para modo offline
+    try {
+      const cacheData = { ts: Date.now(), destinos: {} };
+      Object.entries(destinos).forEach(([k,d]) => {
+        cacheData.destinos[k] = {
+          ...d,
+          itinerarios: d.itinerarios.map(it => ({
+            ...it,
+            fotos: (it.fotos||[]).slice(0,1) // solo 1 foto para no saturar localStorage
+          }))
+        };
+      });
+      localStorage.setItem('ye_cache', JSON.stringify(cacheData));
+    } catch(e) {}
     // Añadir pins al mapa mundial si ya está iniciado
     if (mapaIniciado) {
       Object.entries(destinos).forEach(([key, d]) => añadirPinMundial(key, d));
     }
-  } catch(e) { console.log('Error cargando Firebase:', e); }
+  } catch(e) {
+    console.log('Error cargando Firebase:', e);
+    // Intentar cargar desde caché local
+    cargarDesdeCache();
+  }
+}
+
+function cargarDesdeCache() {
+  try {
+    const raw = localStorage.getItem('ye_cache');
+    if (!raw) return;
+    const cache = JSON.parse(raw);
+    const mins = Math.round((Date.now() - cache.ts) / 60000);
+    Object.entries(cache.destinos || {}).forEach(([k, d]) => {
+      if (!destinos[k]) destinos[k] = d;
+    });
+    renderHome();
+    mostrarToast(`📦 Datos en caché (hace ${mins < 60 ? mins + ' min' : Math.round(mins/60) + 'h'})`);
+  } catch(e) {}
+}
+
+function descargarPDF() {
+  const it = itinerarioActual || itinerarioGenerado;
+  if (!it) return;
+
+  const titulo = it.titulo || it.destino || 'Viaje';
+  const destino = it.destino || '';
+  const dias = it.dias || '';
+  const resumen = it.resumen || '';
+  const autor = it.autor || it.autorNombre || '';
+
+  // Construir HTML de jornadas
+  let jornadasHtml = '';
+  if (it.jornadas?.length) {
+    jornadasHtml = it.jornadas.map((j, ji) => `
+      <div style="margin-bottom:20px">
+        <div style="font-weight:700;font-size:14px;border-left:3px solid #E8471C;padding-left:10px;margin-bottom:8px">
+          Día ${ji+1}${j.titulo ? ' — ' + j.titulo : ''}
+        </div>
+        ${(j.items||[]).map(item => `
+          <div style="padding:6px 0 6px 16px;border-bottom:1px solid #f0ece5">
+            <span style="font-size:12px;color:#888;margin-right:6px">${item.hora||''}</span>
+            <strong style="font-size:13px">${item.nombre||item.tipo||''}</strong>
+            ${item.descripcion ? `<div style="font-size:12px;color:#555;margin-top:2px">${item.descripcion}</div>` : ''}
+          </div>`).join('')}
+      </div>`).join('');
+  } else if (it.puntos?.length) {
+    jornadasHtml = it.puntos.map(p => `
+      <div style="padding:8px 0;border-bottom:1px solid #f0ece5">
+        <strong style="font-size:13px">${p.nombre||p.tipo||''}</strong>
+        ${p.descripcion ? `<div style="font-size:12px;color:#555;margin-top:2px">${p.descripcion}</div>` : ''}
+      </div>`).join('');
+  }
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="utf-8">
+    <title>${titulo}</title>
+    <style>
+      body { font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; padding: 30px; color: #1a1a1a; }
+      h1 { font-size: 24px; margin-bottom: 4px; }
+      .meta { color: #888; font-size: 13px; margin-bottom: 20px; }
+      .resumen { background: #f9f6f2; border-radius: 8px; padding: 14px; font-size: 13px; margin-bottom: 24px; line-height: 1.6; }
+      @media print { body { padding: 10px; } }
+    </style>
+  </head><body>
+    <h1>✈️ ${titulo}</h1>
+    <div class="meta">${[destino, dias ? dias+' días' : '', autor ? 'Por '+autor : ''].filter(Boolean).join(' · ')}</div>
+    ${resumen ? `<div class="resumen">${resumen}</div>` : ''}
+    ${jornadasHtml}
+    <div style="margin-top:30px;font-size:11px;color:#aaa;text-align:center">Generado con YaEstuve · yaestuve4.netlify.app</div>
+  </body></html>`);
+  win.document.close();
+  setTimeout(() => win.print(), 400);
 }
 
 // ══ UTILS ══════════════════════════════════════
@@ -4714,6 +4857,8 @@ function mostrarPantallaHome() {
 renderHome();
 // ── ARRANQUE ──────────────────────────────────────────────────────────────
 navegarA('screenHome', 'navHome');
+// Mostrar caché inmediatamente mientras carga Firebase
+cargarDesdeCache();
 
 // Sesión guardada
 const sesionGuardada = localStorage.getItem('ye_user');
@@ -4824,7 +4969,7 @@ function comprobarUrlViaje() {
   }, 200);
 }
 
-// ══ DESCARGAR PDF ════════════════════════════════════════════════
+
 function descargarPDF() {
   const it = _viajeCompartido;
   if (!it) return;
