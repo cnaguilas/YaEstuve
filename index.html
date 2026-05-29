@@ -1275,6 +1275,66 @@ html, body {
   padding: 0 4px;
   pointer-events: none;
 }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── COMENTARIOS ── */
+.comment-item {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.comment-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+.comment-body { flex: 1; min-width: 0; }
+.comment-autor { font-size: 0.78rem; font-weight: 700; }
+.comment-texto { font-size: 0.82rem; color: var(--ink); margin-top: 2px; line-height: 1.4; }
+.comment-time { font-size: 0.68rem; color: var(--muted); margin-top: 3px; }
+.comment-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 0 4px;
+  position: sticky;
+  bottom: 0;
+  background: white;
+}
+.comment-input {
+  flex: 1;
+  border: 1.5px solid var(--border);
+  border-radius: 50px;
+  padding: 9px 16px;
+  font-size: 0.85rem;
+  font-family: 'Mulish', sans-serif;
+  outline: none;
+  background: var(--bg);
+}
+.comment-input:focus { border-color: var(--primary); }
+.comment-send {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: none;
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 </style>
 </head>
 <body>
@@ -1333,6 +1393,27 @@ html, body {
   <div class="screen-body" id="listaBody"></div>
 </div>
 
+
+<!-- ══ PANTALLA PERFIL PÚBLICO ══ -->
+<div class="screen" id="screenPerfilPublico">
+  <div class="nav-bar">
+    <button class="back-btn" onclick="goBack()">←</button>
+    <div class="nav-title" id="perfilPubNombre">Viajero</div>
+  </div>
+  <div style="overflow-y:auto;height:100%;padding-bottom:40px">
+    <div style="background:var(--ink);padding:24px 20px 20px;text-align:center">
+      <div id="perfilPubAvatar" style="width:64px;height:64px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:1.6rem;color:white;margin:0 auto 10px">?</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.1rem;color:white" id="perfilPubNombreH">Viajero</div>
+      <div class="perfil-stats" id="perfilPubStats" style="margin-top:14px">
+        <div class="perfil-stat"><div class="perfil-stat-num" id="pubStatViajes">0</div><div class="perfil-stat-label">Viajes</div></div>
+        <div class="perfil-stat"><div class="perfil-stat-num" id="pubStatDias">0</div><div class="perfil-stat-label">Días</div></div>
+        <div class="perfil-stat"><div class="perfil-stat-num" id="pubStatLikes">0</div><div class="perfil-stat-label">Likes</div></div>
+      </div>
+    </div>
+    <div id="perfilPubViajes" style="padding:16px"></div>
+  </div>
+</div>
+
 <!-- ══ PANTALLA DETALLE ══ -->
 <div class="screen" id="screenDetalle">
   <div class="nav-bar">
@@ -1363,6 +1444,19 @@ html, body {
       <button onclick="descargarPDF()" style="padding:12px;background:var(--card);color:var(--ink);border:1.5px solid var(--border);border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px">📄 PDF</button>
     </div>
     <div id="detalleLinks" style="margin-bottom:16px"></div>
+
+  <!-- Comentarios -->
+  <div style="margin-bottom:8px">
+    <div style="font-size:0.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:12px">Comentarios</div>
+    <div id="comentariosList"></div>
+    <div class="comment-input-row" id="comentariosInputRow">
+      <input class="comment-input" id="comentarioInput" placeholder="Escribe un comentario..." maxlength="300" onkeydown="if(event.key==='Enter')enviarComentario()">
+      <button class="comment-send" onclick="enviarComentario()">➤</button>
+    </div>
+    <div id="comentariosLoginMsg" style="display:none;font-size:0.8rem;color:var(--muted);text-align:center;padding:8px 0">
+      <span onclick="abrirLoginSheet()" style="color:var(--primary);font-weight:700;cursor:pointer">Inicia sesión</span> para comentar
+    </div>
+  </div>
     <div id="detalleDias"></div>
   </div>
 </div>
@@ -3664,7 +3758,7 @@ function renderSocialFeed() {
       <div class="feed-card-body">
         <div class="feed-card-title">${it.titulo}</div>
         <div class="feed-card-meta">
-          <div class="feed-card-author">
+          <div class="feed-card-author" onclick="event.stopPropagation();abrirPerfilPublico('${autor.replace(/'/g,'')}','${it.autorUid||''}')" style="cursor:pointer">
             <div class="feed-card-author-avatar">${it.autorFoto ? `<img src="${it.autorFoto}" style="width:100%;height:100%;object-fit:cover" referrerpolicy="no-referrer">` : inicial}</div>
             ${autor}
           </div>
@@ -3781,10 +3875,12 @@ function abrirItinerario(key, id) {
   }
 
   document.getElementById('heroTitulo').textContent = it.titulo;
+  const autorUid = it.autorUid || null;
+  const autorNom = it.autor || it.autorNombre || 'Viajero';
   document.getElementById('heroMeta').innerHTML = `
     <span>✈️ ${d.nombre}</span>
     <span>📅 ${it.dias} días</span>
-    <span>👤 ${it.autor}</span>`;
+    <span style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,0.4)" onclick="abrirPerfilPublico('${autorNom.replace(/'/g,'')}','${autorUid||''}')">👤 ${autorNom}</span>`;
   document.getElementById('detallePresupuesto').textContent = it.presupuesto;
 
   const diasEl = document.getElementById('detalleDias');
@@ -3843,6 +3939,8 @@ function abrirItinerario(key, id) {
 
   _viajeCompartido = it;
   navegarDetalle('screenDetalle');
+  // Cargar comentarios en paralelo
+  cargarComentarios(it.fbId || id);
 }
 
 function abrirLinksSheet(cat) {
@@ -4779,6 +4877,164 @@ function descargarPDF() {
   setTimeout(() => win.print(), 400);
 }
 
+async function abrirPerfilPublico(nombre, uid) {
+  document.getElementById('perfilPubNombre').textContent = nombre;
+  document.getElementById('perfilPubNombreH').textContent = nombre;
+  const av = document.getElementById('perfilPubAvatar');
+  av.textContent = nombre[0]?.toUpperCase() || '?';
+  const container = document.getElementById('perfilPubViajes');
+  container.innerHTML = `<div style="text-align:center;padding:40px 0"><div style="width:32px;height:32px;border:3px solid rgba(0,0,0,0.1);border-top-color:var(--primary);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto"></div></div>`;
+  navegarDetalle('screenPerfilPublico');
+
+  // Buscar viajes en destinos ya cargados
+  let viajes = Object.values(destinos)
+    .flatMap(d => d.itinerarios)
+    .filter(it => it.autorUid === uid || it.autor === nombre || it.autorNombre === nombre);
+
+  // Si no hay suficientes, buscar en Firebase
+  if (!viajes.length) {
+    try {
+      const r = await fetch(`${FB_URL}/itinerarios.json`);
+      const data = await r.json();
+      if (data) {
+        viajes = Object.entries(data)
+          .map(([k,v]) => ({...v, fbId:k}))
+          .filter(it => (uid && it.autorUid === uid) || it.autor === nombre || it.autorNombre === nombre);
+      }
+    } catch(e) {}
+  }
+
+  // Stats
+  document.getElementById('pubStatViajes').textContent = viajes.length;
+  document.getElementById('pubStatDias').textContent = viajes.reduce((s,v) => s+(parseInt(v.dias)||0), 0);
+  document.getElementById('pubStatLikes').textContent = viajes.reduce((s,v) => s+(v.likes||0), 0);
+
+  if (!viajes.length) {
+    container.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--muted)"><div style="font-size:2.5rem;margin-bottom:10px">✈️</div><div style="font-family:'Syne',sans-serif;font-weight:700">Sin viajes publicados</div></div>`;
+    return;
+  }
+
+  container.innerHTML = viajes.sort((a,b)=>(b.fechaPublicacion||0)-(a.fechaPublicacion||0)).map(it => {
+    const key = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_') || it.fbId;
+    const foto = it.fotos?.[0];
+    return `<div style="background:white;border-radius:16px;overflow:hidden;margin-bottom:14px;box-shadow:0 2px 10px rgba(0,0,0,0.07);cursor:pointer" onclick="abrirItinerario('${key}','${it.fbId}')">
+      <div style="height:140px;position:relative;background:var(--ink);overflow:hidden">
+        ${foto ? `<img src="${foto}" style="width:100%;height:100%;object-fit:cover">` : `<div style="width:100%;height:100%;background:linear-gradient(135deg,#333,#555);display:flex;align-items:center;justify-content:center;font-size:3rem">${it.emoji||'📍'}</div>`}
+        <div style="position:absolute;top:10px;right:10px;background:var(--primary);color:white;font-size:0.72rem;font-weight:700;padding:4px 10px;border-radius:50px">${it.dias} días</div>
+      </div>
+      <div style="padding:12px 14px">
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:0.95rem;margin-bottom:4px">${it.titulo||it.destino}</div>
+        <div style="font-size:0.75rem;color:var(--muted)">📍 ${it.destino} · ❤️ ${it.likes||0}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══ COMENTARIOS ══════════════════════════════════════════════
+let _comentariosFbId = null;
+
+async function cargarComentarios(fbId) {
+  _comentariosFbId = fbId;
+  const list = document.getElementById('comentariosList');
+  const inputRow = document.getElementById('comentariosInputRow');
+  const loginMsg = document.getElementById('comentariosLoginMsg');
+  if (!list) return;
+
+  // Mostrar/ocultar input según sesión
+  if (usuarioActual) {
+    inputRow.style.display = 'flex';
+    loginMsg.style.display = 'none';
+  } else {
+    inputRow.style.display = 'none';
+    loginMsg.style.display = 'block';
+  }
+
+  list.innerHTML = `<div style="padding:12px 0;color:var(--muted);font-size:0.82rem">Cargando...</div>`;
+  try {
+    const r = await fetch(`${FB_URL}/comentarios/${fbId}.json`);
+    const data = await r.json();
+    renderComentarios(data);
+  } catch(e) {
+    list.innerHTML = '';
+  }
+}
+
+function renderComentarios(data) {
+  const list = document.getElementById('comentariosList');
+  if (!list) return;
+  if (!data) {
+    list.innerHTML = `<div style="padding:12px 0;color:var(--muted);font-size:0.82rem;text-align:center">Sé el primero en comentar ✍️</div>`;
+    return;
+  }
+  const comentarios = Object.entries(data)
+    .map(([k,v]) => ({...v, _key:k}))
+    .sort((a,b) => (a.ts||0) - (b.ts||0));
+
+  list.innerHTML = comentarios.map(c => {
+    const inicial = (c.autor||'?')[0].toUpperCase();
+    const tiempo = tiempoRelativo(c.ts);
+    return `<div class="comment-item">
+      <div class="comment-avatar">${inicial}</div>
+      <div class="comment-body">
+        <div class="comment-autor">${c.autor||'Viajero'}</div>
+        <div class="comment-texto">${escapeHtml(c.texto)}</div>
+        <div class="comment-time">${tiempo}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function enviarComentario() {
+  if (!usuarioActual) { abrirLoginSheet(); return; }
+  const input = document.getElementById('comentarioInput');
+  const texto = input.value.trim();
+  if (!texto || !_comentariosFbId) return;
+
+  const comentario = {
+    autor: usuarioActual.nombre || usuarioActual.email?.split('@')[0] || 'Viajero',
+    autorUid: usuarioActual.uid,
+    texto,
+    ts: Date.now()
+  };
+
+  input.value = '';
+  input.disabled = true;
+
+  try {
+    await fbFetch(`${FB_URL}/comentarios/${_comentariosFbId}.json`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(comentario)
+    });
+    // Recargar comentarios
+    await cargarComentarios(_comentariosFbId);
+    // Scroll al final
+    const list = document.getElementById('comentariosList');
+    list?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  } catch(e) {
+    mostrarToast('❌ Error al comentar');
+  } finally {
+    input.disabled = false;
+  }
+}
+
+function tiempoRelativo(ts) {
+  if (!ts) return '';
+  const diff = Date.now() - ts;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'ahora mismo';
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `hace ${h}h`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `hace ${d} día${d>1?'s':''}`;
+  return new Date(ts).toLocaleDateString('es', {day:'numeric',month:'short'});
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // ══ UTILS ══════════════════════════════════════
 let lbFotos = [];
 let lbIndex = 0;
@@ -4959,35 +5215,41 @@ async function comprobarUrlViaje() {
   const fbId = params.get('viaje');
   if (!fbId) return;
 
-  // Limpiar el ?viaje= de la URL sin recargar
   history.replaceState({}, '', location.pathname);
 
-  // 1. Buscar en destinos ya cargados
+  // Mostrar splash de carga inmediato para que el usuario sepa que algo pasa
+  const splash = document.createElement('div');
+  splash.id = '_shareSplash';
+  splash.style.cssText = 'position:fixed;inset:0;background:var(--ink);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px';
+  splash.innerHTML = `
+    <div style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:white">Ya<span style="color:var(--primary)">Estuve</span></div>
+    <div style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.2);border-top-color:var(--primary);border-radius:50%;animation:spin 0.8s linear infinite"></div>
+    <div style="color:rgba(255,255,255,0.6);font-size:0.85rem">Cargando viaje...</div>`;
+  document.body.appendChild(splash);
+
+  const quitarSplash = () => { splash.style.opacity='0'; splash.style.transition='opacity 0.3s'; setTimeout(()=>splash.remove(),300); };
+
+  // 1. Si ya está en destinos cargados, abrir directo
   for (const [key, d] of Object.entries(destinos)) {
     const it = d.itinerarios.find(i => i.fbId === fbId);
-    if (it) { setTimeout(() => abrirItinerario(key, fbId), 100); return; }
+    if (it) { quitarSplash(); abrirItinerario(key, fbId); return; }
   }
 
-  // 2. No está en caché — buscar directamente en Firebase por fbId
-  mostrarToast('🔍 Cargando viaje compartido...');
+  // 2. Fetch directo a Firebase — sin esperar al feed completo
   try {
     const r = await fetch(`${FB_URL}/itinerarios/${fbId}.json`);
     const it = await r.json();
-    if (!it || !it.destino) {
-      mostrarToast('❌ Viaje no encontrado');
-      return;
-    }
+    if (!it || !it.destino) { quitarSplash(); mostrarToast('❌ Viaje no encontrado'); return; }
     it.fbId = fbId;
-    // Inyectar en destinos para que abrirItinerario lo encuentre
     const key = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_') || fbId;
     if (!destinos[key]) {
-      destinos[key] = { nombre: it.destino, emoji: it.emoji||'📍', lat: it.lat||null, lng: it.lng||null, color: it.color||'#C4522A', itinerarios: [] };
+      destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
     }
-    if (!destinos[key].itinerarios.find(i => i.fbId === fbId)) {
-      destinos[key].itinerarios.push(it);
-    }
-    setTimeout(() => abrirItinerario(key, fbId), 100);
+    if (!destinos[key].itinerarios.find(i => i.fbId === fbId)) destinos[key].itinerarios.push(it);
+    quitarSplash();
+    abrirItinerario(key, fbId);
   } catch(e) {
+    quitarSplash();
     mostrarToast('❌ Error cargando el viaje');
   }
 }
