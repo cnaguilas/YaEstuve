@@ -1612,8 +1612,6 @@ html, body {
   <div class="screen-body">
     <div id="perfilMisViajes"></div>
 
-    
-
     <div style="margin-top:16px">
       <button id="perfilLogoutBtn" onclick="cerrarSesion()" style="width:100%;padding:14px;background:white;color:#e8471c;border:1.5px solid #e8471c;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;display:none">Cerrar sesión</button>
       <button id="perfilLoginBtn" onclick="abrirLoginSheet()" style="width:100%;padding:14px;background:var(--primary);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer">Iniciar sesión</button>
@@ -1769,6 +1767,7 @@ function actualizarPerfil() {
   const logoutBtn = document.getElementById('perfilLogoutBtn');
   const loginBtn = document.getElementById('perfilLoginBtn');
 
+  // Mostrar API key guardada
   if (u) {
     if (avatarEl) {
       if (u.foto) avatarEl.innerHTML = `<img src="${u.foto}" style="width:100%;height:100%;border-radius:50%;object-fit:cover" referrerpolicy="no-referrer">`;
@@ -3320,9 +3319,9 @@ async function abrirMapaEdicionPantalla() {
         const ll = e.target.getLatLng();
         p.lat = ll.lat;
         p.lng = ll.lng;
-        // Guardar en estado central inmediatamente
-        if (p.id) updatePuntoById(p.id, { lat: ll.lat, lng: ll.lng });
-                state._dirty = true;
+        p.aproximado = false;
+        if (p.id) updatePuntoById(p.id, { lat: ll.lat, lng: ll.lng, aproximado: false });
+        state._dirty = true;
         redibujarLinea();
         mapEditFullInstance.dragging.enable();
         mostrarToast(`📍 ${p.nombre} movido`);
@@ -4129,18 +4128,6 @@ async function generarConIA() {
   loadEl.style.display = 'block';
   document.getElementById('iaError').style.display = 'none';
 
-  const apiKey = localStorage.getItem('ye_api_key');
-  if (!apiKey) {
-    loadEl.style.display = 'none';
-    document.getElementById('iaError').style.display = 'block';
-    document.getElementById('iaError').innerHTML = `
-      <p style="font-size:1.5rem">🔑</p>
-      <p style="font-weight:600;margin-bottom:8px">Necesitas una clave API</p>
-      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:16px">La generación con IA no está disponible en este momento.</p>
-      <button onclick="navegarA('screenPerfil')" style="padding:10px 20px;background:var(--primary);color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">Ir a Perfil</button>`;
-    return;
-  }
-
   const prompt = `Eres un asistente de viajes experto en geografía mundial. El usuario describe su viaje y debes estructurarlo en JSON con coordenadas GPS precisas.
 
 Descripción: "${desc}"
@@ -4402,6 +4389,13 @@ function rellenarResumen() {
 }
 
 async function publicarViaje() {
+  // Sincronizar estado central → itinerarioGenerado antes de publicar
+  // Esto asegura que los marcadores arrastrados en el mapa queden guardados
+  if (typeof syncState === 'function') syncState();
+  if (state?.viajeActual?.puntos && itinerarioGenerado) {
+    itinerarioGenerado.puntos = state.viajeActual.puntos;
+  }
+
   const it = itinerarioGenerado;
   const key = it.destinoKey;
 
@@ -6204,8 +6198,6 @@ async function infoConIA(nombre, destino) {
   el.textContent = '✨ Buscando info...';
 
   try {
-    const apiKey = localStorage.getItem('ye_api_key') || '';
-    if (!apiKey) { el.textContent = ''; return; }
     const r = await fetch('https://yaestuve2.jaymaviajes.workers.dev/api/claude', {
       method: 'POST',
       headers: {
@@ -6322,9 +6314,9 @@ async function abrirMapaEdicionPantalla() {
         const ll = e.target.getLatLng();
         p.lat = ll.lat;
         p.lng = ll.lng;
-        // Guardar en estado central inmediatamente
-        if (p.id) updatePuntoById(p.id, { lat: ll.lat, lng: ll.lng });
-                state._dirty = true;
+        p.aproximado = false;
+        if (p.id) updatePuntoById(p.id, { lat: ll.lat, lng: ll.lng, aproximado: false });
+        state._dirty = true;
         redibujarLinea();
         mapEditFullInstance.dragging.enable();
         mostrarToast(`📍 ${p.nombre} movido`);
@@ -7023,18 +7015,6 @@ async function generarConIA() {
   const loadEl = document.getElementById('iaLoading');
   loadEl.style.display = 'block';
   document.getElementById('iaError').style.display = 'none';
-
-  const apiKey = localStorage.getItem('ye_api_key');
-  if (!apiKey) {
-    loadEl.style.display = 'none';
-    document.getElementById('iaError').style.display = 'block';
-    document.getElementById('iaError').innerHTML = `
-      <p style="font-size:1.5rem">🔑</p>
-      <p style="font-weight:600;margin-bottom:8px">Necesitas una clave API</p>
-      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:16px">La generación con IA no está disponible en este momento.</p>
-      <button onclick="navegarA('screenPerfil')" style="padding:10px 20px;background:var(--primary);color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">Ir a Perfil</button>`;
-    return;
-  }
 
   const prompt = `Eres un asistente de viajes experto en geografía mundial. El usuario describe su viaje y debes estructurarlo en JSON con coordenadas GPS precisas.
 
