@@ -1616,6 +1616,13 @@ html, body {
       <button id="perfilLogoutBtn" onclick="cerrarSesion()" style="width:100%;padding:14px;background:white;color:#e8471c;border:1.5px solid #e8471c;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;display:none">Cerrar sesión</button>
       <button id="perfilLoginBtn" onclick="abrirLoginSheet()" style="width:100%;padding:14px;background:var(--primary);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer">Iniciar sesión</button>
     </div>
+
+    <!-- Panel admin: solo visible para el dueño de la app -->
+    <div id="adminPanel" style="display:none;margin-top:20px;background:#fff3f0;border:1.5px solid #e8471c33;border-radius:14px;padding:16px">
+      <div style="font-size:.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#e8471c;margin-bottom:10px">🛠️ Admin — Borrar itinerario</div>
+      <input id="adminDeleteId" placeholder="ID de Firebase (ej: -OprWSyR...)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-size:.82rem;font-family:'Mulish',sans-serif;outline:none;background:white;margin-bottom:8px">
+      <button onclick="adminBorrarItinerario()" style="width:100%;padding:10px;background:#e8471c;color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer">Borrar de Firebase</button>
+    </div>
   </div>
 </div>
 
@@ -1757,6 +1764,22 @@ function cerrarSesion() {
   mostrarToast('👋 Sesión cerrada');
 }
 
+async function adminBorrarItinerario() {
+  const input = document.getElementById('adminDeleteId');
+  const id = (input?.value || '').trim();
+  if (!id) { mostrarToast('⚠️ Introduce el ID'); return; }
+  if (!confirm(`¿Borrar el itinerario ${id} de Firebase?`)) return;
+  try {
+    const r = await fbFetch(`${FB_URL}/itinerarios/${id}.json`, { method: 'DELETE' });
+    if (r.ok) {
+      mostrarToast('✅ Itinerario borrado de Firebase');
+      input.value = '';
+      Object.values(destinos).forEach(d => { d.itinerarios = d.itinerarios.filter(it => it.fbId !== id); });
+      renderSocialFeed();
+    } else { mostrarToast('❌ Error: ' + r.status); }
+  } catch(e) { mostrarToast('❌ Error: ' + e.message); }
+}
+
 
 
 function actualizarPerfil() {
@@ -1776,6 +1799,8 @@ function actualizarPerfil() {
     if (nombreEl) nombreEl.textContent = u.nombre || u.displayName || 'Usuario';
     if (emailEl) emailEl.textContent = u.email || '';
     if (logoutBtn) logoutBtn.style.display = 'block';
+    const adminPanel = document.getElementById('adminPanel');
+    if (adminPanel) adminPanel.style.display = u.email === 'roblius81@gmail.com' ? 'block' : 'none';
     if (loginBtn) loginBtn.style.display = 'none';
     cargarMisViajes();
   } else {
@@ -4891,6 +4916,8 @@ function actualizarPerfil() {
     if (nombreEl) nombreEl.textContent = u.nombre || u.displayName || 'Usuario';
     if (emailEl) emailEl.textContent = u.email || '';
     if (logoutBtn) logoutBtn.style.display = 'block';
+    const adminPanel = document.getElementById('adminPanel');
+    if (adminPanel) adminPanel.style.display = u.email === 'roblius81@gmail.com' ? 'block' : 'none';
     if (loginBtn) loginBtn.style.display = 'none';
     cargarMisViajes();
   } else {
