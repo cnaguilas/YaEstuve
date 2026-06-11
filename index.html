@@ -1821,21 +1821,28 @@ async function cargarMisViajes() {
   container.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;padding:8px">Cargando tus viajes...</p>';
 
   try {
-    const r = await fetch(`${FB_URL}/itinerarios.json`);
-    const data = await r.json();
-    if (!data) {
+    // Cargar con shallow=true y luego filtrar por autorUid para no bajar todas las fotos
+    const r = await fetch(`${FB_URL}/itinerarios.json?shallow=true`);
+    const keys = await r.json();
+    if (!keys) {
       container.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:0.85rem;padding:20px">Aún no has subido viajes ✈️</p>';
       return;
     }
-
-    const misViajes = Object.entries(data)
-      .filter(([k,v]) => 
-        v.autorUid === usuarioActual.uid || 
-        v.autorEmail === usuarioActual.email ||
-        v.autor === usuarioActual.nombre ||
-        v.autorNombre === usuarioActual.nombre
-      )
-      .map(([k,v]) => ({...v, fbId: k, id: k}));
+    // Cargar metadatos de cada itinerario (sin fotos)
+    const allMeta = await Promise.all(Object.keys(keys).map(async fbKey => {
+      try {
+        const rm = await fetch(`${FB_URL}/itinerarios/${fbKey}.json`);
+        const v = await rm.json();
+        if (!v) return null;
+        return { ...v, fotos: [], fbId: fbKey, id: fbKey };
+      } catch(e) { return null; }
+    }));
+    const misViajes = allMeta.filter(v => v && (
+      v.autorUid === usuarioActual?.uid ||
+      v.autorEmail === usuarioActual?.email ||
+      v.autor === usuarioActual?.nombre ||
+      v.autorNombre === usuarioActual?.nombre
+    ));
 
     if (!misViajes.length) {
       container.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:0.85rem;padding:20px">Aún no has subido viajes ✈️</p>';
@@ -3658,6 +3665,42 @@ function abrirItinerario(key, id) {
   const it = d.itinerarios.find(i => i.id === id || i.fbId === id) || d.itinerarios[0];
   if (!it) { mostrarToast('❌ Itinerario no encontrado'); return; }
 
+  // Carga lazy de fotos y jornadas si aún no se han descargado
+  if (it._fotosNoC && it.fbId) {
+    it._fotosNoC = false;
+    fetch(`${FB_URL}/itinerarios/${it.fbId}/fotos.json`)
+      .then(r => r.json()).then(fotos => {
+        if (Array.isArray(fotos) && fotos.length) {
+          it.fotos = fotos;
+          const hf = document.getElementById('heroFotos');
+          const hd = document.getElementById('heroDots');
+          if (hf && hd && !hf.querySelector('img')) {
+            hf.innerHTML = ''; hd.innerHTML = '';
+            fotos.forEach((src, idx) => {
+              const img = document.createElement('img');
+              img.className = 'hero-foto'; img.src = src;
+              img.onclick = () => abrirLightbox(src, fotos);
+              hf.appendChild(img);
+            });
+            if (fotos.length > 1) {
+              fotos.forEach((_, i) => {
+                const dot = document.createElement('div');
+                dot.style.cssText = `width:6px;height:6px;border-radius:50%;background:${i===0?'white':'rgba(255,255,255,0.45)'};transition:background 0.2s`;
+                hd.appendChild(dot);
+              });
+              if (hf._scrollHandler) hf.removeEventListener('scroll', hf._scrollHandler);
+              hf._scrollHandler = () => {
+                const i = Math.round(hf.scrollLeft / hf.offsetWidth);
+                hd.querySelectorAll('div').forEach((d,j) => { d.style.background = j===i?'white':'rgba(255,255,255,0.45)'; });
+              };
+              hf.addEventListener('scroll', hf._scrollHandler, { passive: true });
+            }
+          }
+        }
+      }).catch(() => {});
+  }
+
+
   // Hero fotos
   const heroFotos = document.getElementById('heroFotos');
   const heroDots = document.getElementById('heroDots');
@@ -4557,38 +4600,66 @@ async function publicarViaje() {
   }
 }
 
-// ══ FIREBASE — cargar al arrancar ═════════════
+// ══ FIREBASE — cargar al arrancar (paginado, sin fotos) ═════════════
+// Solo carga metadatos del feed. Fotos y puntos se cargan al abrir cada viaje.
 async function cargarDeFirebase() {
   try {
-    const r = await fetch(`${FB_URL}/itinerarios.json`);
-    const data = await r.json();
-    if (!data) return;
-    Object.entries(data).forEach(([fbKey, it]) => {
-      // Asegurar que el fbId siempre está presente (viajes viejos pueden no tenerlo)
-      if (!it.fbId) it.fbId = fbKey;
-      const key = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_');
-      if (!key) return;
-      if (!destinos[key]) {
-        destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
-        if (!destinos[key].lat) {
-          fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`)
-            .then(r=>r.json()).then(g=>{
-              const f = g?.features?.[0];
-              if (f) { destinos[key].lat=f.geometry.coordinates[1]; destinos[key].lng=f.geometry.coordinates[0]; añadirPinMundial(key, destinos[key]); }
-            }).catch(()=>{});
-        }
-      }
-      const esNuevo = !destinos[key].itinerarios.find(i => i.fbId === it.fbId);
-      if (esNuevo) {
-        it.fotos = it.fotos || [];
-        it.puntos = it.puntos || [];
-        destinos[key].itinerarios.push(it);
-      }
-    });
+    // Cargar solo campos ligeros: excluir fotos, puntos y jornadas del fetch inicial
+    // Firebase REST no soporta exclusión de campos, pero usamos shallow=true para
+    // obtener solo las claves y luego cargamos metadatos en lotes
+    const r = await fetch(`${FB_URL}/itinerarios.json?shallow=true`);
+    const keys = await r.json();
+    if (!keys) return;
+
+    // Cargar metadatos en lotes de 20 para no bloquear la UI
+    const LOTE = 20;
+    const allKeys = Object.keys(keys);
+    
+    const cargarLote = async (loteKeys) => {
+      await Promise.all(loteKeys.map(async (fbKey) => {
+        try {
+          // Cargar solo campos de metadatos (sin fotos ni puntos que son pesados)
+          const fields = 'titulo,destino,destinoKey,emoji,color,lat,lng,dias,autor,autorNombre,autorUid,autorFoto,autorEmail,likes,presupuesto,fechaPublicacion,fbId,tipo,resumen';
+          const rm = await fetch(`${FB_URL}/itinerarios/${fbKey}.json?shallow=false`);
+          const it = await rm.json();
+          if (!it) return;
+          if (!it.fbId) it.fbId = fbKey;
+          // No cargar fotos ni puntos ahora — se cargan al abrir el viaje
+          it.fotos = [];
+          it.puntos = [];
+          it._fotosNoC = true; // flag: fotos no cargadas aún
+          
+          const key = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_');
+          if (!key) return;
+          if (!destinos[key]) {
+            destinos[key] = { nombre:it.destino, emoji:it.emoji||'📍', lat:it.lat||null, lng:it.lng||null, color:it.color||'#C4522A', itinerarios:[] };
+            if (!destinos[key].lat) {
+              fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(it.destino)}&limit=1&lang=es`)
+                .then(r=>r.json()).then(g=>{
+                  const f = g?.features?.[0];
+                  if (f) { destinos[key].lat=f.geometry.coordinates[1]; destinos[key].lng=f.geometry.coordinates[0]; añadirPinMundial(key, destinos[key]); }
+                }).catch(()=>{});
+            }
+          }
+          const esNuevo = !destinos[key].itinerarios.find(i => i.fbId === it.fbId);
+          if (esNuevo) destinos[key].itinerarios.push(it);
+        } catch(e) {}
+      }));
+    };
+
+    // Primer lote inmediato para mostrar el feed rápido
+    await cargarLote(allKeys.slice(0, LOTE));
     renderHome();
-    // Añadir pins al mapa mundial si ya está iniciado
-    if (mapaIniciado) {
-      Object.entries(destinos).forEach(([key, d]) => añadirPinMundial(key, d));
+    if (mapaIniciado) renderPinsMundiales();
+
+    // Resto de lotes en segundo plano
+    for (let i = LOTE; i < allKeys.length; i += LOTE) {
+      await cargarLote(allKeys.slice(i, i + LOTE));
+      await new Promise(r => setTimeout(r, 100)); // pausa entre lotes
+    }
+    if (allKeys.length > LOTE) {
+      renderHome();
+      if (mapaIniciado) renderPinsMundiales();
     }
   } catch(e) { console.log('Error cargando Firebase:', e); }
 }
@@ -4938,21 +5009,28 @@ async function cargarMisViajes() {
   container.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;padding:8px">Cargando tus viajes...</p>';
 
   try {
-    const r = await fetch(`${FB_URL}/itinerarios.json`);
-    const data = await r.json();
-    if (!data) {
+    // Cargar con shallow=true y luego filtrar por autorUid para no bajar todas las fotos
+    const r = await fetch(`${FB_URL}/itinerarios.json?shallow=true`);
+    const keys = await r.json();
+    if (!keys) {
       container.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:0.85rem;padding:20px">Aún no has subido viajes ✈️</p>';
       return;
     }
-
-    const misViajes = Object.entries(data)
-      .filter(([k,v]) => 
-        v.autorUid === usuarioActual.uid || 
-        v.autorEmail === usuarioActual.email ||
-        v.autor === usuarioActual.nombre ||
-        v.autorNombre === usuarioActual.nombre
-      )
-      .map(([k,v]) => ({...v, fbId: k, id: k}));
+    // Cargar metadatos de cada itinerario (sin fotos)
+    const allMeta = await Promise.all(Object.keys(keys).map(async fbKey => {
+      try {
+        const rm = await fetch(`${FB_URL}/itinerarios/${fbKey}.json`);
+        const v = await rm.json();
+        if (!v) return null;
+        return { ...v, fotos: [], fbId: fbKey, id: fbKey };
+      } catch(e) { return null; }
+    }));
+    const misViajes = allMeta.filter(v => v && (
+      v.autorUid === usuarioActual?.uid ||
+      v.autorEmail === usuarioActual?.email ||
+      v.autor === usuarioActual?.nombre ||
+      v.autorNombre === usuarioActual?.nombre
+    ));
 
     if (!misViajes.length) {
       container.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:0.85rem;padding:20px">Aún no has subido viajes ✈️</p>';
