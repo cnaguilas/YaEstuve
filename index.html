@@ -4618,16 +4618,17 @@ async function cargarDeFirebase() {
     const cargarLote = async (loteKeys) => {
       await Promise.all(loteKeys.map(async (fbKey) => {
         try {
-          // Cargar solo campos de metadatos (sin fotos ni puntos que son pesados)
-          const fields = 'titulo,destino,destinoKey,emoji,color,lat,lng,dias,autor,autorNombre,autorUid,autorFoto,autorEmail,likes,presupuesto,fechaPublicacion,fbId,tipo,resumen';
-          const rm = await fetch(`${FB_URL}/itinerarios/${fbKey}.json?shallow=false`);
+          // Cargar metadatos del itinerario
+          const rm = await fetch(`${FB_URL}/itinerarios/${fbKey}.json`);
           const it = await rm.json();
           if (!it) return;
           if (!it.fbId) it.fbId = fbKey;
-          // No cargar fotos ni puntos ahora — se cargan al abrir el viaje
-          it.fotos = [];
+          // Guardar solo la primera foto para la card del feed (portada)
+          // El resto se carga al abrir el viaje
+          const todasFotos = Array.isArray(it.fotos) ? it.fotos : [];
+          it.fotos = todasFotos.slice(0, 1); // solo portada
+          it._fotosNoC = todasFotos.length > 1; // hay más fotos por cargar
           it.puntos = [];
-          it._fotosNoC = true; // flag: fotos no cargadas aún
           
           const key = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_');
           if (!key) return;
