@@ -3631,6 +3631,7 @@ function abrirDestino(key) {
 
 // ══ DETALLE ══════════════════════════════════
 function abrirItinerario(key, id) {
+  try {
   const d = destinos[key];
   if (!d) { mostrarToast('❌ Destino no encontrado'); return; }
   // Buscar por id, fbId, o coger el primero si solo hay uno
@@ -3682,23 +3683,35 @@ function abrirItinerario(key, id) {
   diasEl.innerHTML = '';
   // Índice de puntos con coords por nombre para lookup rápido
   const puntosMap = {};
-  (it.puntos || []).forEach(p => { if (p.lat && p.lng) puntosMap[p.nombre] = p; });
+  (it.puntos || []).forEach(p => { if (p && p.lat && p.lng) puntosMap[p.nombre] = p; });
 
-  it.jornadas.forEach(j => {
+  // Blindaje: si jornadas falta o viene en formato objeto (no array), normalizar
+  let jornadas = it.jornadas;
+  if (!jornadas) jornadas = [];
+  else if (!Array.isArray(jornadas)) jornadas = Object.values(jornadas);
+
+  if (!jornadas.length) {
+    diasEl.innerHTML = '<p style="text-align:center;color:var(--muted);padding:24px;font-size:0.85rem">Este itinerario aún no tiene días añadidos.</p>';
+  }
+
+  jornadas.forEach(j => {
+    if (!j) return;
     const block = document.createElement('div');
     block.className = 'dia-block';
+    const items = Array.isArray(j.items) ? j.items : (j.items ? Object.values(j.items) : []);
     block.innerHTML = `
       <div class="dia-header">
-        <span class="dia-num">DÍA ${j.dia}</span>
-        <span class="dia-lugar">${j.lugar}</span>
+        <span class="dia-num">DÍA ${j.dia ?? ''}</span>
+        <span class="dia-lugar">${j.lugar || ''}</span>
       </div>
       <div class="dia-items">
-        ${j.items.map(item => {
+        ${items.map(item => {
+          if (!item) return '';
           const tieneCoords = !!puntosMap[item.nombre];
-          return `<div class="dia-item ${item.tipo}" ${tieneCoords ? `onclick="verPuntoEnMapa('${(key)}','${(it.fbId||id)}','${item.nombre.replace(/'/g,"\'")}');return false;" style="cursor:pointer"` : ''}>
+          return `<div class="dia-item ${item.tipo||'visita'}" ${tieneCoords ? `onclick="verPuntoEnMapa('${(key)}','${(it.fbId||id)}','${(item.nombre||'').replace(/'/g,"\'")}');return false;" style="cursor:pointer"` : ''}>
             <div class="item-tipo">${iconoTipo(item.tipo)} ${labelTipo(item.tipo)}${tieneCoords ? ' <span style="font-size:0.65rem;background:var(--primary-light);color:var(--primary);padding:2px 6px;border-radius:50px;margin-left:4px">📍 Ver mapa</span>' : ''}</div>
-            <div class="item-nombre">${item.nombre}</div>
-            <div class="item-desc">${item.desc}</div>
+            <div class="item-nombre">${item.nombre || ''}</div>
+            <div class="item-desc">${item.desc || ''}</div>
           </div>`;
         }).join('')}
       </div>`;
@@ -3735,6 +3748,10 @@ function abrirItinerario(key, id) {
   _viajeCompartido = it;
   navegarDetalle('screenDetalle');
   cargarComentarios(it.fbId || id);
+  } catch(e) {
+    console.error('Error abriendo itinerario:', e);
+    mostrarToast('❌ Error al abrir el viaje. Puede que tenga datos incompletos.');
+  }
 }
 
 function abrirLinksSheet(cat) {
@@ -4040,18 +4057,14 @@ function iniciarMapa() {
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(m);
   L.control.zoom({ position:'topright' }).addTo(m);
   mapaMundial = m;
-  // Añadir pins de destinos ya cargados
-  Object.entries(destinos).forEach(([key, d]) => añadirPinMundial(key, d));
+  // Recalcular clusters al hacer zoom o mover el mapa
+  m.on('zoomend moveend', () => renderPinsMundiales());
+  renderPinsMundiales();
 }
 
 function añadirPinMundial(key, d) {
-  if (!mapaMundial) return;
-  const icon = L.divIcon({
-    className: '',
-    html: `<div style="background:${d.color};color:white;border-radius:50px;padding:6px 12px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 3px 12px rgba(0,0,0,0.2);border:2px solid white;cursor:pointer">${d.emoji} ${d.nombre}</div>`,
-    iconSize: null, iconAnchor: [0,0]
-  });
-  L.marker([d.lat, d.lng], { icon }).addTo(mapaMundial).on('click', () => abrirDestino(key));
+  // El clustering lo gestiona renderPinsMundiales; esto solo fuerza un redibujado
+  if (mapaMundial) renderPinsMundiales();
 }
 
 // ══ BÚSQUEDA ══════════════════════════════════
@@ -4135,18 +4148,6 @@ async function generarConIA() {
   const loadEl = document.getElementById('iaLoading');
   loadEl.style.display = 'block';
   document.getElementById('iaError').style.display = 'none';
-
-  const apiKey = localStorage.getItem('ye_api_key');
-  if (!apiKey) {
-    loadEl.style.display = 'none';
-    document.getElementById('iaError').style.display = 'block';
-    document.getElementById('iaError').innerHTML = `
-      <p style="font-size:1.5rem">🔑</p>
-      <p style="font-weight:600;margin-bottom:8px">Necesitas una clave API</p>
-      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:16px">La generación con IA no está disponible en este momento.</p>
-      <button onclick="navegarA('screenPerfil')" style="padding:10px 20px;background:var(--primary);color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">Ir a Perfil</button>`;
-    return;
-  }
 
   const prompt = `Eres un asistente de viajes experto en geografía mundial. El usuario describe su viaje y debes estructurarlo en JSON con coordenadas GPS precisas.
 
@@ -4835,7 +4836,9 @@ function renderPinsMundiales() {
   _pinsMundiales = [];
   const entries = Object.entries(destinos).filter(([,d]) => d.lat && d.lng);
   if (!entries.length) return;
-  const CLUSTER_PX = 80;
+  // Umbral en píxeles: mayor en pantallas grandes para evitar amontonamiento de etiquetas largas
+  const isMobile = window.innerWidth < 768;
+  const CLUSTER_PX = isMobile ? 90 : 110;
   const toPixel = (lat, lng) => mapaMundial.latLngToContainerPoint([lat, lng]);
   const usados = new Set();
   const grupos = [];
