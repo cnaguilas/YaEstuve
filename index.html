@@ -1202,6 +1202,11 @@ html, body {
 .feed-filters{display:flex;gap:8px;padding:12px 16px 4px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-shrink:0}.feed-filters::-webkit-scrollbar{display:none}.filter-chip{display:flex;align-items:center;gap:5px;background:var(--card);border:1.5px solid var(--border);border-radius:50px;padding:7px 14px;font-size:.78rem;font-weight:700;white-space:nowrap;cursor:pointer;transition:all .18s;flex-shrink:0;font-family:"Mulish",sans-serif;color:var(--ink)}.filter-chip.active{background:var(--primary);border-color:var(--primary);color:white}.filter-chip:active{transform:scale(.95)}
 .ye-badge{position:absolute;top:2px;right:2px;background:var(--primary);color:white;font-size:.6rem;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;pointer-events:none}
 .comment-item{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}.comment-avatar{width:32px;height:32px;border-radius:50%;background:var(--primary-light);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.8rem;flex-shrink:0}.comment-body{flex:1;min-width:0}.comment-autor{font-size:.78rem;font-weight:700}.comment-texto{font-size:.82rem;color:var(--ink);margin-top:2px;line-height:1.4}.comment-time{font-size:.68rem;color:var(--muted);margin-top:3px}.comment-input-row{display:flex;gap:8px;align-items:center;padding:10px 0 4px;background:white}.comment-input{flex:1;border:1.5px solid var(--border);border-radius:50px;padding:9px 16px;font-size:.85rem;font-family:"Mulish",sans-serif;outline:none;background:var(--bg)}.comment-input:focus{border-color:var(--primary)}.comment-send{width:36px;height:36px;border-radius:50%;background:var(--primary);border:none;color:white;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
+/* Forzar fuente de emoji a color en los iconos del mapa (algunos PCs antiguos los muestran en B/N por defecto) */
+.leaflet-marker-icon, .leaflet-marker-icon * {
+  font-family: "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", "Twemoji Mozilla", sans-serif !important;
+  font-variant-emoji: emoji;
+}
 </style>
 </head>
 <body>
@@ -1624,6 +1629,18 @@ html, body {
       <button id="perfilLogoutBtn" onclick="cerrarSesion()" style="width:100%;padding:14px;background:white;color:#e8471c;border:1.5px solid #e8471c;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;display:none">Cerrar sesión</button>
       <button id="perfilLoginBtn" onclick="abrirLoginSheet()" style="width:100%;padding:14px;background:var(--primary);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer">Iniciar sesión</button>
     </div>
+
+    <!-- Panel admin: solo visible para el dueño de la app -->
+    <div id="adminPanel" style="display:none;margin-top:20px;background:#fff3f0;border:1.5px solid #e8471c33;border-radius:14px;padding:16px">
+      <div style="font-size:.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#e8471c;margin-bottom:10px">🛠️ Admin — Borrar itinerario</div>
+      <input id="adminDeleteId" placeholder="ID de Firebase (ej: -OprWSyR...)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-size:.82rem;font-family:'Mulish',sans-serif;outline:none;background:white;margin-bottom:8px">
+      <button onclick="adminBorrarItinerario()" style="width:100%;padding:10px;background:#e8471c;color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer;margin-bottom:14px">Borrar de Firebase</button>
+
+      <div style="font-size:.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#e8471c;margin-bottom:10px;border-top:1px solid #e8471c33;padding-top:14px">🔧 Reparar viaje (IDs duplicados / días vacíos)</div>
+      <input id="adminFixId" placeholder="ID de Firebase a reparar" value="-OrhG0wT0imn8Hjmfza7" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-size:.82rem;font-family:'Mulish',sans-serif;outline:none;background:white;margin-bottom:8px">
+      <button onclick="adminRepararItinerario()" style="width:100%;padding:10px;background:#2e7d32;color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer">Reparar y volver a guardar</button>
+      <div id="adminFixStatus" style="font-size:.75rem;color:var(--muted);margin-top:8px;white-space:pre-line"></div>
+    </div>
   </div>
 </div>
 
@@ -1779,6 +1796,8 @@ function actualizarPerfil() {
     if (emailEl) emailEl.textContent = u.email || '';
     if (logoutBtn) logoutBtn.style.display = 'block';
     if (loginBtn) loginBtn.style.display = 'none';
+    const adminPanel = document.getElementById('adminPanel');
+    if (adminPanel) adminPanel.style.display = u.email === 'roblius81@gmail.com' ? 'block' : 'none';
     cargarMisViajes();
   } else {
     if (avatarEl) avatarEl.textContent = '?';
@@ -4962,6 +4981,110 @@ async function abrirPerfilPublico(nombre, uid) {
     card.addEventListener('click', () => abrirItinerario(key, it.fbId));
     container.appendChild(card);
   });
+}
+
+// ══ ADMIN: borrar itinerario ══════════════════════════════════
+async function adminBorrarItinerario() {
+  const input = document.getElementById('adminDeleteId');
+  const id = (input?.value || '').trim();
+  if (!id) { mostrarToast('⚠️ Introduce el ID'); return; }
+  if (!confirm(`¿Borrar el itinerario ${id} de Firebase?`)) return;
+  try {
+    const r = await fbFetch(`${FB_URL}/itinerarios/${id}.json`, { method: 'DELETE' });
+    if (r.ok) {
+      mostrarToast('✅ Itinerario borrado de Firebase');
+      input.value = '';
+      Object.values(destinos).forEach(d => { d.itinerarios = d.itinerarios.filter(it => it.fbId !== id); });
+      renderSocialFeed();
+    } else { mostrarToast('❌ Error: ' + r.status); }
+  } catch(e) { mostrarToast('❌ Error: ' + e.message); }
+}
+
+// ══ ADMIN: reparar itinerario (IDs duplicados en puntos + jornadas con items null) ══
+function _adminGenId() {
+  const r1 = Math.random().toString(36).slice(2, 10);
+  const r2 = Math.random().toString(36).slice(2, 6);
+  return `p_${r1}_${r2}`;
+}
+
+async function adminRepararItinerario() {
+  const input = document.getElementById('adminFixId');
+  const status = document.getElementById('adminFixStatus');
+  const id = (input?.value || '').trim();
+  if (!id) { mostrarToast('⚠️ Introduce el ID'); return; }
+  status.textContent = '⏳ Descargando itinerario...';
+  try {
+    const r = await fetch(`${FB_URL}/itinerarios/${id}.json`);
+    const it = await r.json();
+    if (!it) { status.textContent = '❌ No se encontró ese itinerario'; return; }
+
+    let log = [];
+
+    // 1. Arreglar IDs duplicados en puntos
+    const puntos = Array.isArray(it.puntos) ? it.puntos : [];
+    const seenIds = new Set();
+    let idsFixed = 0;
+    puntos.forEach(p => {
+      if (!p) return;
+      if (p.id && seenIds.has(p.id)) {
+        const oldId = p.id;
+        let newId = _adminGenId();
+        while (seenIds.has(newId)) newId = _adminGenId();
+        p.id = newId;
+        seenIds.add(newId);
+        idsFixed++;
+        log.push(`ID duplicado arreglado: "${p.nombre}" (día ${p.dia})`);
+      } else if (p.id) {
+        seenIds.add(p.id);
+      }
+    });
+
+    // 2. Arreglar jornadas con items null/undefined, reconstruyendo desde puntos del mismo día
+    const jornadas = Array.isArray(it.jornadas) ? it.jornadas : (it.jornadas ? Object.values(it.jornadas) : []);
+    let jornadasFixed = 0;
+    jornadas.forEach(j => {
+      if (!j) return;
+      if (!Array.isArray(j.items)) {
+        const itemsDia = puntos.filter(p => p && p.dia === j.dia).map(p => ({
+          nombre: p.nombre || '',
+          tipo: p.tipo || 'visita',
+          desc: p.desc || ''
+        }));
+        j.items = itemsDia;
+        jornadasFixed++;
+        log.push(`Día ${j.dia}: reconstruidos ${itemsDia.length} items`);
+      }
+    });
+
+    if (idsFixed === 0 && jornadasFixed === 0) {
+      status.textContent = '✅ Este itinerario ya está bien, no hacía falta reparar nada.';
+      return;
+    }
+
+    status.textContent = '⏳ Guardando cambios en Firebase...';
+    it.puntos = puntos;
+    it.jornadas = jornadas;
+
+    const rw = await fbFetch(`${FB_URL}/itinerarios/${id}.json`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ puntos, jornadas })
+    });
+
+    if (rw.ok) {
+      status.textContent = `✅ Reparado:\n• ${idsFixed} IDs duplicados corregidos\n• ${jornadasFixed} días reconstruidos\n\n` + log.join('\n');
+      mostrarToast('✅ Itinerario reparado correctamente');
+      // Refrescar en memoria si está cargado
+      Object.values(destinos).forEach(d => {
+        const found = d.itinerarios.find(i => i.fbId === id);
+        if (found) { found.puntos = puntos; found.jornadas = jornadas; found._fotosNoC = false; }
+      });
+    } else {
+      status.textContent = '❌ Error al guardar: ' + rw.status;
+    }
+  } catch(e) {
+    status.textContent = '❌ Error: ' + e.message;
+  }
 }
 
 </script>
