@@ -1629,11 +1629,7 @@ html, body {
     <div id="adminPanel" style="display:none;margin-top:20px;background:#fff3f0;border:1.5px solid #e8471c33;border-radius:14px;padding:16px">
       <div style="font-size:.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#e8471c;margin-bottom:10px">🛠️ Admin — Borrar itinerario</div>
       <input id="adminDeleteId" placeholder="ID de Firebase (ej: -OprWSyR...)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-size:.82rem;font-family:'Mulish',sans-serif;outline:none;background:white;margin-bottom:8px">
-      <button onclick="adminBorrarItinerario()" style="width:100%;padding:10px;background:#e8471c;color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer;margin-bottom:14px">Borrar de Firebase</button>
-      <div style="font-size:.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#e8471c;margin-bottom:10px;border-top:1px solid #e8471c33;padding-top:14px">🔧 Reparar viaje (IDs duplicados / días vacíos)</div>
-      <input id="adminFixId" placeholder="ID de Firebase a reparar" value="-OrhG0wT0imn8Hjmfza7" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-size:.82rem;font-family:'Mulish',sans-serif;outline:none;background:white;margin-bottom:8px">
-      <button onclick="adminRepararItinerario()" style="width:100%;padding:10px;background:#2e7d32;color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer">Reparar y volver a guardar</button>
-      <div id="adminFixStatus" style="font-size:.75rem;color:var(--muted);margin-top:8px;white-space:pre-line"></div>
+      <button onclick="adminBorrarItinerario()" style="width:100%;padding:10px;background:#e8471c;color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer">Borrar de Firebase</button>
     </div>
   </div>
 </div>
@@ -3728,9 +3724,10 @@ function abrirItinerario(key, id) {
   const detalleLinksEl = document.getElementById('detalleLinks');
   const links = it.links || {};
   const nVuelos = (links.vuelos||[]).length;
+  const nAlojamiento = (links.alojamiento||[]).length;
   const nEnlaces = (links.enlaces||[]).length;
   const nTours = (links.tours||[]).length;
-  const totalLinks = nVuelos + nEnlaces + nTours;
+  const totalLinks = nVuelos + nAlojamiento + nEnlaces + nTours;
   window._detalleLinks = links;
 
   if (totalLinks > 0) {
@@ -3740,7 +3737,7 @@ function abrirItinerario(key, id) {
         <div style="flex:1;text-align:left">
           <div style="font-size:0.9rem;font-weight:700;color:var(--ink)">Vuelos · Alojamiento · Tours</div>
           <div style="font-size:0.75rem;color:var(--muted);margin-top:2px">
-            ${[nVuelos?`${nVuelos} vuelo${nVuelos>1?'s':''}`:null, nEnlaces?`${nEnlaces} enlace${nEnlaces>1?'s':''}`:null, nTours?`${nTours} tour${nTours>1?'s':''}`:null].filter(Boolean).join(' · ')}
+            ${[nVuelos?`${nVuelos} vuelo${nVuelos>1?'s':''}`:null, nAlojamiento?`${nAlojamiento} alojamiento${nAlojamiento>1?'s':''}`:null, nEnlaces?`${nEnlaces} enlace${nEnlaces>1?'s':''}`:null, nTours?`${nTours} tour${nTours>1?'s':''}`:null].filter(Boolean).join(' · ')}
           </div>
         </div>
         <span style="color:var(--muted);font-size:1.1rem">›</span>
@@ -3763,9 +3760,10 @@ function abrirLinksSheet(cat) {
   sheet.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:3000;display:flex;align-items:flex-end';
 
   const CATS = [
-    { key:'vuelos',   icon:'✈️', label:'Vuelos' },
-    { key:'enlaces',  icon:'🔗', label:'Enlaces de interés' },
-    { key:'tours',    icon:'🎟️', label:'Tours y actividades' },
+    { key:'vuelos',      icon:'✈️', label:'Vuelos' },
+    { key:'alojamiento', icon:'🏨', label:'Alojamiento' },
+    { key:'enlaces',     icon:'🔗', label:'Enlaces de interés' },
+    { key:'tours',       icon:'🎟️', label:'Tours y actividades' },
   ];
 
   if (!cat) {
@@ -6644,9 +6642,10 @@ function abrirItinerario(key, id) {
   const detalleLinksEl = document.getElementById('detalleLinks');
   const links = it.links || {};
   const nVuelos = (links.vuelos||[]).length;
+  const nAlojamiento = (links.alojamiento||[]).length;
   const nEnlaces = (links.enlaces||[]).length;
   const nTours = (links.tours||[]).length;
-  const totalLinks = nVuelos + nEnlaces + nTours;
+  const totalLinks = nVuelos + nAlojamiento + nEnlaces + nTours;
   window._detalleLinks = links;
 
   if (totalLinks > 0) {
@@ -6656,7 +6655,7 @@ function abrirItinerario(key, id) {
         <div style="flex:1;text-align:left">
           <div style="font-size:0.9rem;font-weight:700;color:var(--ink)">Vuelos · Alojamiento · Tours</div>
           <div style="font-size:0.75rem;color:var(--muted);margin-top:2px">
-            ${[nVuelos?`${nVuelos} vuelo${nVuelos>1?'s':''}`:null, nEnlaces?`${nEnlaces} enlace${nEnlaces>1?'s':''}`:null, nTours?`${nTours} tour${nTours>1?'s':''}`:null].filter(Boolean).join(' · ')}
+            ${[nVuelos?`${nVuelos} vuelo${nVuelos>1?'s':''}`:null, nAlojamiento?`${nAlojamiento} alojamiento${nAlojamiento>1?'s':''}`:null, nEnlaces?`${nEnlaces} enlace${nEnlaces>1?'s':''}`:null, nTours?`${nTours} tour${nTours>1?'s':''}`:null].filter(Boolean).join(' · ')}
           </div>
         </div>
         <span style="color:var(--muted);font-size:1.1rem">›</span>
@@ -6679,9 +6678,10 @@ function abrirLinksSheet(cat) {
   sheet.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:3000;display:flex;align-items:flex-end';
 
   const CATS = [
-    { key:'vuelos',   icon:'✈️', label:'Vuelos' },
-    { key:'enlaces',  icon:'🔗', label:'Enlaces de interés' },
-    { key:'tours',    icon:'🎟️', label:'Tours y actividades' },
+    { key:'vuelos',      icon:'✈️', label:'Vuelos' },
+    { key:'alojamiento', icon:'🏨', label:'Alojamiento' },
+    { key:'enlaces',     icon:'🔗', label:'Enlaces de interés' },
+    { key:'tours',       icon:'🎟️', label:'Tours y actividades' },
   ];
 
   if (!cat) {
@@ -7729,16 +7729,36 @@ async function abrirPerfilPublico(nombre, uid) {
 async function adminBorrarItinerario() {
   const input = document.getElementById('adminDeleteId');
   const id = (input?.value || '').trim();
-  if (!id) { mostrarToast('⚠️ Introduce el ID'); return; }
-  if (!confirm(`¿Borrar el itinerario ${id}?`)) return;
+  if (!id) { mostrarToast('⚠️ Introduce el ID del viaje a borrar'); return; }
+
+  // confirm() bloqueado en Chrome Android PWA — usar sheet propio
+  let sheet = document.getElementById('_adminConfirmSheet');
+  if (sheet) sheet.remove();
+  sheet = document.createElement('div');
+  sheet.id = '_adminConfirmSheet';
+  sheet.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:5000;display:flex;align-items:flex-end';
+  sheet.innerHTML = `
+    <div style="background:white;border-radius:20px 20px 0 0;width:100%;padding:24px 20px 40px">
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;margin-bottom:8px;text-align:center">⚠️ Confirmar borrado</div>
+      <div style="font-size:.85rem;color:#666;text-align:center;margin-bottom:20px">Se borrará el itinerario<br><b>${id}</b><br>Esta acción no se puede deshacer.</div>
+      <button onclick="adminConfirmarBorrado('${id}')" style="width:100%;padding:14px;background:#e8471c;color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:.9rem;cursor:pointer;margin-bottom:10px">🗑️ Sí, borrar</button>
+      <button onclick="document.getElementById('_adminConfirmSheet').remove()" style="width:100%;padding:14px;background:none;border:1.5px solid var(--border);border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:.9rem;cursor:pointer">Cancelar</button>
+    </div>`;
+  document.body.appendChild(sheet);
+}
+
+async function adminConfirmarBorrado(id) {
+  document.getElementById('_adminConfirmSheet')?.remove();
+  mostrarToast('⏳ Borrando...');
   try {
     const r = await fbFetch(`${FB_URL}/itinerarios/${id}.json`, { method: 'DELETE' });
     if (r.ok) {
-      mostrarToast('✅ Itinerario borrado');
-      input.value = '';
+      mostrarToast('✅ Itinerario borrado de Firebase');
+      const input = document.getElementById('adminDeleteId');
+      if (input) input.value = '';
       Object.values(destinos).forEach(d => { d.itinerarios = d.itinerarios.filter(it => it.fbId !== id); });
       renderSocialFeed();
-    } else { mostrarToast('❌ Error: ' + r.status); }
+    } else { mostrarToast('❌ Error al borrar: ' + r.status); }
   } catch(e) { mostrarToast('❌ Error: ' + e.message); }
 }
 
