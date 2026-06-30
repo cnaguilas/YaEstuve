@@ -1630,7 +1630,7 @@ html, body {
       <div style="font-size:.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#e8471c;margin-bottom:10px">🛠️ Admin — Borrar itinerario</div>
       <input id="adminDeleteId" placeholder="ID de Firebase (ej: -OprWSyR...)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-size:.82rem;font-family:'Mulish',sans-serif;outline:none;background:white;margin-bottom:8px">
       <div id="adminBorrarStatus" style="font-size:.8rem;margin-bottom:8px;min-height:20px;color:#e8471c;font-weight:700"></div>
-      <button id="adminBorrarBtn" style="width:100%;padding:10px;background:#e8471c;color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer">🗑️ Borrar de Firebase</button>
+      <button id="adminBorrarBtn" onclick="document.getElementById('adminBorrarStatus').textContent='👆 Click detectado, ejecutando...'; adminBorrarItinerario();" style="width:100%;padding:10px;background:#e8471c;color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer">🗑️ Borrar de Firebase</button>
     </div>
   </div>
 </div>
