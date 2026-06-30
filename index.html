@@ -1630,7 +1630,23 @@ html, body {
       <div style="font-size:.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#e8471c;margin-bottom:10px">🛠️ Admin — Borrar itinerario</div>
       <input id="adminDeleteId" placeholder="ID de Firebase (ej: -OprWSyR...)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-size:.82rem;font-family:'Mulish',sans-serif;outline:none;background:white;margin-bottom:8px">
       <div id="adminBorrarStatus" style="font-size:.8rem;margin-bottom:8px;min-height:20px;color:#e8471c;font-weight:700"></div>
-      <button id="adminBorrarBtn" onclick="document.getElementById('adminBorrarStatus').textContent='👆 Click detectado, ejecutando...'; adminBorrarItinerario();" style="width:100%;padding:10px;background:#e8471c;color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer">🗑️ Borrar de Firebase</button>
+      <button id="adminBorrarBtn" style="position:relative;z-index:9999;width:100%;padding:14px;background:#e8471c;color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer;-webkit-tap-highlight-color:rgba(255,255,255,0.3)">🗑️ Borrar de Firebase</button>
+      <script>
+        (function(){
+          var btn = document.currentScript.previousElementSibling;
+          var lastFire = 0;
+          function handler(e){
+            e.preventDefault();
+            var now = Date.now();
+            if (now - lastFire < 800) return;
+            lastFire = now;
+            document.getElementById('adminBorrarStatus').textContent = '👆 Evento ' + e.type + ' detectado';
+            adminBorrarItinerario();
+          }
+          btn.addEventListener('click', handler);
+          btn.addEventListener('touchend', handler);
+        })();
+      </script>
     </div>
   </div>
 </div>
@@ -1789,12 +1805,7 @@ function actualizarPerfil() {
     if (emailEl) emailEl.textContent = u.email || '';
     if (logoutBtn) logoutBtn.style.display = 'block';
     const adminPanel = document.getElementById('adminPanel');
-    if (adminPanel) {
-      adminPanel.style.display = u.email === 'roblius81@gmail.com' ? 'block' : 'none';
-      // Registrar listener cada vez que se muestra (evita problemas con onclick en PWA)
-      const btn = document.getElementById('adminBorrarBtn');
-      if (btn) { btn.onclick = null; btn.addEventListener('click', adminBorrarItinerario); }
-    }
+    if (adminPanel) adminPanel.style.display = u.email === 'roblius81@gmail.com' ? 'block' : 'none';
     if (loginBtn) loginBtn.style.display = 'none';
     cargarMisViajes();
   } else {
@@ -4915,12 +4926,7 @@ function actualizarPerfil() {
     if (emailEl) emailEl.textContent = u.email || '';
     if (logoutBtn) logoutBtn.style.display = 'block';
     const adminPanel = document.getElementById('adminPanel');
-    if (adminPanel) {
-      adminPanel.style.display = u.email === 'roblius81@gmail.com' ? 'block' : 'none';
-      // Registrar listener cada vez que se muestra (evita problemas con onclick en PWA)
-      const btn = document.getElementById('adminBorrarBtn');
-      if (btn) { btn.onclick = null; btn.addEventListener('click', adminBorrarItinerario); }
-    }
+    if (adminPanel) adminPanel.style.display = u.email === 'roblius81@gmail.com' ? 'block' : 'none';
     if (loginBtn) loginBtn.style.display = 'none';
     cargarMisViajes();
   } else {
