@@ -3664,6 +3664,42 @@ function abrirItinerario(key, id) {
   const it = d.itinerarios.find(i => i.id === id || i.fbId === id) || d.itinerarios[0];
   if (!it) { mostrarToast('❌ Itinerario no encontrado'); return; }
 
+  // Si hay fotos pendientes de cargar (lazy loading), cargarlas ahora
+  if (it._fotosNoC && it.fbId) {
+    it._fotosNoC = false;
+    fetch(`${FB_URL}/itinerarios/${it.fbId}/fotos.json`)
+      .then(r => r.json())
+      .then(fotos => {
+        if (!Array.isArray(fotos) || fotos.length <= 1) return;
+        it.fotos = fotos;
+        const hf = document.getElementById('heroFotos');
+        const hd = document.getElementById('heroDots');
+        if (!hf || !document.getElementById('screenDetalle').classList.contains('active')) return;
+        hf.innerHTML = ''; hd.innerHTML = '';
+        fotos.forEach(src => {
+          const img = document.createElement('img');
+          img.className = 'hero-foto'; img.src = src;
+          img.onclick = () => abrirLightbox(src, fotos);
+          hf.appendChild(img);
+        });
+        if (fotos.length > 1) {
+          fotos.forEach((_, i) => {
+            const dot = document.createElement('div');
+            dot.style.cssText = `width:6px;height:6px;border-radius:50%;background:${i===0?'white':'rgba(255,255,255,0.45)'};transition:background 0.2s`;
+            hd.appendChild(dot);
+          });
+          if (hf._scrollHandler) hf.removeEventListener('scroll', hf._scrollHandler);
+          hf._scrollHandler = () => {
+            const idx = Math.round(hf.scrollLeft / hf.offsetWidth);
+            hd.querySelectorAll('div').forEach((dot, i) => {
+              dot.style.background = i === idx ? 'white' : 'rgba(255,255,255,0.45)';
+            });
+          };
+          hf.addEventListener('scroll', hf._scrollHandler, { passive: true });
+        }
+      }).catch(() => {});
+  }
+
   // Hero fotos
   const heroFotos = document.getElementById('heroFotos');
   const heroDots = document.getElementById('heroDots');
@@ -6581,6 +6617,42 @@ function abrirItinerario(key, id) {
   // Buscar por id, fbId, o coger el primero si solo hay uno
   const it = d.itinerarios.find(i => i.id === id || i.fbId === id) || d.itinerarios[0];
   if (!it) { mostrarToast('❌ Itinerario no encontrado'); return; }
+  // Si hay fotos pendientes de cargar (lazy loading), cargarlas ahora
+  if (it._fotosNoC && it.fbId) {
+    it._fotosNoC = false;
+    fetch(`${FB_URL}/itinerarios/${it.fbId}/fotos.json`)
+      .then(r => r.json())
+      .then(fotos => {
+        if (!Array.isArray(fotos) || fotos.length <= 1) return;
+        it.fotos = fotos;
+        const hf = document.getElementById('heroFotos');
+        const hd = document.getElementById('heroDots');
+        if (!hf || !document.getElementById('screenDetalle').classList.contains('active')) return;
+        hf.innerHTML = ''; hd.innerHTML = '';
+        fotos.forEach(src => {
+          const img = document.createElement('img');
+          img.className = 'hero-foto'; img.src = src;
+          img.onclick = () => abrirLightbox(src, fotos);
+          hf.appendChild(img);
+        });
+        if (fotos.length > 1) {
+          fotos.forEach((_, i) => {
+            const dot = document.createElement('div');
+            dot.style.cssText = `width:6px;height:6px;border-radius:50%;background:${i===0?'white':'rgba(255,255,255,0.45)'};transition:background 0.2s`;
+            hd.appendChild(dot);
+          });
+          if (hf._scrollHandler) hf.removeEventListener('scroll', hf._scrollHandler);
+          hf._scrollHandler = () => {
+            const idx = Math.round(hf.scrollLeft / hf.offsetWidth);
+            hd.querySelectorAll('div').forEach((dot, i) => {
+              dot.style.background = i === idx ? 'white' : 'rgba(255,255,255,0.45)';
+            });
+          };
+          hf.addEventListener('scroll', hf._scrollHandler, { passive: true });
+        }
+      }).catch(() => {});
+  }
+
 
   // Hero fotos
   const heroFotos = document.getElementById('heroFotos');
