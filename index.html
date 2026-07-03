@@ -7732,9 +7732,25 @@ async function adminBorrarItinerario() {
     if (status) status.textContent = '⚠️ Introduce el ID';
     return;
   }
-  if (status) status.textContent = '⏳ Borrando...';
+  if (status) status.textContent = '⏳ Obteniendo token...';
   try {
-    const r = await fbFetch(`${FB_URL}/itinerarios/${id}.json`, { method: 'DELETE' });
+    // Obtener token explícitamente
+    let token = null;
+    try {
+      const user = _fbAuth?.currentUser;
+      if (user) token = await user.getIdToken(true); // true = forzar refresh
+    } catch(te) {}
+
+    if (!token) {
+      if (status) status.textContent = '❌ Sin sesión — inicia sesión primero';
+      return;
+    }
+
+    if (status) status.textContent = '⏳ Borrando...';
+    const url = `${FB_URL}/itinerarios/${id}.json?auth=${token}`;
+    const r = await fetch(url, { method: 'DELETE' });
+    const txt = await r.text();
+
     if (r.ok) {
       if (status) status.textContent = '✅ Borrado correctamente';
       input.value = '';
@@ -7742,7 +7758,7 @@ async function adminBorrarItinerario() {
       renderSocialFeed();
       mostrarToast('✅ Itinerario borrado de Firebase');
     } else {
-      if (status) status.textContent = '❌ Error HTTP: ' + r.status;
+      if (status) status.textContent = `❌ Error ${r.status}: ${txt.slice(0,100)}`;
     }
   } catch(e) {
     if (status) status.textContent = '❌ Error: ' + e.message;
