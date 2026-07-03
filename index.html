@@ -1626,27 +1626,12 @@ html, body {
       <button id="perfilLoginBtn" onclick="abrirLoginSheet()" style="width:100%;padding:14px;background:var(--primary);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer">Iniciar sesión</button>
     </div>
 
+
     <div id="adminPanel" style="display:none;margin-top:20px;background:#fff3f0;border:1.5px solid #e8471c33;border-radius:14px;padding:16px">
       <div style="font-size:.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#e8471c;margin-bottom:10px">🛠️ Admin — Borrar itinerario</div>
       <input id="adminDeleteId" placeholder="ID de Firebase (ej: -OprWSyR...)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-size:.82rem;font-family:'Mulish',sans-serif;outline:none;background:white;margin-bottom:8px">
-      <div id="adminBorrarStatus" style="font-size:.8rem;margin-bottom:8px;min-height:20px;color:#e8471c;font-weight:700"></div>
-      <button id="adminBorrarBtn" style="position:relative;z-index:9999;width:100%;padding:14px;background:#e8471c;color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer;-webkit-tap-highlight-color:rgba(255,255,255,0.3)">🗑️ Borrar de Firebase</button>
-      <script>
-        (function(){
-          var btn = document.currentScript.previousElementSibling;
-          var lastFire = 0;
-          function handler(e){
-            e.preventDefault();
-            var now = Date.now();
-            if (now - lastFire < 800) return;
-            lastFire = now;
-            document.getElementById('adminBorrarStatus').textContent = '👆 Evento ' + e.type + ' detectado';
-            adminBorrarItinerario();
-          }
-          btn.addEventListener('click', handler);
-          btn.addEventListener('touchend', handler);
-        })();
-      </script>
+      <div id="adminBorrarStatus" style="font-size:.8rem;font-weight:700;color:#e8471c;min-height:22px;margin-bottom:8px"></div>
+      <button onclick="adminBorrarItinerario()" style="width:100%;padding:12px;background:#e8471c;color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer">🗑️ Borrar de Firebase</button>
     </div>
   </div>
 </div>
@@ -3664,42 +3649,6 @@ function abrirItinerario(key, id) {
   const it = d.itinerarios.find(i => i.id === id || i.fbId === id) || d.itinerarios[0];
   if (!it) { mostrarToast('❌ Itinerario no encontrado'); return; }
 
-  // Si hay fotos pendientes de cargar (lazy loading), cargarlas ahora
-  if (it._fotosNoC && it.fbId) {
-    it._fotosNoC = false;
-    fetch(`${FB_URL}/itinerarios/${it.fbId}/fotos.json`)
-      .then(r => r.json())
-      .then(fotos => {
-        if (!Array.isArray(fotos) || fotos.length <= 1) return;
-        it.fotos = fotos;
-        const hf = document.getElementById('heroFotos');
-        const hd = document.getElementById('heroDots');
-        if (!hf || !document.getElementById('screenDetalle').classList.contains('active')) return;
-        hf.innerHTML = ''; hd.innerHTML = '';
-        fotos.forEach(src => {
-          const img = document.createElement('img');
-          img.className = 'hero-foto'; img.src = src;
-          img.onclick = () => abrirLightbox(src, fotos);
-          hf.appendChild(img);
-        });
-        if (fotos.length > 1) {
-          fotos.forEach((_, i) => {
-            const dot = document.createElement('div');
-            dot.style.cssText = `width:6px;height:6px;border-radius:50%;background:${i===0?'white':'rgba(255,255,255,0.45)'};transition:background 0.2s`;
-            hd.appendChild(dot);
-          });
-          if (hf._scrollHandler) hf.removeEventListener('scroll', hf._scrollHandler);
-          hf._scrollHandler = () => {
-            const idx = Math.round(hf.scrollLeft / hf.offsetWidth);
-            hd.querySelectorAll('div').forEach((dot, i) => {
-              dot.style.background = i === idx ? 'white' : 'rgba(255,255,255,0.45)';
-            });
-          };
-          hf.addEventListener('scroll', hf._scrollHandler, { passive: true });
-        }
-      }).catch(() => {});
-  }
-
   // Hero fotos
   const heroFotos = document.getElementById('heroFotos');
   const heroDots = document.getElementById('heroDots');
@@ -3777,10 +3726,9 @@ function abrirItinerario(key, id) {
   const detalleLinksEl = document.getElementById('detalleLinks');
   const links = it.links || {};
   const nVuelos = (links.vuelos||[]).length;
-  const nAlojamiento = (links.alojamiento||[]).length;
   const nEnlaces = (links.enlaces||[]).length;
   const nTours = (links.tours||[]).length;
-  const totalLinks = nVuelos + nAlojamiento + nEnlaces + nTours;
+  const totalLinks = nVuelos + nEnlaces + nTours;
   window._detalleLinks = links;
 
   if (totalLinks > 0) {
@@ -3790,7 +3738,7 @@ function abrirItinerario(key, id) {
         <div style="flex:1;text-align:left">
           <div style="font-size:0.9rem;font-weight:700;color:var(--ink)">Vuelos · Alojamiento · Tours</div>
           <div style="font-size:0.75rem;color:var(--muted);margin-top:2px">
-            ${[nVuelos?`${nVuelos} vuelo${nVuelos>1?'s':''}`:null, nAlojamiento?`${nAlojamiento} alojamiento${nAlojamiento>1?'s':''}`:null, nEnlaces?`${nEnlaces} enlace${nEnlaces>1?'s':''}`:null, nTours?`${nTours} tour${nTours>1?'s':''}`:null].filter(Boolean).join(' · ')}
+            ${[nVuelos?`${nVuelos} vuelo${nVuelos>1?'s':''}`:null, nEnlaces?`${nEnlaces} enlace${nEnlaces>1?'s':''}`:null, nTours?`${nTours} tour${nTours>1?'s':''}`:null].filter(Boolean).join(' · ')}
           </div>
         </div>
         <span style="color:var(--muted);font-size:1.1rem">›</span>
@@ -3813,10 +3761,9 @@ function abrirLinksSheet(cat) {
   sheet.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:3000;display:flex;align-items:flex-end';
 
   const CATS = [
-    { key:'vuelos',      icon:'✈️', label:'Vuelos' },
-    { key:'alojamiento', icon:'🏨', label:'Alojamiento' },
-    { key:'enlaces',     icon:'🔗', label:'Enlaces de interés' },
-    { key:'tours',       icon:'🎟️', label:'Tours y actividades' },
+    { key:'vuelos',   icon:'✈️', label:'Vuelos' },
+    { key:'enlaces',  icon:'🔗', label:'Enlaces de interés' },
+    { key:'tours',    icon:'🎟️', label:'Tours y actividades' },
   ];
 
   if (!cat) {
@@ -6617,42 +6564,6 @@ function abrirItinerario(key, id) {
   // Buscar por id, fbId, o coger el primero si solo hay uno
   const it = d.itinerarios.find(i => i.id === id || i.fbId === id) || d.itinerarios[0];
   if (!it) { mostrarToast('❌ Itinerario no encontrado'); return; }
-  // Si hay fotos pendientes de cargar (lazy loading), cargarlas ahora
-  if (it._fotosNoC && it.fbId) {
-    it._fotosNoC = false;
-    fetch(`${FB_URL}/itinerarios/${it.fbId}/fotos.json`)
-      .then(r => r.json())
-      .then(fotos => {
-        if (!Array.isArray(fotos) || fotos.length <= 1) return;
-        it.fotos = fotos;
-        const hf = document.getElementById('heroFotos');
-        const hd = document.getElementById('heroDots');
-        if (!hf || !document.getElementById('screenDetalle').classList.contains('active')) return;
-        hf.innerHTML = ''; hd.innerHTML = '';
-        fotos.forEach(src => {
-          const img = document.createElement('img');
-          img.className = 'hero-foto'; img.src = src;
-          img.onclick = () => abrirLightbox(src, fotos);
-          hf.appendChild(img);
-        });
-        if (fotos.length > 1) {
-          fotos.forEach((_, i) => {
-            const dot = document.createElement('div');
-            dot.style.cssText = `width:6px;height:6px;border-radius:50%;background:${i===0?'white':'rgba(255,255,255,0.45)'};transition:background 0.2s`;
-            hd.appendChild(dot);
-          });
-          if (hf._scrollHandler) hf.removeEventListener('scroll', hf._scrollHandler);
-          hf._scrollHandler = () => {
-            const idx = Math.round(hf.scrollLeft / hf.offsetWidth);
-            hd.querySelectorAll('div').forEach((dot, i) => {
-              dot.style.background = i === idx ? 'white' : 'rgba(255,255,255,0.45)';
-            });
-          };
-          hf.addEventListener('scroll', hf._scrollHandler, { passive: true });
-        }
-      }).catch(() => {});
-  }
-
 
   // Hero fotos
   const heroFotos = document.getElementById('heroFotos');
@@ -6731,10 +6642,9 @@ function abrirItinerario(key, id) {
   const detalleLinksEl = document.getElementById('detalleLinks');
   const links = it.links || {};
   const nVuelos = (links.vuelos||[]).length;
-  const nAlojamiento = (links.alojamiento||[]).length;
   const nEnlaces = (links.enlaces||[]).length;
   const nTours = (links.tours||[]).length;
-  const totalLinks = nVuelos + nAlojamiento + nEnlaces + nTours;
+  const totalLinks = nVuelos + nEnlaces + nTours;
   window._detalleLinks = links;
 
   if (totalLinks > 0) {
@@ -6744,7 +6654,7 @@ function abrirItinerario(key, id) {
         <div style="flex:1;text-align:left">
           <div style="font-size:0.9rem;font-weight:700;color:var(--ink)">Vuelos · Alojamiento · Tours</div>
           <div style="font-size:0.75rem;color:var(--muted);margin-top:2px">
-            ${[nVuelos?`${nVuelos} vuelo${nVuelos>1?'s':''}`:null, nAlojamiento?`${nAlojamiento} alojamiento${nAlojamiento>1?'s':''}`:null, nEnlaces?`${nEnlaces} enlace${nEnlaces>1?'s':''}`:null, nTours?`${nTours} tour${nTours>1?'s':''}`:null].filter(Boolean).join(' · ')}
+            ${[nVuelos?`${nVuelos} vuelo${nVuelos>1?'s':''}`:null, nEnlaces?`${nEnlaces} enlace${nEnlaces>1?'s':''}`:null, nTours?`${nTours} tour${nTours>1?'s':''}`:null].filter(Boolean).join(' · ')}
           </div>
         </div>
         <span style="color:var(--muted);font-size:1.1rem">›</span>
@@ -6767,10 +6677,9 @@ function abrirLinksSheet(cat) {
   sheet.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:3000;display:flex;align-items:flex-end';
 
   const CATS = [
-    { key:'vuelos',      icon:'✈️', label:'Vuelos' },
-    { key:'alojamiento', icon:'🏨', label:'Alojamiento' },
-    { key:'enlaces',     icon:'🔗', label:'Enlaces de interés' },
-    { key:'tours',       icon:'🎟️', label:'Tours y actividades' },
+    { key:'vuelos',   icon:'✈️', label:'Vuelos' },
+    { key:'enlaces',  icon:'🔗', label:'Enlaces de interés' },
+    { key:'tours',    icon:'🎟️', label:'Tours y actividades' },
   ];
 
   if (!cat) {
@@ -7818,34 +7727,27 @@ async function abrirPerfilPublico(nombre, uid) {
 async function adminBorrarItinerario() {
   const input = document.getElementById('adminDeleteId');
   const status = document.getElementById('adminBorrarStatus');
-  const btn = document.getElementById('adminBorrarBtn');
   const id = (input?.value || '').trim();
-  if (!id) { if(status) status.textContent = '⚠️ Introduce el ID'; return; }
-  if(status) status.textContent = '⏳ Borrando...';
-  if(btn) btn.disabled = true;
+  if (!id) {
+    if (status) status.textContent = '⚠️ Introduce el ID';
+    return;
+  }
+  if (status) status.textContent = '⏳ Borrando...';
   try {
     const r = await fbFetch(`${FB_URL}/itinerarios/${id}.json`, { method: 'DELETE' });
     if (r.ok) {
-      if(status) status.textContent = '✅ Borrado correctamente';
-      if(input) input.value = '';
+      if (status) status.textContent = '✅ Borrado correctamente';
+      input.value = '';
       Object.values(destinos).forEach(d => { d.itinerarios = d.itinerarios.filter(it => it.fbId !== id); });
       renderSocialFeed();
-      mostrarToast('✅ Itinerario borrado');
+      mostrarToast('✅ Itinerario borrado de Firebase');
     } else {
-      if(status) status.textContent = '❌ Error: ' + r.status;
+      if (status) status.textContent = '❌ Error HTTP: ' + r.status;
     }
   } catch(e) {
-    if(status) status.textContent = '❌ ' + e.message;
-  } finally {
-    if(btn) btn.disabled = false;
+    if (status) status.textContent = '❌ Error: ' + e.message;
   }
 }
-
-// Listener del botón admin (más fiable que onclick en PWA)
-document.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('adminBorrarBtn');
-  if (btn) btn.addEventListener('click', adminBorrarItinerario);
-});
 
 function _adminGenId() {
   const r1 = Math.random().toString(36).slice(2, 10);
