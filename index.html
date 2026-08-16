@@ -4299,37 +4299,46 @@ const OSM_TIPOS = {
 // Busca coords exactas en OSM usando Nominatim con tipo específico
 async function buscarCoordsOSM(nombre, ciudad, latRef, lngRef, tipo) {
   const clases = OSM_TIPOS[tipo] || [];
+  const vb = (r) => `${lngRef-r},${latRef+r},${lngRef+r},${latRef-r}`;
 
-  // Intento 1: búsqueda con tipo específico OSM
+  // Intento 1: tipo OSM específico, viewbox amplio sin bounded
   for (const clase of clases) {
     try {
       const [key, val] = clase.split('=');
-      const q = encodeURIComponent(nombre);
-      const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1&countrycodes=&viewbox=${lngRef-0.3},${latRef+0.3},${lngRef+0.3},${latRef-0.3}&bounded=1`;
-      const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' } });
+      const q = encodeURIComponent(`${nombre}, ${ciudad}`);
+      const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=8&addressdetails=1&viewbox=${vb(1.5)}`;
+      const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve5.netlify.app)' } });
       const data = await r.json();
-      // Filtrar por tipo OSM y proximidad
       const match = data.find(d =>
         (d.type === val || d.class === key) &&
-        Math.abs(parseFloat(d.lat) - latRef) < 0.4 &&
-        Math.abs(parseFloat(d.lon) - lngRef) < 0.4
+        Math.abs(parseFloat(d.lat) - latRef) < 1.5 &&
+        Math.abs(parseFloat(d.lon) - lngRef) < 1.5
       );
       if (match) return { lat: parseFloat(match.lat), lng: parseFloat(match.lon) };
     } catch(e) {}
     await new Promise(r => setTimeout(r, 100));
   }
 
-  // Intento 2: búsqueda libre con nombre + ciudad dentro del viewbox
+  // Intento 2: búsqueda libre "nombre, ciudad" sin bounded
   try {
     const q = encodeURIComponent(`${nombre}, ${ciudad}`);
-    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1&viewbox=${lngRef-0.3},${latRef+0.3},${lngRef+0.3},${latRef-0.3}&bounded=1`;
-    const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' } });
+    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1`;
+    const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve5.netlify.app)' } });
     const data = await r.json();
     const cercano = data.find(d =>
-      Math.abs(parseFloat(d.lat) - latRef) < 0.4 &&
-      Math.abs(parseFloat(d.lon) - lngRef) < 0.4
+      Math.abs(parseFloat(d.lat) - latRef) < 2.0 &&
+      Math.abs(parseFloat(d.lon) - lngRef) < 2.0
     );
     if (cercano) return { lat: parseFloat(cercano.lat), lng: parseFloat(cercano.lon) };
+  } catch(e) {}
+
+  // Intento 3: solo el nombre, viewbox grande
+  try {
+    const q = encodeURIComponent(nombre);
+    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&viewbox=${vb(2.0)}&bounded=1`;
+    const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve5.netlify.app)' } });
+    const data = await r.json();
+    if (data?.[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
   } catch(e) {}
 
   return null;
@@ -4368,11 +4377,10 @@ async function construirPuntosDesdeIA(parsed, loadEl) {
         await new Promise(r => setTimeout(r, 200)); // respetar límite Nominatim
       }
 
-      // Fallback: coords de la ciudad con offset
+      // Fallback: coords exactas de la ciudad (sin offset random que pone iconos mal)
       if (!lat && ciudadLat) {
-        const offset = () => (Math.random()-0.5)*0.008;
-        lat = ciudadLat + offset();
-        lng = ciudadLng + offset();
+        lat = ciudadLat;
+        lng = ciudadLng;
         esAproximado = true;
         sinCoords.push(item.nombre);
       }
@@ -4449,6 +4457,14 @@ function rellenarResumen() {
 }
 
 async function publicarViaje() {
+  // Sincronizar posiciones de marcadores arrastrados antes de publicar
+  if (state.viajeActual?.puntos?.length) {
+    itinerarioGenerado.puntos = state.viajeActual.puntos;
+  }
+  if (puntosEdicion?.length) {
+    itinerarioGenerado.puntos = puntosEdicion;
+  }
+
   const it = itinerarioGenerado;
   const key = it.destinoKey;
 
@@ -7254,37 +7270,46 @@ const OSM_TIPOS = {
 // Busca coords exactas en OSM usando Nominatim con tipo específico
 async function buscarCoordsOSM(nombre, ciudad, latRef, lngRef, tipo) {
   const clases = OSM_TIPOS[tipo] || [];
+  const vb = (r) => `${lngRef-r},${latRef+r},${lngRef+r},${latRef-r}`;
 
-  // Intento 1: búsqueda con tipo específico OSM
+  // Intento 1: tipo OSM específico, viewbox amplio sin bounded
   for (const clase of clases) {
     try {
       const [key, val] = clase.split('=');
-      const q = encodeURIComponent(nombre);
-      const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1&countrycodes=&viewbox=${lngRef-0.3},${latRef+0.3},${lngRef+0.3},${latRef-0.3}&bounded=1`;
-      const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' } });
+      const q = encodeURIComponent(`${nombre}, ${ciudad}`);
+      const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=8&addressdetails=1&viewbox=${vb(1.5)}`;
+      const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve5.netlify.app)' } });
       const data = await r.json();
-      // Filtrar por tipo OSM y proximidad
       const match = data.find(d =>
         (d.type === val || d.class === key) &&
-        Math.abs(parseFloat(d.lat) - latRef) < 0.4 &&
-        Math.abs(parseFloat(d.lon) - lngRef) < 0.4
+        Math.abs(parseFloat(d.lat) - latRef) < 1.5 &&
+        Math.abs(parseFloat(d.lon) - lngRef) < 1.5
       );
       if (match) return { lat: parseFloat(match.lat), lng: parseFloat(match.lon) };
     } catch(e) {}
     await new Promise(r => setTimeout(r, 100));
   }
 
-  // Intento 2: búsqueda libre con nombre + ciudad dentro del viewbox
+  // Intento 2: búsqueda libre "nombre, ciudad" sin bounded
   try {
     const q = encodeURIComponent(`${nombre}, ${ciudad}`);
-    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1&viewbox=${lngRef-0.3},${latRef+0.3},${lngRef+0.3},${latRef-0.3}&bounded=1`;
-    const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0' } });
+    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1`;
+    const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve5.netlify.app)' } });
     const data = await r.json();
     const cercano = data.find(d =>
-      Math.abs(parseFloat(d.lat) - latRef) < 0.4 &&
-      Math.abs(parseFloat(d.lon) - lngRef) < 0.4
+      Math.abs(parseFloat(d.lat) - latRef) < 2.0 &&
+      Math.abs(parseFloat(d.lon) - lngRef) < 2.0
     );
     if (cercano) return { lat: parseFloat(cercano.lat), lng: parseFloat(cercano.lon) };
+  } catch(e) {}
+
+  // Intento 3: solo el nombre, viewbox grande
+  try {
+    const q = encodeURIComponent(nombre);
+    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&viewbox=${vb(2.0)}&bounded=1`;
+    const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve5.netlify.app)' } });
+    const data = await r.json();
+    if (data?.[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
   } catch(e) {}
 
   return null;
@@ -7323,11 +7348,10 @@ async function construirPuntosDesdeIA(parsed, loadEl) {
         await new Promise(r => setTimeout(r, 200)); // respetar límite Nominatim
       }
 
-      // Fallback: coords de la ciudad con offset
+      // Fallback: coords exactas de la ciudad (sin offset random que pone iconos mal)
       if (!lat && ciudadLat) {
-        const offset = () => (Math.random()-0.5)*0.008;
-        lat = ciudadLat + offset();
-        lng = ciudadLng + offset();
+        lat = ciudadLat;
+        lng = ciudadLng;
         esAproximado = true;
         sinCoords.push(item.nombre);
       }
