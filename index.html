@@ -4402,46 +4402,55 @@ const OSM_TIPOS = {
 // Busca coords exactas en OSM usando Nominatim con tipo específico
 async function buscarCoordsOSM(nombre, ciudad, latRef, lngRef, tipo) {
   const clases = OSM_TIPOS[tipo] || [];
+  // Radios progresivos: primero muy ajustado (pueblo/barrio), luego más amplio
+  // solo si no aparece nada cerca. Antes usaba 1.5° (~150km) desde el principio,
+  // lo que en islas o zonas pequeñas hacía que ganara cualquier resultado lejano
+  // que encajase por tipo, en vez del que realmente está en el sitio correcto.
   const vb = (r) => `${lngRef-r},${latRef+r},${lngRef+r},${latRef-r}`;
+  const mejorPorDistancia = (candidatos) => {
+    if (!candidatos.length) return null;
+    candidatos.sort((a, b) =>
+      _distanciaAprox(parseFloat(a.lat), parseFloat(a.lon), latRef, lngRef) -
+      _distanciaAprox(parseFloat(b.lat), parseFloat(b.lon), latRef, lngRef)
+    );
+    return candidatos[0];
+  };
 
-  // Intento 1: tipo OSM específico, viewbox amplio sin bounded
-  for (const clase of clases) {
-    try {
-      const [key, val] = clase.split('=');
-      const q = encodeURIComponent(`${nombre}, ${ciudad}`);
-      const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=8&addressdetails=1&viewbox=${vb(1.5)}`;
-      const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve5.netlify.app)' } });
-      const data = await r.json();
-      const match = data.find(d =>
-        (d.type === val || d.class === key) &&
-        Math.abs(parseFloat(d.lat) - latRef) < 1.5 &&
-        Math.abs(parseFloat(d.lon) - lngRef) < 1.5
-      );
-      if (match) return { lat: parseFloat(match.lat), lng: parseFloat(match.lon) };
-    } catch(e) {}
-    await new Promise(r => setTimeout(r, 100));
+  // Intento 1: tipo OSM específico, radio ajustado (~5km) — prioriza lo cercano de verdad
+  for (const radio of [0.05, 0.2]) {
+    for (const clase of clases) {
+      try {
+        const [key, val] = clase.split('=');
+        const q = encodeURIComponent(`${nombre}, ${ciudad}`);
+        const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=8&addressdetails=1&viewbox=${vb(radio)}&bounded=1`;
+        const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve5.netlify.app)' } });
+        const data = await r.json();
+        const candidatos = (data || []).filter(d => d.type === val || d.class === key);
+        const match = mejorPorDistancia(candidatos);
+        if (match) return { lat: parseFloat(match.lat), lng: parseFloat(match.lon) };
+      } catch(e) {}
+      await new Promise(r => setTimeout(r, 100));
+    }
   }
 
-  // Intento 2: búsqueda libre "nombre, ciudad" sin bounded
+  // Intento 2: búsqueda libre "nombre, ciudad", radio medio (~20km), el más cercano gana
   try {
     const q = encodeURIComponent(`${nombre}, ${ciudad}`);
-    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1`;
+    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=8&addressdetails=1&viewbox=${vb(0.2)}&bounded=1`;
     const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve5.netlify.app)' } });
     const data = await r.json();
-    const cercano = data.find(d =>
-      Math.abs(parseFloat(d.lat) - latRef) < 2.0 &&
-      Math.abs(parseFloat(d.lon) - lngRef) < 2.0
-    );
+    const cercano = mejorPorDistancia(data || []);
     if (cercano) return { lat: parseFloat(cercano.lat), lng: parseFloat(cercano.lon) };
   } catch(e) {}
 
-  // Intento 3: solo el nombre, viewbox grande
+  // Intento 3: solo el nombre, radio amplio (~50km) como último recurso — sigue eligiendo el más cercano
   try {
     const q = encodeURIComponent(nombre);
-    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&viewbox=${vb(2.0)}&bounded=1`;
+    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=8&viewbox=${vb(0.5)}&bounded=1`;
     const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve5.netlify.app)' } });
     const data = await r.json();
-    if (data?.[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    const cercano = mejorPorDistancia(data || []);
+    if (cercano) return { lat: parseFloat(cercano.lat), lng: parseFloat(cercano.lon) };
   } catch(e) {}
 
   return null;
@@ -4466,15 +4475,20 @@ async function construirPuntosDesdeIA(parsed, loadEl) {
 
       let lat = item._lat || item.lat || null;
       let lng = item._lng || item.lng || null;
-      let esAproximado = false;
+      // Los tipos "localizables" empiezan marcados como aproximados: son solo
+      // la estimación en bruto de la IA. Solo pasan a "confirmados" si Nominatim
+      // encuentra de verdad el sitio cerca del destino, más abajo.
+      const esLocalizable = ['monumento','museo','iglesia','restaurante','bar','mirador','atraccion','visita','compras','parking'].includes(item.tipo);
+      let esAproximado = !!(lat && esLocalizable);
 
-      // Intentar mejorar coords con OSM para monumentos, museos, restaurantes...
-      if (lat && ciudadLat && ['monumento','museo','iglesia','restaurante','bar','mirador','atraccion','visita','compras','parking'].includes(item.tipo)) {
+      // Intentar mejorar/confirmar coords con OSM para monumentos, museos, restaurantes...
+      if (lat && ciudadLat && esLocalizable) {
         loadEl.innerHTML = `<div class="spinner"></div><p>Localizando ${item.nombre}...</p>`;
         const coords = await buscarCoordsOSM(item.nombre, j.lugar, ciudadLat, ciudadLng, item.tipo);
         if (coords) {
           lat = coords.lat;
           lng = coords.lng;
+          esAproximado = false; // coincidencia real encontrada en OSM cerca del destino
           mejorados++;
         }
         await new Promise(r => setTimeout(r, 200)); // respetar límite Nominatim
