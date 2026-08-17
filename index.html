@@ -981,6 +981,19 @@ html, body {
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+/* ── INFO BUBBLE (para textos más largos que el toast normal) ── */
+.info-bubble-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+  z-index: 5000; display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.info-bubble {
+  background: var(--ink); color: white; padding: 18px 20px; border-radius: 16px;
+  font-size: 0.85rem; font-weight: 600; line-height: 1.45;
+  max-width: 320px; text-align: center; white-space: normal;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+}
+
 /* Resultados búsqueda */
 .search-results {
   display: none;
@@ -1367,7 +1380,11 @@ html, body {
         <input type="file" id="fotoInput" accept="image/*" multiple style="display:none" onchange="procesarFotos(this)">
       </div>
       <button class="btn-primary" onclick="generarConIA()">✨ Generar con IA</button>
-      <button class="btn-secondary" onclick="crearManualmente()" style="display:flex;align-items:center;justify-content:center;gap:6px">✏️ Crear el viaje yo mismo</button>
+      <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:8px auto 0;padding:6px 14px;background:var(--primary-light);border-radius:20px;color:var(--primary);font-size:0.74rem;font-weight:700;cursor:pointer;width:fit-content" onclick="mostrarInfoBubble('ℹ️ La IA coloca los puntos de forma aproximada.<br>Después podrás arrastrar cada uno en el mapa para ajustarlo con precisión.')">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;background:var(--primary);color:white;font-size:0.7rem;font-weight:800;flex-shrink:0">i</span>
+        <span>Ubicaciones aproximadas · toca para más info</span>
+      </div>
+      <button class="btn-secondary" onclick="crearManualmente()" style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:10px">✏️ Crear el viaje yo mismo</button>
     </div>
 
     <!-- Paso 2: IA procesando -->
@@ -4792,6 +4809,19 @@ function mostrarToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// Para textos más largos que no caben bien en el toast normal (pill de una línea).
+// Se muestra centrado, con el texto ajustado, y se cierra tocando fuera.
+function mostrarInfoBubble(msg) {
+  const existente = document.getElementById('infoBubbleBackdrop');
+  if (existente) existente.remove();
+  const backdrop = document.createElement('div');
+  backdrop.id = 'infoBubbleBackdrop';
+  backdrop.className = 'info-bubble-backdrop';
+  backdrop.innerHTML = `<div class="info-bubble">${msg}</div>`;
+  backdrop.onclick = () => backdrop.remove();
+  document.body.appendChild(backdrop);
 }
 
 // ══ INIT ══════════════════════════════════════
