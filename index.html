@@ -4456,6 +4456,21 @@ async function buscarCoordsOSM(nombre, ciudad, latRef, lngRef, tipo) {
   return null;
 }
 
+// Geocodifica el nombre del sitio/zona de la jornada (ej. "Es Pujols, Formentera")
+// para tener un ancla FIABLE antes de buscar los puntos concretos del día.
+// La IA a veces se inventa una coordenada de referencia poco precisa; esto la
+// sustituye por una real de OSM cuando la encuentra.
+async function geocodificarLugar(nombre) {
+  try {
+    const q = encodeURIComponent(nombre);
+    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`;
+    const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve5.netlify.app)' } });
+    const data = await r.json();
+    if (data?.[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  } catch(e) {}
+  return null;
+}
+
 async function construirPuntosDesdeIA(parsed, loadEl) {
   loadEl.innerHTML = '<div class="spinner"></div><p>Construyendo el mapa...</p>';
 
@@ -4466,8 +4481,25 @@ async function construirPuntosDesdeIA(parsed, loadEl) {
 
   for (let ji = 0; ji < jornadas.length; ji++) {
     const j = jornadas[ji];
-    const ciudadLat = j.lat || null;
-    const ciudadLng = j.lng || null;
+    let ciudadLat = j.lat || null;
+    let ciudadLng = j.lng || null;
+
+    // Confirmar/corregir la coordenada de referencia del día contra OSM real
+    if (j.lugar) {
+      loadEl.innerHTML = `<div class="spinner"></div><p>Localizando ${j.lugar}...</p>`;
+      const refReal = await geocodificarLugar(j.lugar);
+      if (refReal) {
+        // Solo la sustituimos si la de la IA está lejos (>0.3° ~30km) o no existía,
+        // para no perder precisión en sitios donde la IA ya acertaba.
+        if (!ciudadLat || _distanciaAprox(ciudadLat, ciudadLng, refReal.lat, refReal.lng) > 30) {
+          ciudadLat = refReal.lat;
+          ciudadLng = refReal.lng;
+          j.lat = refReal.lat;
+          j.lng = refReal.lng;
+        }
+      }
+      await new Promise(r => setTimeout(r, 150));
+    }
 
     for (let ii = 0; ii < (j.items||[]).length; ii++) {
       const item = j.items[ii];
