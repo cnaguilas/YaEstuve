@@ -4399,57 +4399,55 @@ const OSM_TIPOS = {
   parque:    ['leisure=park','leisure=nature_reserve'],
 };
 
-// Busca coords exactas en OSM usando Nominatim con tipo específico
+// Busca coords exactas en OSM usando Nominatim.
+// Antes exigía que el resultado tuviera EXACTAMENTE una etiqueta OSM de una lista
+// corta (ej. tourism=attraction), y descartaba cualquier otra cosa — pero muchos
+// sitios reales usan etiquetas que no estaban en esa lista (una plaza puede ser
+// place=square, un club náutico leisure=marina...), así que aunque Nominatim
+// devolviera el sitio correcto, lo tirábamos. Ahora: buscamos por nombre y nos
+// quedamos con el más cercano al destino; si además coincide el tipo esperado,
+// mejor, pero ya no es obligatorio para aceptarlo.
 async function buscarCoordsOSM(nombre, ciudad, latRef, lngRef, tipo) {
-  const clases = OSM_TIPOS[tipo] || [];
-  // Radios progresivos: primero muy ajustado (pueblo/barrio), luego más amplio
-  // solo si no aparece nada cerca. Antes usaba 1.5° (~150km) desde el principio,
-  // lo que en islas o zonas pequeñas hacía que ganara cualquier resultado lejano
-  // que encajase por tipo, en vez del que realmente está en el sitio correcto.
+  const clasesEsperadas = OSM_TIPOS[tipo] || [];
   const vb = (r) => `${lngRef-r},${latRef+r},${lngRef+r},${latRef-r}`;
-  const mejorPorDistancia = (candidatos) => {
+
+  const puntuar = (d) => {
+    const dist = _distanciaAprox(parseFloat(d.lat), parseFloat(d.lon), latRef, lngRef);
+    const coincideTipo = clasesEsperadas.some(c => {
+      const [key, val] = c.split('=');
+      return d.type === val || d.class === key;
+    });
+    // La distancia manda; un tipo coincidente desempata pero no descarta el resto
+    return dist - (coincideTipo ? 0.3 : 0);
+  };
+  const mejor = (candidatos) => {
     if (!candidatos.length) return null;
-    candidatos.sort((a, b) =>
-      _distanciaAprox(parseFloat(a.lat), parseFloat(a.lon), latRef, lngRef) -
-      _distanciaAprox(parseFloat(b.lat), parseFloat(b.lon), latRef, lngRef)
-    );
+    candidatos.sort((a, b) => puntuar(a) - puntuar(b));
     return candidatos[0];
   };
 
-  // Intento 1: tipo OSM específico, radio ajustado (~5km) — prioriza lo cercano de verdad
-  for (const radio of [0.05, 0.2]) {
-    for (const clase of clases) {
-      try {
-        const [key, val] = clase.split('=');
-        const q = encodeURIComponent(`${nombre}, ${ciudad}`);
-        const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=8&addressdetails=1&viewbox=${vb(radio)}&bounded=1`;
-        const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve5.netlify.app)' } });
-        const data = await r.json();
-        const candidatos = (data || []).filter(d => d.type === val || d.class === key);
-        const match = mejorPorDistancia(candidatos);
-        if (match) return { lat: parseFloat(match.lat), lng: parseFloat(match.lon) };
-      } catch(e) {}
-      await new Promise(r => setTimeout(r, 100));
-    }
+  // Radios progresivos: primero muy ajustado (~5km, pueblo/barrio), ampliando
+  // solo si no aparece nada cerca. Un radio amplio desde el principio hacía que
+  // en islas o zonas pequeñas ganara cualquier resultado lejano.
+  for (const radio of [0.05, 0.2, 0.5]) {
+    try {
+      const q = encodeURIComponent(`${nombre}, ${ciudad}`);
+      const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=8&addressdetails=1&viewbox=${vb(radio)}&bounded=1`;
+      const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve5.netlify.app)' } });
+      const data = await r.json();
+      const match = mejor(data || []);
+      if (match) return { lat: parseFloat(match.lat), lng: parseFloat(match.lon) };
+    } catch(e) {}
+    await new Promise(r => setTimeout(r, 150));
   }
 
-  // Intento 2: búsqueda libre "nombre, ciudad", radio medio (~20km), el más cercano gana
-  try {
-    const q = encodeURIComponent(`${nombre}, ${ciudad}`);
-    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=8&addressdetails=1&viewbox=${vb(0.2)}&bounded=1`;
-    const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve5.netlify.app)' } });
-    const data = await r.json();
-    const cercano = mejorPorDistancia(data || []);
-    if (cercano) return { lat: parseFloat(cercano.lat), lng: parseFloat(cercano.lon) };
-  } catch(e) {}
-
-  // Intento 3: solo el nombre, radio amplio (~50km) como último recurso — sigue eligiendo el más cercano
+  // Último recurso: solo el nombre, sin acotar por el destino
   try {
     const q = encodeURIComponent(nombre);
-    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=8&viewbox=${vb(0.5)}&bounded=1`;
+    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=8`;
     const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve5.netlify.app)' } });
     const data = await r.json();
-    const cercano = mejorPorDistancia(data || []);
+    const cercano = mejor(data || []);
     if (cercano) return { lat: parseFloat(cercano.lat), lng: parseFloat(cercano.lon) };
   } catch(e) {}
 
