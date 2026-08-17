@@ -4389,14 +4389,26 @@ const OSM_TIPOS = {
   monumento: ['historic=monument','historic=ruins','historic=archaeological_site','historic=castle','historic=memorial','tourism=attraction'],
   museo:     ['tourism=museum','amenity=arts_centre'],
   iglesia:   ['amenity=place_of_worship','historic=church','building=church','building=cathedral'],
+  templo:    ['amenity=place_of_worship','historic=church'],
   restaurante: ['amenity=restaurant','amenity=cafe'],
+  comida:    ['amenity=restaurant','amenity=cafe'],
+  gastronomia: ['amenity=restaurant','amenity=cafe','shop=deli'],
   bar:       ['amenity=bar','amenity=pub'],
+  discoteca: ['amenity=nightclub','amenity=bar'],
   mirador:   ['tourism=viewpoint'],
   atraccion: ['tourism=attraction','leisure=park','tourism=theme_park'],
   visita:    ['tourism=attraction','historic=monument','tourism=museum'],
   compras:   ['shop=mall','landuse=retail','highway=pedestrian'],
+  mercado:   ['amenity=marketplace','shop=mall'],
   playa:     ['natural=beach'],
   parque:    ['leisure=park','leisure=nature_reserve'],
+  hotel:     ['tourism=hotel','tourism=hostel','tourism=guest_house'],
+  spa:       ['leisure=spa','amenity=spa'],
+  deporte:   ['leisure=sports_centre','leisure=marina','sport=multi'],
+  castillo:  ['historic=castle','tourism=attraction'],
+  cascada:   ['waterway=waterfall','natural=water'],
+  fotografia:['tourism=viewpoint','tourism=attraction'],
+  pdi:       ['tourism=attraction'],
 };
 
 // Busca coords exactas en OSM usando Nominatim.
@@ -4505,10 +4517,15 @@ async function construirPuntosDesdeIA(parsed, loadEl) {
 
       let lat = item._lat || item.lat || null;
       let lng = item._lng || item.lng || null;
+      // Antes usaba una lista blanca de tipos "localizables" y se me quedó corta
+      // (playa, hotel, mercado, castillo... se quedaban fuera y nunca se
+      // verificaban contra OSM). Ahora es al revés: todo se intenta verificar
+      // EXCEPTO estos pocos tipos que no son un sitio con nombre propio buscable.
+      const NO_LOCALIZABLE = ['tip', 'inicio', 'ciudad', 'pueblo'];
+      const esLocalizable = !NO_LOCALIZABLE.includes(item.tipo);
       // Los tipos "localizables" empiezan marcados como aproximados: son solo
       // la estimación en bruto de la IA. Solo pasan a "confirmados" si Nominatim
       // encuentra de verdad el sitio cerca del destino, más abajo.
-      const esLocalizable = ['monumento','museo','iglesia','restaurante','bar','mirador','atraccion','visita','compras','parking'].includes(item.tipo);
       let esAproximado = !!(lat && esLocalizable);
 
       // Intentar mejorar/confirmar coords con OSM para monumentos, museos, restaurantes...
