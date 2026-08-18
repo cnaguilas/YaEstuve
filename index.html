@@ -3845,9 +3845,10 @@ function abrirItinerario(key, id) {
   const detalleLinksEl = document.getElementById('detalleLinks');
   const links = it.links || {};
   const nVuelos = (links.vuelos||[]).length;
+  const nAlojamiento = (links.alojamiento||[]).length;
   const nEnlaces = (links.enlaces||[]).length;
   const nTours = (links.tours||[]).length;
-  const totalLinks = nVuelos + nEnlaces + nTours;
+  const totalLinks = nVuelos + nAlojamiento + nEnlaces + nTours;
   window._detalleLinks = links;
 
   if (totalLinks > 0) {
@@ -3857,7 +3858,7 @@ function abrirItinerario(key, id) {
         <div style="flex:1;text-align:left">
           <div style="font-size:0.9rem;font-weight:700;color:var(--ink)">Vuelos · Alojamiento · Tours</div>
           <div style="font-size:0.75rem;color:var(--muted);margin-top:2px">
-            ${[nVuelos?`${nVuelos} vuelo${nVuelos>1?'s':''}`:null, nEnlaces?`${nEnlaces} enlace${nEnlaces>1?'s':''}`:null, nTours?`${nTours} tour${nTours>1?'s':''}`:null].filter(Boolean).join(' · ')}
+            ${[nVuelos?`${nVuelos} vuelo${nVuelos>1?'s':''}`:null, nAlojamiento?`${nAlojamiento} alojamiento${nAlojamiento>1?'s':''}`:null, nEnlaces?`${nEnlaces} enlace${nEnlaces>1?'s':''}`:null, nTours?`${nTours} tour${nTours>1?'s':''}`:null].filter(Boolean).join(' · ')}
           </div>
         </div>
         <span style="color:var(--muted);font-size:1.1rem">›</span>
@@ -3880,9 +3881,10 @@ function abrirLinksSheet(cat) {
   sheet.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:3000;display:flex;align-items:flex-end';
 
   const CATS = [
-    { key:'vuelos',   icon:'✈️', label:'Vuelos' },
-    { key:'enlaces',  icon:'🔗', label:'Enlaces de interés' },
-    { key:'tours',    icon:'🎟️', label:'Tours y actividades' },
+    { key:'vuelos',      icon:'✈️', label:'Vuelos' },
+    { key:'alojamiento', icon:'🏨', label:'Alojamiento' },
+    { key:'enlaces',     icon:'🔗', label:'Enlaces de interés' },
+    { key:'tours',       icon:'🎟️', label:'Tours y actividades' },
   ];
 
   if (!cat) {
