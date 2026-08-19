@@ -1354,6 +1354,15 @@ html, body {
   </div>
   <div class="wizard-body">
 
+    <div id="borradorPendienteCard" style="display:none;background:var(--primary-light);border:1.5px solid var(--primary);border-radius:14px;padding:14px;margin-bottom:18px">
+      <div style="font-size:0.85rem;font-weight:700;color:var(--ink);margin-bottom:2px">🔄 Tienes un viaje sin terminar</div>
+      <div id="borradorPendienteNombre" style="font-size:0.8rem;color:var(--muted);margin-bottom:10px"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary" onclick="continuarBorrador()" style="margin:0;flex:1;padding:10px">Continuar</button>
+        <button class="btn-secondary" onclick="descartarBorrador()" style="margin:0;padding:10px 14px;font-size:0.78rem">Descartar</button>
+      </div>
+    </div>
+
     <div class="paso-indicator">
       <div class="paso-dot active" id="dot1"></div>
       <div class="paso-dot" id="dot2"></div>
@@ -1656,6 +1665,15 @@ html, body {
       <label>Descripción</label>
       <textarea id="p-desc" style="min-height:80px" placeholder="Qué lo hace especial, precio aproximado..."></textarea>
     </div>
+    <div class="form-group">
+      <label>Foto (opcional)</label>
+      <div id="pFotoPreviewWrap" style="display:none;position:relative;margin-bottom:8px">
+        <img id="pFotoPreview" style="width:100%;max-height:180px;object-fit:cover;border-radius:12px">
+        <button onclick="quitarFotoPunto()" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.6);color:white;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer">✕</button>
+      </div>
+      <label for="p-foto-input" style="display:block;padding:12px;border:1.5px dashed var(--border);border-radius:12px;text-align:center;color:var(--muted);font-size:0.85rem;cursor:pointer" id="pFotoLabel">📷 Toca para hacer foto o elegir de la galería</label>
+      <input type="file" id="p-foto-input" accept="image/*" style="display:none" onchange="procesarFotoPunto(this)">
+    </div>
     <button class="btn-primary" onclick="guardarPunto()">Añadir punto ✓</button>
     <button class="btn-secondary" onclick="document.getElementById('puntoForm').classList.remove('active')">Cancelar</button>
   </div>
@@ -1713,6 +1731,10 @@ html, body {
       <p style="font-size:0.85rem;color:var(--muted);font-family:'Mulish',sans-serif">Cargando mapa...</p>
     </div>
     <div id="mapaEditHint" style="display:none;position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--ink);color:white;padding:8px 16px;border-radius:50px;font-size:0.78rem;font-weight:600;z-index:500;white-space:nowrap;pointer-events:none">👆 Toca para añadir punto</div>
+    <div id="confirmarGPSBar" style="display:none;position:absolute;left:16px;right:16px;bottom:20px;z-index:600;flex-direction:column;gap:8px">
+      <div style="background:var(--ink);color:white;padding:8px 14px;border-radius:12px;font-size:0.78rem;text-align:center;font-weight:600">📍 Ajusta el pin si hace falta y confirma</div>
+      <button class="btn-primary" onclick="confirmarPuntoGPS()" style="margin:0">✅ Confirmar aquí</button>
+    </div>
   </div>
 </div>
 
@@ -2651,6 +2673,7 @@ function seleccionarTipoPunto(tipo) {
   document.getElementById('puntoFormTitulo').textContent = `${cfg.icon} ${cfg.label}`;
   document.getElementById('p-nombre').value = '';
   document.getElementById('p-desc').value = '';
+  quitarFotoPunto();
   const formEl2 = document.getElementById('puntoForm');
   // Guardar las coords en el form para que no se pierdan si latLngPunto se limpia
   formEl2._latLng = latLngPunto ? { lat: latLngPunto.lat, lng: latLngPunto.lng } : null;
@@ -2662,6 +2685,26 @@ function cerrarFormPunto(e) {
   if (e.target === document.getElementById('puntoForm')) {
     document.getElementById('puntoForm').classList.remove('active');
   }
+}
+
+let _fotoPuntoB64 = null;
+
+async function procesarFotoPunto(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  document.getElementById('pFotoLabel').textContent = '⏳ Procesando foto...';
+  _fotoPuntoB64 = await comprimirFoto(file);
+  document.getElementById('pFotoPreview').src = _fotoPuntoB64;
+  document.getElementById('pFotoPreviewWrap').style.display = 'block';
+  document.getElementById('pFotoLabel').textContent = '📷 Cambiar foto';
+}
+
+function quitarFotoPunto() {
+  _fotoPuntoB64 = null;
+  const input = document.getElementById('p-foto-input');
+  if (input) input.value = '';
+  document.getElementById('pFotoPreviewWrap').style.display = 'none';
+  document.getElementById('pFotoLabel').textContent = '📷 Toca para hacer foto o elegir de la galería';
 }
 
 async function guardarPunto() {
@@ -2691,9 +2734,11 @@ async function guardarPunto() {
     dia: editIndex !== undefined ? (puntosEdicion[editIndex]?.dia || null) : diaDelPunto,
     // Si el punto viene de un resultado de búsqueda, lo marcamos como aproximado
     // para que se vea el aviso "arrastra para corregir" hasta que el usuario lo confirme.
-    aproximado: editIndex !== undefined ? (puntosEdicion[editIndex]?.aproximado || false) : !!window._proximoPuntoDesdeBusqueda
+    aproximado: editIndex !== undefined ? (puntosEdicion[editIndex]?.aproximado || false) : !!window._proximoPuntoDesdeBusqueda,
+    foto: _fotoPuntoB64 || (editIndex !== undefined ? (puntosEdicion[editIndex]?.foto || null) : null)
   };
   window._proximoPuntoDesdeBusqueda = false;
+  quitarFotoPunto();
 
   if (editIndex !== undefined) {
     puntosEdicion[editIndex] = punto;
@@ -2892,6 +2937,14 @@ function editarPunto(i) {
   document.getElementById('puntoFormTitulo').textContent = `${cfg.icon} Editar ${cfg.label}`;
   document.getElementById('p-nombre').value = p.nombre || '';
   document.getElementById('p-desc').value = p.desc || '';
+  if (p.foto) {
+    _fotoPuntoB64 = p.foto;
+    document.getElementById('pFotoPreview').src = p.foto;
+    document.getElementById('pFotoPreviewWrap').style.display = 'block';
+    document.getElementById('pFotoLabel').textContent = '📷 Cambiar foto';
+  } else {
+    quitarFotoPunto();
+  }
   // Guardar índice para sobreescribir
   document.getElementById('puntoForm')._editIndex = i;
   document.getElementById('puntoForm').classList.add('active');
@@ -3577,6 +3630,7 @@ function navegarA(screenId, navId) {
 
   // Iniciar mapa si es necesario
   if (screenId === 'screenMapa' && !mapaIniciado) iniciarMapa();
+  if (screenId === 'screenSubir') comprobarBorradorPendiente();
 }
 
 function navegarDetalle(screenId) {
@@ -4369,6 +4423,7 @@ function iniciarModoMarcha() {
   }).then(async r => {
     const data = await r.json();
     itinerarioGenerado.fbId = data.name;
+    guardarReferenciaBorrador(itinerarioGenerado.fbId, 'marcha');
     await fbFetch(`${FB_URL}/itinerarios/${itinerarioGenerado.fbId}/fbId.json`, {
       method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(itinerarioGenerado.fbId)
     }).catch(()=>{});
@@ -4407,11 +4462,7 @@ function marcarAqui() {
     (pos) => {
       btn.disabled = false;
       estadoEl.textContent = '📡 Toca el botón para marcar tu ubicación actual';
-      latLngPunto = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      _puntoParaDia = undefined; // se autoasigna por fecha en guardarPunto()
-      _cambiarIconoIndex = undefined;
-      _cambiarIconoJornada = undefined;
-      abrirMenuPunto();
+      mostrarConfirmacionGPS(pos.coords.latitude, pos.coords.longitude);
     },
     (err) => {
       btn.disabled = false;
@@ -4421,6 +4472,44 @@ function marcarAqui() {
     },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
   );
+}
+
+let _tempGPSMarker = null;
+let _mapaEditModoGPS = false;
+
+// Muestra el mapa desplegado centrado en la posición GPS, con un pin que se
+// puede arrastrar para afinar antes de confirmar — así se ve claramente
+// dónde va a caer el punto en vez de "confiar a ciegas" en el GPS.
+async function mostrarConfirmacionGPS(lat, lng) {
+  _mapaEditModoGPS = true;
+  await abrirMapaEdicionPantalla();
+  setTimeout(() => {
+    if (!mapEditFullInstance) return;
+    mapEditFullInstance.setView([lat, lng], 17);
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="font-size:2rem;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.4))">📍</div>`,
+      iconSize: [36,36], iconAnchor: [18,36]
+    });
+    if (_tempGPSMarker) mapEditFullInstance.removeLayer(_tempGPSMarker);
+    _tempGPSMarker = L.marker([lat, lng], { icon, draggable: true, zIndexOffset: 2000 }).addTo(mapEditFullInstance);
+    document.getElementById('confirmarGPSBar').style.display = 'flex';
+    document.getElementById('mapaEditHint').style.display = 'none';
+  }, 350);
+}
+
+function confirmarPuntoGPS() {
+  if (!_tempGPSMarker) return;
+  const ll = _tempGPSMarker.getLatLng();
+  latLngPunto = { lat: ll.lat, lng: ll.lng };
+  _puntoParaDia = undefined;
+  _cambiarIconoIndex = undefined;
+  _cambiarIconoJornada = undefined;
+  mapEditFullInstance.removeLayer(_tempGPSMarker);
+  _tempGPSMarker = null;
+  _mapaEditModoGPS = false;
+  document.getElementById('confirmarGPSBar').style.display = 'none';
+  abrirMenuPunto();
 }
 
 function marcarAquiManual() {
@@ -4438,7 +4527,7 @@ function renderMarchaLista() {
   lista.innerHTML = puntos.map((p, i) => {
     const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.otro;
     return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:8px">
-      <span style="font-size:1.3rem">${cfg.icon}</span>
+      ${p.foto ? `<img src="${p.foto}" style="width:38px;height:38px;border-radius:8px;object-fit:cover;flex-shrink:0">` : `<span style="font-size:1.3rem">${cfg.icon}</span>`}
       <div style="flex:1;min-width:0">
         <div style="font-size:0.85rem;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.nombre}</div>
         ${p.aproximado ? `<div style="font-size:0.68rem;color:#f5a623;font-weight:700">ℹ️ posición aproximada</div>` : ''}
@@ -4462,6 +4551,7 @@ function salirModoMarcha() {
 }
 
 function terminarModoMarcha() {
+  if (itinerarioGenerado?.fbId) guardarReferenciaBorrador(itinerarioGenerado.fbId, 'editando');
   mostrarToast('✅ Guardado — vamos a completar los detalles');
   setTimeout(() => abrirEdicion(), 200);
 }
@@ -4486,6 +4576,78 @@ window.addEventListener('online', () => {
     }
   }
 });
+
+// Referencia local al borrador "sobre la marcha" en curso, para poder
+// retomarlo aunque se cierre la app del todo (no depende de seguir en la
+// misma pantalla ni de la sesión del navegador).
+const BORRADOR_KEY = 'yaestuve_borrador_marcha';
+
+function guardarReferenciaBorrador(fbId, etapa) {
+  try { localStorage.setItem(BORRADOR_KEY, JSON.stringify({ fbId, etapa })); } catch(e) {}
+}
+
+function borrarReferenciaBorrador() {
+  try { localStorage.removeItem(BORRADOR_KEY); } catch(e) {}
+}
+
+async function comprobarBorradorPendiente() {
+  const card = document.getElementById('borradorPendienteCard');
+  if (!card) return;
+  let ref = null;
+  try { ref = JSON.parse(localStorage.getItem(BORRADOR_KEY) || 'null'); } catch(e) {}
+  if (!ref?.fbId) { card.style.display = 'none'; return; }
+
+  try {
+    const r = await fbFetch(`${FB_URL}/itinerarios/${ref.fbId}.json`);
+    const it = await r.json();
+    if (!it || it.estado !== 'borrador') {
+      // Ya se publicó, se borró, o no existe: olvidamos la referencia
+      borrarReferenciaBorrador();
+      card.style.display = 'none';
+      return;
+    }
+    document.getElementById('borradorPendienteNombre').textContent =
+      `${it.titulo || 'Viaje sin título'} · ${(it.puntos||[]).length} punto${(it.puntos||[]).length===1?'':'s'} marcado${(it.puntos||[]).length===1?'':'s'}`;
+    card.style.display = 'block';
+    window._borradorPendienteData = it;
+    window._borradorPendienteRef = ref;
+  } catch(e) {
+    // Sin conexión: no forzamos nada, simplemente no mostramos la tarjeta ahora
+    card.style.display = 'none';
+  }
+}
+
+async function continuarBorrador() {
+  const it = window._borradorPendienteData;
+  const ref = window._borradorPendienteRef;
+  if (!it || !ref) return;
+
+  itinerarioGenerado = it;
+  itinerarioGenerado.jornadas = itinerarioGenerado.jornadas || [];
+  itinerarioGenerado.puntos = itinerarioGenerado.puntos || [];
+  puntosEdicion = itinerarioGenerado.puntos;
+  state.viajeActual = itinerarioGenerado;
+  state._dirty = false;
+  fotosBase64 = [];
+
+  if (ref.etapa === 'editando') {
+    abrirEdicion();
+  } else {
+    navegarA('screenMarcha', null);
+    document.getElementById('marchaTitulo').textContent = '📍 ' + (itinerarioGenerado.autor || 'Viaje');
+    renderMarchaLista();
+  }
+}
+
+async function descartarBorrador() {
+  const ref = window._borradorPendienteRef;
+  if (!ref?.fbId) return;
+  if (!confirm('¿Descartar este viaje sin terminar? Se perderán los puntos marcados.')) return;
+  try { await fbFetch(`${FB_URL}/itinerarios/${ref.fbId}.json`, { method: 'DELETE' }); } catch(e) {}
+  borrarReferenciaBorrador();
+  document.getElementById('borradorPendienteCard').style.display = 'none';
+  mostrarToast('🗑️ Borrador descartado');
+}
 
 function crearManualmente() {
   const autor = document.getElementById('f-autor').value.trim();
@@ -4932,6 +5094,7 @@ async function publicarViaje() {
   it.autorEmail = usuarioActual?.email || null;
   it.autorNombre = usuarioActual?.displayName || it.autor || 'Anónimo';
   delete it.estado; // quitar la marca de "borrador sobre la marcha" si la tenía: ya se publica de verdad
+  borrarReferenciaBorrador();
   fotosBase64 = [];
 
   // Sincronizar puntos desde estado central antes de publicar
