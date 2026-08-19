@@ -1671,10 +1671,14 @@ html, body {
         <img id="pFotoPreview" style="width:100%;max-height:180px;object-fit:cover;border-radius:12px">
         <button onclick="quitarFotoPunto()" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.6);color:white;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer">✕</button>
       </div>
-      <label for="p-foto-input" style="display:block;padding:12px;border:1.5px dashed var(--border);border-radius:12px;text-align:center;color:var(--muted);font-size:0.85rem;cursor:pointer" id="pFotoLabel">📷 Toca para hacer foto o elegir de la galería</label>
-      <input type="file" id="p-foto-input" accept="image/*" style="display:none" onchange="procesarFotoPunto(this)">
+      <div id="pFotoBotones" style="display:flex;gap:8px">
+        <label for="p-foto-camara" style="flex:1;display:block;padding:12px;border:1.5px dashed var(--border);border-radius:12px;text-align:center;color:var(--muted);font-size:0.82rem;cursor:pointer">📸 Hacer foto</label>
+        <label for="p-foto-galeria" style="flex:1;display:block;padding:12px;border:1.5px dashed var(--border);border-radius:12px;text-align:center;color:var(--muted);font-size:0.82rem;cursor:pointer">🖼️ Galería</label>
+      </div>
+      <input type="file" id="p-foto-camara" accept="image/*" capture="environment" style="display:none" onchange="procesarFotoPunto(this)">
+      <input type="file" id="p-foto-galeria" accept="image/*" style="display:none" onchange="procesarFotoPunto(this)">
     </div>
-    <button class="btn-primary" onclick="guardarPunto()">Añadir punto ✓</button>
+    <button class="btn-primary" id="btnGuardarPunto" onclick="guardarPunto()">Añadir punto ✓</button>
     <button class="btn-secondary" onclick="document.getElementById('puntoForm').classList.remove('active')">Cancelar</button>
   </div>
 </div>
@@ -2674,6 +2678,8 @@ function seleccionarTipoPunto(tipo) {
   document.getElementById('p-nombre').value = '';
   document.getElementById('p-desc').value = '';
   quitarFotoPunto();
+  const btnG = document.getElementById('btnGuardarPunto');
+  if (btnG) { btnG.disabled = false; btnG.textContent = 'Añadir punto ✓'; }
   const formEl2 = document.getElementById('puntoForm');
   // Guardar las coords en el form para que no se pierdan si latLngPunto se limpia
   formEl2._latLng = latLngPunto ? { lat: latLngPunto.lat, lng: latLngPunto.lng } : null;
@@ -2692,24 +2698,35 @@ let _fotoPuntoB64 = null;
 async function procesarFotoPunto(input) {
   const file = input.files?.[0];
   if (!file) return;
-  document.getElementById('pFotoLabel').textContent = '⏳ Procesando foto...';
+  document.getElementById('pFotoBotones').style.opacity = '0.5';
   _fotoPuntoB64 = await comprimirFoto(file);
   document.getElementById('pFotoPreview').src = _fotoPuntoB64;
   document.getElementById('pFotoPreviewWrap').style.display = 'block';
-  document.getElementById('pFotoLabel').textContent = '📷 Cambiar foto';
+  document.getElementById('pFotoBotones').style.opacity = '1';
 }
 
 function quitarFotoPunto() {
   _fotoPuntoB64 = null;
-  const input = document.getElementById('p-foto-input');
-  if (input) input.value = '';
+  const inCam = document.getElementById('p-foto-camara');
+  const inGal = document.getElementById('p-foto-galeria');
+  if (inCam) inCam.value = '';
+  if (inGal) inGal.value = '';
   document.getElementById('pFotoPreviewWrap').style.display = 'none';
-  document.getElementById('pFotoLabel').textContent = '📷 Toca para hacer foto o elegir de la galería';
 }
 
 async function guardarPunto() {
+  const btnGuardar = document.getElementById('btnGuardarPunto');
+  // Bloqueo anti-doble-toque: si ya se está procesando, ignorar toques repetidos
+  // (esto es lo que causaba puntos duplicados al tocar varias veces seguidas)
+  if (btnGuardar?.disabled) return;
+  if (btnGuardar) { btnGuardar.disabled = true; btnGuardar.textContent = 'Guardando...'; }
+
   const nombre = document.getElementById('p-nombre').value.trim();
-  if (!nombre) { mostrarToast('⚠️ Ponle un nombre al punto'); return; }
+  if (!nombre) {
+    mostrarToast('⚠️ Ponle un nombre al punto');
+    if (btnGuardar) { btnGuardar.disabled = false; btnGuardar.textContent = 'Añadir punto ✓'; }
+    return;
+  }
   const desc = document.getElementById('p-desc').value.trim();
   const formEl = document.getElementById('puntoForm');
   const editIndex = formEl._editIndex;
@@ -2786,6 +2803,7 @@ async function guardarPunto() {
             .bindPopup(`<b>${cfg2.icon} ${punto.nombre}</b><br><small>${punto.desc||''}</small>`);
         }
         mostrarToast('✅ Punto añadido al Día ' + itinerarioGenerado.jornadas[ji].dia);
+        if (navigator.vibrate) navigator.vibrate(60);
       }
       const veniaDeAutoDia = !!itinerarioGenerado?._modoMarcha;
       delete _puntoParaDia;
@@ -2941,10 +2959,11 @@ function editarPunto(i) {
     _fotoPuntoB64 = p.foto;
     document.getElementById('pFotoPreview').src = p.foto;
     document.getElementById('pFotoPreviewWrap').style.display = 'block';
-    document.getElementById('pFotoLabel').textContent = '📷 Cambiar foto';
   } else {
     quitarFotoPunto();
   }
+  const btnG2 = document.getElementById('btnGuardarPunto');
+  if (btnG2) { btnG2.disabled = false; btnG2.textContent = 'Añadir punto ✓'; }
   // Guardar índice para sobreescribir
   document.getElementById('puntoForm')._editIndex = i;
   document.getElementById('puntoForm').classList.add('active');
@@ -3434,6 +3453,8 @@ async function abrirMapaEdicionPantalla() {
       lat = ptsConCoords.reduce((s,p) => s + p.lat, 0) / ptsConCoords.length;
       lng = ptsConCoords.reduce((s,p) => s + p.lng, 0) / ptsConCoords.length;
     }
+    // 3. Si no, usar la posición GPS real si la teníamos guardada (modo sobre la marcha sin destino aún)
+    else if (it?._centroTemporal) { lat = it._centroTemporal.lat; lng = it._centroTemporal.lng; }
     console.log('Mapa centro:', lat, lng, '| puntos con coords:', ptsConCoords.length, '| total puntosEdicion:', puntosEdicion.length);
     mapEditFullInstance = L.map('mapEditFull', { center:[lat,lng], zoom:13, zoomControl:false });
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(mapEditFullInstance);
@@ -4514,8 +4535,22 @@ function confirmarPuntoGPS() {
 
 function marcarAquiManual() {
   _puntoParaDia = undefined;
-  abrirMapaEdicionPantalla();
   mostrarToast('👆 Toca el mapa donde quieras añadir el punto');
+  // Intentar centrar el mapa en tu posición real en vez del centro por defecto
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        if (itinerarioGenerado) {
+          itinerarioGenerado._centroTemporal = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        }
+        abrirMapaEdicionPantalla();
+      },
+      () => abrirMapaEdicionPantalla(),
+      { enableHighAccuracy: true, timeout: 4000, maximumAge: 60000 }
+    );
+  } else {
+    abrirMapaEdicionPantalla();
+  }
 }
 
 function renderMarchaLista() {
