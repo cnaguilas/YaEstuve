@@ -1379,7 +1379,15 @@ html, body {
         </div>
         <input type="file" id="fotoInput" accept="image/*" multiple style="display:none" onchange="procesarFotos(this)">
       </div>
-      <button class="btn-primary" onclick="generarConIA()">✨ Generar con IA</button>
+      <button class="btn-primary" onclick="iniciarModoMarcha()" style="display:flex;align-items:center;justify-content:center;gap:6px">📍 Crear viaje sobre la marcha</button>
+      <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:8px auto 0;padding:6px 14px;background:var(--primary-light);border-radius:20px;color:var(--primary);font-size:0.74rem;font-weight:700;cursor:pointer;width:fit-content" onclick="mostrarInfoBubble('ℹ️ Ve marcando los sitios según los visitas: foto, nombre y descripción en el momento, usando tu ubicación GPS.<br><br>Cuando termines el viaje, agrupamos los puntos por día automáticamente y podrás revisar, completar fechas y publicar.')">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;background:var(--primary);color:white;font-size:0.7rem;font-weight:800;flex-shrink:0">i</span>
+        <span>Cómo funciona · toca para más info</span>
+      </div>
+
+      <div style="text-align:center;color:var(--muted);font-size:0.78rem;margin:18px 0 4px">— o si prefieres planificarlo antes —</div>
+
+      <button class="btn-secondary" onclick="generarConIA()" style="display:flex;align-items:center;justify-content:center;gap:6px">✨ Generar con IA</button>
       <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:8px auto 0;padding:6px 14px;background:var(--primary-light);border-radius:20px;color:var(--primary);font-size:0.74rem;font-weight:700;cursor:pointer;width:fit-content" onclick="mostrarInfoBubble('ℹ️ La IA coloca los puntos de forma aproximada.<br>Después podrás arrastrar cada uno en el mapa para ajustarlo con precisión.')">
         <span style="display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;background:var(--primary);color:white;font-size:0.7rem;font-weight:800;flex-shrink:0">i</span>
         <span>Ubicaciones aproximadas · toca para más info</span>
@@ -1401,6 +1409,32 @@ html, body {
 
     <!-- Paso 3: reservado para uso futuro -->
 
+  </div>
+</div>
+
+
+<!-- ══ PANTALLA MODO SOBRE LA MARCHA ══ -->
+<div class="screen" id="screenMarcha">
+  <div class="nav-bar">
+    <button class="back-btn" onclick="salirModoMarcha()">←</button>
+    <div class="nav-title" style="color:white;font-family:'Syne',sans-serif;font-weight:700" id="marchaTitulo">Sobre la marcha</div>
+  </div>
+  <div style="padding:20px 16px 100px;max-width:480px;margin:0 auto">
+    <div style="text-align:center;margin-bottom:20px">
+      <div id="marchaEstadoGPS" style="font-size:0.78rem;color:var(--muted);margin-bottom:14px">📡 Toca el botón para marcar tu ubicación actual</div>
+      <button class="btn-primary" onclick="marcarAqui()" id="btnMarcarAqui" style="font-size:1.05rem;padding:20px">📍 Marcar aquí</button>
+      <button class="btn-secondary" onclick="marcarAquiManual()" style="margin-top:10px">🗺️ No hay GPS · elegir en el mapa</button>
+    </div>
+
+    <div id="marchaOffline" style="display:none;background:#FEF0EC;border:1.5px solid var(--primary);border-radius:14px;padding:12px 14px;margin-bottom:16px;font-size:0.8rem;color:var(--primary);font-weight:600">
+      📡 Sin conexión — los puntos se guardarán en cuanto vuelva la señal
+    </div>
+
+    <div style="font-size:0.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px" id="marchaContador">0 puntos añadidos</div>
+    <div id="marchaLista"></div>
+
+    <button class="btn-primary" onclick="terminarModoMarcha()" style="margin-top:24px">✅ Terminar viaje por ahora</button>
+    <p style="text-align:center;font-size:0.75rem;color:var(--muted);margin-top:10px">Podrás retomarlo cuando quieras — nada se pierde.</p>
   </div>
 </div>
 
@@ -2637,6 +2671,12 @@ async function guardarPunto() {
   const formEl = document.getElementById('puntoForm');
   const editIndex = formEl._editIndex;
 
+  // Modo "sobre la marcha": el día se asigna solo según la fecha real de hoy,
+  // sin pedirle al usuario que elija (así puede seguir marcando sin fricción).
+  if (_puntoParaDia === undefined && itinerarioGenerado?._modoMarcha && editIndex === undefined) {
+    _puntoParaDia = _jornadaAutoPorFecha();
+  }
+
   const diaDelPunto = (_puntoParaDia !== undefined && itinerarioGenerado?.jornadas)
     ? (itinerarioGenerado.jornadas[_puntoParaDia]?.dia || null)
     : null;
@@ -2702,7 +2742,10 @@ async function guardarPunto() {
         }
         mostrarToast('✅ Punto añadido al Día ' + itinerarioGenerado.jornadas[ji].dia);
       }
+      const veniaDeAutoDia = !!itinerarioGenerado?._modoMarcha;
       delete _puntoParaDia;
+      _guardarBorradorMarcha();
+      if (veniaDeAutoDia) return; // seguimos en el mapa, sin navegar fuera
       goBack();
       setTimeout(() => cambiarTab('tabDias'), 200);
       return; // evitar doble guardado en Firebase
@@ -3458,6 +3501,7 @@ function cerrarMapaEdicion() {
   goBack();
   // Actualizar lista de puntos al volver
   renderPuntos();
+  if (itinerarioGenerado?._modoMarcha) renderMarchaLista();
 }
 
 // ══ NAVEGACIÓN ══════════════════════════════════
@@ -4278,6 +4322,171 @@ function irPaso(n) {
   });
 }
 
+// ══ MODO "SOBRE LA MARCHA" ══════════════════════════════════════
+// Idea: en vez de planificar antes, vas marcando sitios según los visitas
+// (con GPS real), y al terminar se agrupan solos por día según la fecha.
+
+function iniciarModoMarcha() {
+  const autor = document.getElementById('f-autor').value.trim();
+  if (!autor) { mostrarToast('⚠️ Pon primero tu nombre'); return; }
+
+  itinerarioGenerado = {
+    titulo: 'Viaje sin título',
+    destino: '',
+    emoji: '📍',
+    lat: null, lng: null,
+    color: '#E8471C',
+    dias: 1,
+    tipo: [],
+    presupuesto: '',
+    resumen: '',
+    autor,
+    id: Date.now(),
+    destinoKey: 'sobre_la_marcha_' + Date.now(),
+    jornadas: [],
+    puntos: [],
+    fotos: [],
+    links: { vuelos:[], alojamiento:[], enlaces:[], tours:[] },
+    estado: 'borrador',
+    _modoMarcha: true
+  };
+  puntosEdicion = [];
+  state.viajeActual = itinerarioGenerado;
+  state.viajeActual.puntos = [];
+  state._dirty = false;
+  fotosBase64 = [];
+
+  navegarA('screenMarcha', null);
+  document.getElementById('marchaTitulo').textContent = '📍 ' + autor;
+  renderMarchaLista();
+
+  // Crear el borrador en Firebase YA para no perder nada si se cierra la app.
+  // Sin destino todavía (se rellena al terminar) — por eso no usamos publicarViaje().
+  fbFetch(`${FB_URL}/itinerarios.json`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(itinerarioGenerado)
+  }).then(async r => {
+    const data = await r.json();
+    itinerarioGenerado.fbId = data.name;
+    await fbFetch(`${FB_URL}/itinerarios/${itinerarioGenerado.fbId}/fbId.json`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(itinerarioGenerado.fbId)
+    }).catch(()=>{});
+  }).catch(() => {
+    mostrarToast('📡 Sin conexión — empezamos igualmente, se guardará luego');
+    document.getElementById('marchaOffline').style.display = 'block';
+  });
+}
+
+// Devuelve el índice de la jornada que corresponde a la fecha de HOY,
+// creándola si aún no existe. Así los puntos se agrupan solos por día
+// real, sin que el usuario tenga que ir eligiendo "Día 1, Día 2..." cada vez.
+function _jornadaAutoPorFecha() {
+  if (!itinerarioGenerado.jornadas) itinerarioGenerado.jornadas = [];
+  const hoy = new Date().toISOString().slice(0,10); // YYYY-MM-DD
+  let idx = itinerarioGenerado.jornadas.findIndex(j => j._fecha === hoy);
+  if (idx === -1) {
+    const numDia = itinerarioGenerado.jornadas.length + 1;
+    itinerarioGenerado.jornadas.push({ dia: numDia, lugar: '', items: [], _fecha: hoy });
+    idx = itinerarioGenerado.jornadas.length - 1;
+  }
+  return idx;
+}
+
+function marcarAqui() {
+  const btn = document.getElementById('btnMarcarAqui');
+  const estadoEl = document.getElementById('marchaEstadoGPS');
+  if (!navigator.geolocation) {
+    mostrarToast('⚠️ Tu navegador no soporta GPS, elige en el mapa');
+    marcarAquiManual();
+    return;
+  }
+  btn.disabled = true;
+  estadoEl.textContent = '📡 Buscando tu ubicación...';
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      btn.disabled = false;
+      estadoEl.textContent = '📡 Toca el botón para marcar tu ubicación actual';
+      latLngPunto = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      _puntoParaDia = undefined; // se autoasigna por fecha en guardarPunto()
+      _cambiarIconoIndex = undefined;
+      _cambiarIconoJornada = undefined;
+      abrirMenuPunto();
+    },
+    (err) => {
+      btn.disabled = false;
+      estadoEl.textContent = '📡 Toca el botón para marcar tu ubicación actual';
+      mostrarToast('⚠️ No se pudo obtener el GPS — elige el punto en el mapa');
+      marcarAquiManual();
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+  );
+}
+
+function marcarAquiManual() {
+  _puntoParaDia = undefined;
+  abrirMapaEdicionPantalla();
+  mostrarToast('👆 Toca el mapa donde quieras añadir el punto');
+}
+
+function renderMarchaLista() {
+  const lista = document.getElementById('marchaLista');
+  const contador = document.getElementById('marchaContador');
+  const puntos = puntosEdicion.filter(p => p && p.tipo);
+  contador.textContent = puntos.length === 1 ? '1 punto añadido' : `${puntos.length} puntos añadidos`;
+  if (!puntos.length) { lista.innerHTML = ''; return; }
+  lista.innerHTML = puntos.map((p, i) => {
+    const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.otro;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:8px">
+      <span style="font-size:1.3rem">${cfg.icon}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:0.85rem;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.nombre}</div>
+        ${p.aproximado ? `<div style="font-size:0.68rem;color:#f5a623;font-weight:700">ℹ️ posición aproximada</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function _guardarBorradorMarcha() {
+  const fbId = itinerarioGenerado?.fbId;
+  renderMarchaLista();
+  if (!fbId) {
+    if (!navigator.onLine) document.getElementById('marchaOffline')?.style && (document.getElementById('marchaOffline').style.display = 'block');
+    return;
+  }
+  document.getElementById('marchaOffline').style.display = 'none';
+}
+
+function salirModoMarcha() {
+  navegarA('screenSubir', null);
+}
+
+function terminarModoMarcha() {
+  mostrarToast('✅ Guardado — vamos a completar los detalles');
+  setTimeout(() => abrirEdicion(), 200);
+}
+
+// Si se pierde la conexión mientras se está marcando, avisar; al recuperarla,
+// reintentar guardar jornadas/puntos pendientes automáticamente.
+window.addEventListener('offline', () => {
+  const el = document.getElementById('marchaOffline');
+  if (el && document.getElementById('screenMarcha')?.classList.contains('active')) el.style.display = 'block';
+});
+window.addEventListener('online', () => {
+  const el = document.getElementById('marchaOffline');
+  if (el) el.style.display = 'none';
+  if (itinerarioGenerado?._modoMarcha) {
+    guardarJornadasEnFirebase();
+    const fbId = itinerarioGenerado?.fbId;
+    if (fbId) {
+      const puntosLimpios = puntosEdicion.filter(p => p && p.tipo);
+      fbFetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`, {
+        method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(puntosLimpios)
+      }).catch(()=>{});
+    }
+  }
+});
+
 function crearManualmente() {
   const autor = document.getElementById('f-autor').value.trim();
   if (!autor) { mostrarToast('⚠️ Pon primero tu nombre'); return; }
@@ -4722,6 +4931,7 @@ async function publicarViaje() {
   it.autorUid = usuarioActual?.uid || null;
   it.autorEmail = usuarioActual?.email || null;
   it.autorNombre = usuarioActual?.displayName || it.autor || 'Anónimo';
+  delete it.estado; // quitar la marca de "borrador sobre la marcha" si la tenía: ya se publica de verdad
   fotosBase64 = [];
 
   // Sincronizar puntos desde estado central antes de publicar
@@ -4829,6 +5039,7 @@ async function cargarDeFirebase() {
 
     const procesarItinerario = (fbKey, it) => {
       if (!it) return;
+      if (it.estado === 'borrador') return; // viajes "sobre la marcha" sin terminar: no van al feed público
       if (!it.fbId) it.fbId = fbKey;
       const key = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_');
       if (!key) return;
