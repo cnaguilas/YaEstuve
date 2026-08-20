@@ -1344,6 +1344,7 @@ html, body {
     <div class="nav-title" style="color:white;font-family:'Syne',sans-serif;font-weight:700">🗺️ Mapa</div>
   </div>
   <div id="map"></div>
+  <button onclick="irAMiUbicacion(mapaMundial, this)" title="Ir a mi ubicación" style="position:absolute;right:14px;bottom:90px;z-index:600;width:44px;height:44px;border-radius:50%;background:white;border:none;box-shadow:0 3px 10px rgba(0,0,0,0.25);font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center">🧭</button>
 </div>
 
 <!-- ══ PANTALLA SUBIR VIAJE ══ -->
@@ -1735,6 +1736,7 @@ html, body {
       <p style="font-size:0.85rem;color:var(--muted);font-family:'Mulish',sans-serif">Cargando mapa...</p>
     </div>
     <div id="mapaEditHint" style="display:none;position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--ink);color:white;padding:8px 16px;border-radius:50px;font-size:0.78rem;font-weight:600;z-index:500;white-space:nowrap;pointer-events:none">👆 Toca para añadir punto</div>
+    <button onclick="irAMiUbicacion(mapEditFullInstance, this)" title="Ir a mi ubicación" style="position:absolute;right:14px;bottom:100px;z-index:600;width:44px;height:44px;border-radius:50%;background:white;border:none;box-shadow:0 3px 10px rgba(0,0,0,0.25);font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center">🧭</button>
     <div id="confirmarGPSBar" style="display:none;position:absolute;left:16px;right:16px;bottom:20px;z-index:600;flex-direction:column;gap:8px">
       <div style="background:var(--ink);color:white;padding:8px 14px;border-radius:12px;font-size:0.78rem;text-align:center;font-weight:600">📍 Ajusta el pin si hace falta y confirma</div>
       <button class="btn-primary" onclick="confirmarPuntoGPS()" style="margin:0">✅ Confirmar aquí</button>
@@ -2316,7 +2318,17 @@ let mapEditIniciado = false;
 function abrirEdicion() {
   const it = itinerarioGenerado;
   if (!it) return;
-  
+
+  // Sincronizar fotos: si el viaje ya trae fotos (p.ej. las añadidas desde
+  // puntos en modo "sobre la marcha"), que se vean en la pestaña Fotos y no
+  // se pierdan al publicar. Reconstruimos también a partir de las fotos de
+  // los propios puntos, por si alguna se quedó sin sincronizar antes.
+  fotosBase64 = it.fotos || [];
+  (it.puntos || puntosEdicion || []).forEach(p => {
+    if (p?.foto && !fotosBase64.includes(p.foto)) fotosBase64.push(p.foto);
+  });
+  it.fotos = fotosBase64;
+
   // Resetear mapa de edición
   if (mapEditInstance) {
     mapEditInstance.remove();
@@ -2721,10 +2733,22 @@ async function guardarPunto() {
   if (btnGuardar?.disabled) return;
   if (btnGuardar) { btnGuardar.disabled = true; btnGuardar.textContent = 'Guardando...'; }
 
+  try {
+    await _guardarPuntoInterno();
+  } catch(e) {
+    console.error('Error guardando punto:', e);
+    mostrarToast('⚠️ Algo falló al guardar, inténtalo de nuevo');
+  } finally {
+    // Pase lo que pase (éxito, error, o que el formulario ya se cerrara),
+    // el botón SIEMPRE queda listo para el próximo punto.
+    if (btnGuardar) { btnGuardar.disabled = false; btnGuardar.textContent = 'Añadir punto ✓'; }
+  }
+}
+
+async function _guardarPuntoInterno() {
   const nombre = document.getElementById('p-nombre').value.trim();
   if (!nombre) {
     mostrarToast('⚠️ Ponle un nombre al punto');
-    if (btnGuardar) { btnGuardar.disabled = false; btnGuardar.textContent = 'Añadir punto ✓'; }
     return;
   }
   const desc = document.getElementById('p-desc').value.trim();
@@ -2756,6 +2780,16 @@ async function guardarPunto() {
   };
   window._proximoPuntoDesdeBusqueda = false;
   quitarFotoPunto();
+
+  // Si el punto lleva foto, que también aparezca en la galería general del
+  // viaje (pestaña "Fotos") — si no, la foto se quedaba "atrapada" solo en el
+  // punto y nunca se veía en el resto de sitios donde se muestran fotos del viaje.
+  if (punto.foto && itinerarioGenerado) {
+    if (!Array.isArray(itinerarioGenerado.fotos)) itinerarioGenerado.fotos = [];
+    if (!itinerarioGenerado.fotos.includes(punto.foto)) {
+      itinerarioGenerado.fotos.push(punto.foto);
+    }
+  }
 
   if (editIndex !== undefined) {
     puntosEdicion[editIndex] = punto;
@@ -4350,6 +4384,28 @@ function eliminarLink(cat, idx) {
 
 // ══ MAPA ══════════════════════════════════════
 let mapaMundial = null;
+
+// Botón tipo Google Maps: centra el mapa que le pases en tu ubicación real.
+// Sirve de "red de seguridad" para cuando un mapa arranca en un sitio por
+// defecto que no toca (p.ej. sin destino aún fijado).
+function irAMiUbicacion(mapaInstancia, btnEl) {
+  if (!mapaInstancia) { mostrarToast('⚠️ El mapa aún no está listo'); return; }
+  if (!navigator.geolocation) { mostrarToast('⚠️ Tu navegador no soporta GPS'); return; }
+  const textoOriginal = btnEl?.textContent;
+  if (btnEl) btnEl.textContent = '⏳';
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      mapaInstancia.setView([pos.coords.latitude, pos.coords.longitude], 15);
+      if (btnEl) btnEl.textContent = textoOriginal;
+      if (mapaInstancia === mapaMundial) renderPinsMundiales();
+    },
+    () => {
+      mostrarToast('⚠️ No se pudo obtener tu ubicación');
+      if (btnEl) btnEl.textContent = textoOriginal;
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+  );
+}
 
 function iniciarMapa() {
   mapaIniciado = true;
