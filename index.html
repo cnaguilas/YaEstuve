@@ -2821,43 +2821,42 @@ async function _guardarPuntoInterno() {
     return;
   }
     puntosEdicion.push(punto);
-    if (_puntoParaDia !== undefined && itinerarioGenerado?.jornadas) {
+    if (_puntoParaDia !== undefined && itinerarioGenerado?.jornadas?.[_puntoParaDia]) {
       const ji = _puntoParaDia;
-      if (itinerarioGenerado.jornadas[ji]) {
-        itinerarioGenerado.jornadas[ji].items.push({
-          tipo: punto.tipo,
-          nombre: punto.nombre,
-          desc: punto.desc
-        });
-        // Cerrar formulario ANTES de guardar en Firebase para no bloquear UI
-        formEl.classList.remove('active');
-        latLngPunto = null;
-        renderPuntos();
-        guardarJornadasEnFirebase();
-        // Guardar también en puntos de Firebase
-        const fbId2 = itinerarioGenerado?.fbId;
-        if (fbId2) {
-          const puntosLimpios2 = puntosEdicion.filter(p => p && p.tipo);
-          fbFetch(`${FB_URL}/itinerarios/${fbId2}/puntos.json`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(puntosLimpios2)
-          }).catch(() => {});
-        }
-        // Añadir marcador al mapa de edición
-        if (punto.lat && mapEditFullInstance) {
-          const cfg2 = TIPOS_CONFIG[punto.tipo] || TIPOS_CONFIG.visita;
-          const icon2 = L.divIcon({
-            className: '',
-            html: `<div style="font-size:1.6rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">${cfg2.icon}</div>`,
-            iconSize: [32,32], iconAnchor: [16,16]
-          });
-          L.marker([punto.lat, punto.lng], {icon: icon2}).addTo(mapEditFullInstance)
-            .bindPopup(`<b>${cfg2.icon} ${punto.nombre}</b><br><small>${punto.desc||''}</small>`);
-        }
-        mostrarToast('✅ Punto añadido al Día ' + itinerarioGenerado.jornadas[ji].dia);
-        if (navigator.vibrate) navigator.vibrate(60);
+      itinerarioGenerado.jornadas[ji].items.push({
+        tipo: punto.tipo,
+        nombre: punto.nombre,
+        desc: punto.desc
+      });
+      // Cerrar formulario ANTES de guardar en Firebase para no bloquear UI
+      formEl.classList.remove('active');
+      latLngPunto = null;
+      renderPuntos();
+      guardarJornadasEnFirebase();
+      // Guardar también en puntos de Firebase
+      const fbId2 = itinerarioGenerado?.fbId;
+      if (fbId2) {
+        const puntosLimpios2 = puntosEdicion.filter(p => p && p.tipo);
+        fbFetch(`${FB_URL}/itinerarios/${fbId2}/puntos.json`, {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(puntosLimpios2)
+        }).catch(() => {});
       }
+      // Añadir marcador al mapa de edición
+      if (punto.lat && mapEditFullInstance) {
+        const cfg2 = TIPOS_CONFIG[punto.tipo] || TIPOS_CONFIG.visita;
+        const icon2 = L.divIcon({
+          className: '',
+          html: `<div style="font-size:1.6rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">${cfg2.icon}</div>`,
+          iconSize: [32,32], iconAnchor: [16,16]
+        });
+        L.marker([punto.lat, punto.lng], {icon: icon2}).addTo(mapEditFullInstance)
+          .bindPopup(`<b>${cfg2.icon} ${punto.nombre}</b><br><small>${punto.desc||''}</small>`);
+      }
+      mostrarToast('✅ Punto añadido al Día ' + itinerarioGenerado.jornadas[ji].dia);
+      if (navigator.vibrate) navigator.vibrate(60);
+
       const veniaDeAutoDia = !!itinerarioGenerado?._modoMarcha;
       delete _puntoParaDia;
       _guardarBorradorMarcha();
@@ -2866,6 +2865,10 @@ async function _guardarPuntoInterno() {
       setTimeout(() => cambiarTab('tabDias'), 200);
       return; // evitar doble guardado en Firebase
     }
+    // Si _puntoParaDia apuntaba a un día que ya no existe (o no aplica),
+    // lo olvidamos y seguimos por el camino normal de abajo — así el punto
+    // SIEMPRE se guarda y el formulario SIEMPRE se cierra, pase lo que pase.
+    delete _puntoParaDia;
 
   if (!formEl.classList.contains('active')) return; // ya se cerró arriba
   formEl.classList.remove('active');
@@ -3513,8 +3516,17 @@ async function abrirMapaEdicionPantalla() {
     L.control.zoom({ position:'topright' }).addTo(mapEditFullInstance);
     mapEditFullInstance.invalidateSize();
 
-    // Pinchar en el mapa para añadir punto
+    // Pinchar en el mapa para añadir punto — o, si estamos en modo de
+    // confirmación GPS (el pin que sale al tocar "Marcar aquí"), mover ESE
+    // pin en vez de abrir un formulario nuevo por encima. Antes, tocar en
+    // cualquier otro sitio del mapa mientras el aviso de "Confirmar aquí"
+    // seguía visible abría un segundo punto por su cuenta, dejando el aviso
+    // atascado en pantalla y liando cuál de los dos puntos era el bueno.
     mapEditFullInstance.on('click', e => {
+      if (_mapaEditModoGPS && _tempGPSMarker) {
+        _tempGPSMarker.setLatLng(e.latlng);
+        return;
+      }
       latLngPunto = e.latlng;
       // Limpiar flags de cambio de icono para que se abra el form de nuevo punto
       _cambiarIconoIndex = undefined;
@@ -3624,6 +3636,8 @@ async function abrirMapaEdicionPantalla() {
 }
 
 function cerrarMapaEdicion() {
+  _mapaEditModoGPS = false;
+  document.getElementById('confirmarGPSBar').style.display = 'none';
   goBack();
   // Actualizar lista de puntos al volver
   renderPuntos();
@@ -3638,7 +3652,7 @@ let itinerarioGenerado = null;
 let fotosBase64 = [];
 
 // Variables de estado que antes vivían en window._xxx
-let _puntoParaDia = null;        // día al que asociar un punto nuevo
+let _puntoParaDia = undefined;   // día al que asociar un punto nuevo (undefined = sin día concreto)
 let _cambiarIconoIndex = null;   // índice en puntosEdicion al cambiar icono
 let _cambiarIconoJornada = null; // {ji, ii} al cambiar icono desde jornadas
 let _validacionCiudades = [];    // coords de ciudades en validación (legacy, se mantiene por compatibilidad)
@@ -4619,6 +4633,7 @@ function confirmarPuntoGPS() {
 
 function marcarAquiManual() {
   _puntoParaDia = undefined;
+  _mapaEditModoGPS = false;
   mostrarToast('👆 Toca el mapa donde quieras añadir el punto');
   // Intentar centrar el mapa en tu posición real en vez del centro por defecto
   if (navigator.geolocation) {
