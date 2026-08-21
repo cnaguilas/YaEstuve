@@ -3248,6 +3248,26 @@ let mapVerMarkers = {};
 // ID del itinerario actualmente cargado en el mapa de ver
 let mapVerItId = null;
 
+// Abre a pantalla completa la foto de un punto concreto (vista pública del viaje)
+function verFotoPunto(key, id, nombre) {
+  const d = destinos[key];
+  const it = d?.itinerarios?.find(i => i.id === id || i.fbId === id);
+  const p = it?.puntos?.find(x => x.nombre === nombre);
+  if (!p?.foto) return;
+  mostrarInfoBubbleImagen(p.foto);
+}
+
+// Igual que arriba, pero cuando ya tenemos la foto en base64 a mano (p.ej.
+// desde el popup de un marcador) y no hace falta volver a buscarla.
+function mostrarInfoBubbleImagen(fotoB64) {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'info-bubble-backdrop';
+  backdrop.style.padding = '0';
+  backdrop.innerHTML = `<img src="${fotoB64}" style="max-width:100%;max-height:100%;object-fit:contain">`;
+  backdrop.onclick = () => backdrop.remove();
+  document.body.appendChild(backdrop);
+}
+
 async function verPuntoEnMapa(key, id, nombre) {
   // Si el mapa ya está cargado con este itinerario, solo centrar
   if (mapVerInstance && mapVerItId === id) {
@@ -3392,6 +3412,7 @@ function dibujarPuntosYRuta(puntos, diaFiltro, destino, it) {
     });
     const marker = L.marker([p.lat, p.lng], {icon}).addTo(mapVerInstance);
     marker.bindPopup(`<div style="font-family:'Mulish',sans-serif;min-width:160px">
+      ${p.foto ? `<img src="${p.foto}" onclick="mostrarInfoBubbleImagen('${p.foto}')" style="width:100%;max-height:120px;object-fit:cover;border-radius:8px;margin-bottom:6px;cursor:zoom-in">` : ''}
       <b style="font-size:0.9rem">${cfg.icon} ${p.nombre}</b>
       ${p.dia ? `<div style="font-size:0.7rem;color:#E8471C;font-weight:700;margin-top:2px">DÍA ${p.dia}</div>` : ''}
       ${p.desc ? `<p style="margin-top:4px;font-size:0.78rem;color:#666">${p.desc}</p>` : ''}
@@ -4014,7 +4035,9 @@ function abrirItinerario(key, id) {
       <div class="dia-items">
         ${(Array.isArray(j.items)?j.items:(j.items?Object.values(j.items):[])).map(item => { if(!item) return '';
           const tieneCoords = !!puntosMap[item.nombre];
+          const fotoPunto = puntosMap[item.nombre]?.foto;
           return `<div class="dia-item ${item.tipo||'visita'}" ${tieneCoords ? `onclick="verPuntoEnMapa('${(key)}','${(it.fbId||id)}','${(item.nombre||'').replace(/'/g,"\'")}');return false;" style="cursor:pointer"` : ''}>
+            ${fotoPunto ? `<img src="${fotoPunto}" onclick="event.stopPropagation();verFotoPunto('${key}','${it.fbId||id}','${(item.nombre||'').replace(/'/g,"\'")}')" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;margin-bottom:8px;cursor:zoom-in">` : ''}
             <div class="item-tipo">${iconoTipo(item.tipo)} ${labelTipo(item.tipo)}${tieneCoords ? ' <span style="font-size:0.65rem;background:var(--primary-light);color:var(--primary);padding:2px 6px;border-radius:50px;margin-left:4px">📍 Ver mapa</span>' : ''}</div>
             <div class="item-nombre">${item.nombre||''}</div>
             <div class="item-desc">${item.desc||''}</div>
@@ -4764,13 +4787,13 @@ async function continuarBorrador() {
   state._dirty = false;
   fotosBase64 = [];
 
-  if (ref.etapa === 'editando') {
-    abrirEdicion();
-  } else {
-    navegarA('screenMarcha', null);
-    document.getElementById('marchaTitulo').textContent = '📍 ' + (itinerarioGenerado.autor || 'Viaje');
-    renderMarchaLista();
-  }
+  // "Continuar" siempre vuelve a la pantalla de marcar puntos, tanto si lo
+  // dejaste a medias marcando como si ya habías pasado a rellenar detalles —
+  // desde ahí puedes seguir añadiendo puntos o darle otra vez a "Terminar"
+  // para ir a los detalles finales.
+  navegarA('screenMarcha', null);
+  document.getElementById('marchaTitulo').textContent = '📍 ' + (itinerarioGenerado.autor || 'Viaje');
+  renderMarchaLista();
 }
 
 async function descartarBorrador() {
