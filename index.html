@@ -1739,7 +1739,7 @@ html, body {
     <div id="mapaEditHint" style="display:none;position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--ink);color:white;padding:8px 16px;border-radius:50px;font-size:0.78rem;font-weight:600;z-index:500;white-space:nowrap;pointer-events:none">👆 Toca para añadir punto</div>
     <button onclick="irAMiUbicacion(mapEditFullInstance, this)" title="Ir a mi ubicación" style="position:absolute;right:14px;bottom:100px;z-index:600;width:44px;height:44px;border-radius:50%;background:white;border:none;box-shadow:0 3px 10px rgba(0,0,0,0.25);font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center">🧭</button>
     <div style="position:absolute;right:6px;bottom:88px;z-index:600;background:rgba(0,0,0,0.6);color:white;font-size:0.62rem;font-weight:700;padding:2px 8px;border-radius:8px;pointer-events:none">Mi ubicación</div>
-    <div id="confirmarGPSBar" style="display:none;position:absolute;left:16px;right:16px;bottom:20px;z-index:600;flex-direction:column;gap:8px">
+    <div id="confirmarGPSBar" style="display:none;position:fixed;left:16px;right:16px;bottom:calc(78px + var(--safe-bottom));z-index:2000;flex-direction:column;gap:8px">
       <div style="background:var(--ink);color:white;padding:8px 14px;border-radius:12px;font-size:0.78rem;text-align:center;font-weight:600">📍 Ajusta el pin si hace falta y confirma</div>
       <button class="btn-primary" onclick="confirmarPuntoGPS()" style="margin:0">✅ Confirmar aquí</button>
     </div>
