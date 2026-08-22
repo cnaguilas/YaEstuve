@@ -1430,7 +1430,7 @@ html, body {
     <button class="back-btn" onclick="salirModoMarcha()">←</button>
     <div class="nav-title" style="color:white;font-family:'Syne',sans-serif;font-weight:700" id="marchaTitulo">Sobre la marcha</div>
   </div>
-  <div style="padding:20px 16px 100px;max-width:480px;margin:0 auto">
+  <div style="padding:20px 16px 100px;max-width:480px;margin:0 auto;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch">
     <div style="text-align:center;margin-bottom:20px">
       <div id="marchaEstadoGPS" style="font-size:0.78rem;color:var(--muted);margin-bottom:14px">📡 Toca el botón para marcar tu ubicación actual</div>
       <button class="btn-primary" onclick="marcarAqui()" id="btnMarcarAqui" style="font-size:1.05rem;padding:20px">📍 Marcar aquí</button>
