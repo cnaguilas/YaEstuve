@@ -2011,9 +2011,49 @@ function guardarJornadasEnFirebase() {
   }).catch(() => {});
 }
 
+// El mapa puede recargar los puntos directamente desde Firebase (no siempre
+// desde lo que hay en memoria), así que cualquier cambio de orden en "Días"
+// tiene que guardarse también aquí — si no, el mapa puede seguir mostrando
+// el orden antiguo aunque en la lista de días ya se vea bien el nuevo.
+function guardarPuntosEnFirebase() {
+  const fbId = itinerarioGenerado?.fbId;
+  if (!fbId) return;
+  const puntosLimpios = (puntosEdicion || []).filter(p => p && p.tipo);
+  fbFetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(puntosLimpios)
+  }).catch(() => {});
+}
+
+// Reengancha puntos "huérfanos": puntos que existen en puntosEdicion (y por
+// tanto se ven en el mapa) pero que por algún motivo nunca llegaron a
+// añadirse a la lista de items de ningún día (p.ej. se añadieron desde la
+// pestaña "Mapa" general antes de este arreglo). Sin esto, se quedan
+// invisibles en "Días" para siempre aunque el punto exista de verdad.
+function _repararPuntosHuerfanos() {
+  if (!itinerarioGenerado?.jornadas?.length) return false;
+  const nombresEnDias = new Set();
+  itinerarioGenerado.jornadas.forEach(j => (j.items || []).forEach(item => {
+    if (item?.nombre) nombresEnDias.add(item.nombre);
+  }));
+  const huerfanos = (puntosEdicion || []).filter(p => p?.nombre && !nombresEnDias.has(p.nombre));
+  if (!huerfanos.length) return false;
+  huerfanos.forEach(p => {
+    const idxDia = Math.max(0, (p.dia || 1) - 1);
+    const jornada = itinerarioGenerado.jornadas[idxDia] || itinerarioGenerado.jornadas[0];
+    if (!jornada.items) jornada.items = [];
+    jornada.items.push({ nombre: p.nombre, tipo: p.tipo || 'visita', desc: p.desc || '' });
+    if (!p.dia) p.dia = jornada.dia;
+  });
+  guardarJornadasEnFirebase();
+  return true;
+}
+
 function renderDias() {
   const lista = document.getElementById('listaDias');
   if (!lista) return;
+  _repararPuntosHuerfanos();
   const jornadas = getJornadas();
   
   if (!jornadas.length) {
@@ -2082,11 +2122,16 @@ function eliminarItem(ji, ii) {
   itinerarioGenerado.jornadas[ji].items.splice(ii, 1);
   sincronizarPuntosEdicion();
   guardarJornadasEnFirebase();
+  guardarPuntosEnFirebase();
   renderDias();
 }
 
 function sincronizarPuntosEdicion() {
-  // Preservar coords e IDs de los puntos existentes
+  // Preservar TODOS los datos de los puntos existentes (foto, aproximado, etc.)
+  // Antes se reconstruía cada punto a mano con una lista fija de campos, y
+  // cualquier campo que no estuviera en esa lista (como la foto) se perdía
+  // cada vez que se reordenaba o movía un punto de día. Ahora se parte del
+  // punto existente entero y solo se pisa lo que realmente cambia.
   const mapaExistente = {};
   puntosEdicion.forEach(p => {
     if (p.nombre) mapaExistente[p.nombre] = p;
@@ -2096,6 +2141,7 @@ function sincronizarPuntosEdicion() {
     (j.items || []).forEach(item => {
       const existente = mapaExistente[item.nombre] || {};
       puntosEdicion.push({
+        ...existente,
         id: existente.id || item.id || newPuntoId(),
         tipo: item.tipo || existente.tipo || 'visita',
         nombre: item.nombre,
@@ -2120,11 +2166,14 @@ function moverItem(ji, ii, dir) {
   sincronizarPuntosEdicion();
   state._dirty = true;
   guardarJornadasEnFirebase();
+  guardarPuntosEnFirebase();
   renderDias();
+  // Si el mapa está abierto, recargarlo entero desde cero en vez de intentar
+  // actualizar marcadores y línea por separado — así no hay dos caminos de
+  // dibujo que se puedan desincronizar entre sí (antes uno de ellos miraba
+  // la variable del mapa equivocada y se quedaba sin actualizar).
   if (mapEditFullInstance) {
-    mapEditFullInstance.eachLayer(l => { if (l instanceof L.Marker) mapEditFullInstance.removeLayer(l); });
-    renderPuntosEnMapa();
-    _redibujarLineaMapa();
+    abrirMapaEdicionPantalla();
   }
 }
 
@@ -2657,6 +2706,7 @@ function seleccionarTipoPunto(tipo) {
       }
       state._dirty = true;
       guardarJornadasEnFirebase();
+      guardarPuntosEnFirebase();
       renderDias();
       // Redibujar markers en mapa si está abierto
       if (mapEditFullInstance) {
@@ -2757,10 +2807,18 @@ async function _guardarPuntoInterno() {
   const formEl = document.getElementById('puntoForm');
   const editIndex = formEl._editIndex;
 
-  // Modo "sobre la marcha": el día se asigna solo según la fecha real de hoy,
-  // sin pedirle al usuario que elija (así puede seguir marcando sin fricción).
-  if (_puntoParaDia === undefined && itinerarioGenerado?._modoMarcha && editIndex === undefined) {
-    _puntoParaDia = _jornadaAutoPorFecha();
+  // Asignar día al punto nuevo:
+  // - Modo "sobre la marcha": se asigna solo según la fecha real de hoy.
+  // - Si no viene de ningún sitio que ya diga el día (p.ej. se añadió desde
+  //   la pestaña "Mapa" general, no desde el botón "+" de un día concreto),
+  //   antes se quedaba sin día y por eso nunca aparecía en la pestaña "Días"
+  //   aunque sí estuviera en el mapa. Por defecto, que vaya al Día 1.
+  if (_puntoParaDia === undefined && editIndex === undefined) {
+    if (itinerarioGenerado?._modoMarcha) {
+      _puntoParaDia = _jornadaAutoPorFecha();
+    } else if (itinerarioGenerado?.jornadas?.length > 0) {
+      _puntoParaDia = 0;
+    }
   }
 
   const diaDelPunto = (_puntoParaDia !== undefined && itinerarioGenerado?.jornadas)
