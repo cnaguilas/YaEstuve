@@ -2380,6 +2380,15 @@ function abrirEdicion() {
   });
   it.fotos = fotosBase64;
 
+  // Asegurar que puntosEdicion está cargado, reparar puntos huérfanos (que
+  // existen en el mapa pero no en ningún día) y dejar el orden de puntosEdicion
+  // igual al orden real de los días — así el mapa y la lista salen bien desde
+  // el primer momento al editar, no solo después de publicar.
+  puntosEdicion = it.puntos || puntosEdicion || [];
+  state.viajeActual = it;
+  _repararPuntosHuerfanos();
+  sincronizarPuntosEdicion();
+
   // Resetear mapa de edición
   if (mapEditInstance) {
     mapEditInstance.remove();
