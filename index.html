@@ -3762,12 +3762,23 @@ function comprimirFoto(file) {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const max = 800;
+        // Antes solo limitaba el ANCHO (max 800), así que una foto vertical
+        // (lo normal al hacer una foto con el móvil, ej. 3000x4000) se quedaba
+        // con una altura enorme sin recomprimir de verdad. Ahora se limita el
+        // lado más largo, sea ancho o alto, y se bajó algo la calidad — el
+        // resultado pesa notablemente menos sin verse peor en una pantalla
+        // de móvil.
+        const max = 700;
         let w = img.width, h = img.height;
-        if (w > max) { h = h * max / w; w = max; }
+        const lado = Math.max(w, h);
+        if (lado > max) {
+          const factor = max / lado;
+          w = Math.round(w * factor);
+          h = Math.round(h * factor);
+        }
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', 0.72));
+        resolve(canvas.toDataURL('image/jpeg', 0.65));
       };
       img.src = e.target.result;
     };
