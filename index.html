@@ -1786,6 +1786,12 @@ html, body {
 // ══ DATOS ══════════════════════════════════════════
 const FB_URL = 'https://yaestuve-app-default-rtdb.europe-west1.firebasedatabase.app';
 
+// Desde finales de agosto de 2026, CartoDB exige una clave gratuita para
+// servir los mapas sin marca de agua "API KEY REQUIRED". Consíguela gratis
+// en carto.com/basemaps/apikey (no pide cuenta) y pégala aquí, en este único
+// sitio — así no hay que tocar las 4 llamadas al mapa si se cambia.
+const CARTO_KEY = 'cb1_3qrm_1_78901e3067f19559a117c86f';
+
 // ── Firebase REST con autenticación automática ──
 // Todas las escrituras a Firebase necesitan el token de Google
 async function fbFetch(url, options = {}) {
@@ -2642,7 +2648,7 @@ function iniciarMapaEdicion() {
   const lng = it?.lng || -3;
 
   mapEditInstance = L.map('mapEdit', { center:[lat,lng], zoom:12, zoomControl:false });
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(mapEditInstance);
+  L.tileLayer(`https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`, { maxZoom:18 }).addTo(mapEditInstance);
   L.control.zoom({ position:'topright' }).addTo(mapEditInstance);
 
   // Pinchar en el mapa
@@ -3383,7 +3389,7 @@ async function verEnMapa(key, id) {
     const lat = it.lat || d.lat || 40;
     const lng = it.lng || d.lng || -3;
     mapVerInstance = L.map('mapVer', { center:[lat,lng], zoom:13, zoomControl:false });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(mapVerInstance);
+    L.tileLayer(`https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`, { maxZoom:18 }).addTo(mapVerInstance);
     L.control.zoom({ position:'topright' }).addTo(mapVerInstance);
 
     const destino = it.destino || d.nombre || '';
@@ -3600,7 +3606,7 @@ async function abrirMapaEdicionPantalla() {
     else if (it?._centroTemporal) { lat = it._centroTemporal.lat; lng = it._centroTemporal.lng; }
     console.log('Mapa centro:', lat, lng, '| puntos con coords:', ptsConCoords.length, '| total puntosEdicion:', puntosEdicion.length);
     mapEditFullInstance = L.map('mapEditFull', { center:[lat,lng], zoom:13, zoomControl:false });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(mapEditFullInstance);
+    L.tileLayer(`https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`, { maxZoom:18 }).addTo(mapEditFullInstance);
     L.control.zoom({ position:'topright' }).addTo(mapEditFullInstance);
     mapEditFullInstance.invalidateSize();
 
@@ -3844,6 +3850,11 @@ function renderHome() {
   renderSocialFeed();
 }
 
+// true mientras cargarDeFirebase() sigue trayendo datos — evita que el feed
+// muestre "¡Aún no hay viajes!" (mentira) durante ese rato, que es lo que
+// hacía que la app pareciera más lenta de lo que realmente es.
+let _cargandoFeed = true;
+
 // Todos los itinerarios cargados de Firebase (para el feed social)
 let _todosItinerarios = [];
 let _feedFiltro = 'todos';
@@ -3867,11 +3878,16 @@ function renderSocialFeed() {
   });
 
   if (!todos.length) {
-    feed.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--muted)">
-      <div style="font-size:3rem;margin-bottom:12px">✈️</div>
-      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1.1rem;margin-bottom:8px">¡Aún no hay viajes!</div>
-      <div style="font-size:0.85rem">Sé el primero en compartir uno</div>
-    </div>`;
+    feed.innerHTML = _cargandoFeed
+      ? `<div style="text-align:center;padding:60px 20px;color:var(--muted)">
+          <div class="spinner" style="margin:0 auto 14px"></div>
+          <div style="font-size:0.85rem">Cargando viajes...</div>
+        </div>`
+      : `<div style="text-align:center;padding:60px 20px;color:var(--muted)">
+          <div style="font-size:3rem;margin-bottom:12px">✈️</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1.1rem;margin-bottom:8px">¡Aún no hay viajes!</div>
+          <div style="font-size:0.85rem">Sé el primero en compartir uno</div>
+        </div>`;
     return;
   }
 
@@ -4542,7 +4558,7 @@ function irAMiUbicacion(mapaInstancia, btnEl) {
 function iniciarMapa() {
   mapaIniciado = true;
   const m = L.map('map', { center:[25,10], zoom:2, zoomControl:false });
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:18 }).addTo(m);
+  L.tileLayer(`https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`, { maxZoom:18 }).addTo(m);
   L.control.zoom({ position:'topright' }).addTo(m);
   mapaMundial = m;
   m.on('zoomend moveend', () => renderPinsMundiales());
@@ -5463,6 +5479,7 @@ async function cargarDeFirebase() {
 
     // Primer lote: mostrar feed rápido
     await cargarLote(allKeys.slice(0, LOTE));
+    _cargandoFeed = false;
     renderHome();
     if (mapaIniciado) renderPinsMundiales();
 
@@ -5475,7 +5492,7 @@ async function cargarDeFirebase() {
       renderHome();
       if (mapaIniciado) renderPinsMundiales();
     }
-  } catch(e) { console.log('Error cargando Firebase:', e); }
+  } catch(e) { console.log('Error cargando Firebase:', e); _cargandoFeed = false; }
 }
 
 // ══ UTILS ══════════════════════════════════════
