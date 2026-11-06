@@ -1694,22 +1694,29 @@ html, body {
     <div class="perfil-email" id="perfilEmail"></div>
   </div>
   <div class="screen-body">
+    <div style="margin-bottom:18px">
+      <button id="perfilLogoutBtn" onclick="cerrarSesion()" style="width:100%;padding:10px;background:white;color:#e8471c;border:1.5px solid #e8471c;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;display:none">Cerrar sesión</button>
+      <button id="perfilLoginBtn" onclick="abrirLoginSheet()" style="width:100%;padding:14px;background:var(--primary);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer">Iniciar sesión</button>
+    </div>
+    <div id="adminPanel" style="display:none;margin-bottom:18px;background:#fff3f0;border:1.5px solid #e8471c33;border-radius:14px;padding:16px">
+      <div style="font-size:.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#e8471c;margin-bottom:10px">🛠️ Admin — Buscar cualquier viaje</div>
+      <input id="adminBuscar" oninput="adminBuscarViajes(this.value)" placeholder="Título, destino o autor..." style="width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-size:.85rem;font-family:'Mulish',sans-serif;outline:none;background:white;margin-bottom:8px">
+      <div id="adminResultados" style="font-size:.8rem;color:var(--muted)">Escribe al menos 2 letras para buscar.</div>
+      <details style="margin-top:12px">
+        <summary style="font-size:.75rem;color:#e8471c;cursor:pointer">Borrar por ID de Firebase</summary>
+        <div style="margin-top:8px">
+            <input id="adminDeleteId" placeholder="ID de Firebase (ej: -OprWSyR...)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-size:.82rem;font-family:'Mulish',sans-serif;outline:none;background:white;margin-bottom:8px">
+      <div id="adminBorrarStatus" style="font-size:.8rem;font-weight:700;color:#e8471c;min-height:22px;margin-bottom:8px"></div>
+      <button onclick="adminBorrarItinerario()" style="width:100%;padding:12px;background:#e8471c;color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer">🗑️ Borrar de Firebase</button>
+        </div>
+      </details>
+    </div>
     <div id="perfilMisViajes"></div>
 
     
 
-    <div style="margin-top:16px">
-      <button id="perfilLogoutBtn" onclick="cerrarSesion()" style="width:100%;padding:14px;background:white;color:#e8471c;border:1.5px solid #e8471c;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;display:none">Cerrar sesión</button>
-      <button id="perfilLoginBtn" onclick="abrirLoginSheet()" style="width:100%;padding:14px;background:var(--primary);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer">Iniciar sesión</button>
-    </div>
 
 
-    <div id="adminPanel" style="display:none;margin-top:20px;background:#fff3f0;border:1.5px solid #e8471c33;border-radius:14px;padding:16px">
-      <div style="font-size:.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#e8471c;margin-bottom:10px">🛠️ Admin — Borrar itinerario</div>
-      <input id="adminDeleteId" placeholder="ID de Firebase (ej: -OprWSyR...)" style="width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-size:.82rem;font-family:'Mulish',sans-serif;outline:none;background:white;margin-bottom:8px">
-      <div id="adminBorrarStatus" style="font-size:.8rem;font-weight:700;color:#e8471c;min-height:22px;margin-bottom:8px"></div>
-      <button onclick="adminBorrarItinerario()" style="width:100%;padding:12px;background:#e8471c;color:white;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer">🗑️ Borrar de Firebase</button>
-    </div>
   </div>
 </div>
 <div class="screen" id="screenMapaEdit">
@@ -1806,6 +1813,7 @@ async function fbFetch(url, options = {}) {
   return fetch(authUrl, options);
 }
 
+const ADMIN_EMAIL = 'roblius81@gmail.com'; // el mismo correo que en las reglas de Firebase
 let usuarioActual = null;
 // Crear, editar o borrar viajes exige haber iniciado sesión: así Firebase
 // sabe de quién es cada viaje y solo su autor (o un administrador) puede tocarlo.
@@ -1888,7 +1896,7 @@ function actualizarPerfil() {
     if (emailEl) emailEl.textContent = u.email || '';
     if (logoutBtn) logoutBtn.style.display = 'block';
     const adminPanel = document.getElementById('adminPanel');
-    if (adminPanel) adminPanel.style.display = u.email === 'roblius81@gmail.com' ? 'block' : 'none';
+    if (adminPanel) adminPanel.style.display = u.email === ADMIN_EMAIL ? 'block' : 'none';
     if (loginBtn) loginBtn.style.display = 'none';
     cargarMisViajes();
   } else {
@@ -1916,8 +1924,10 @@ async function cargarMisViajes() {
       return;
     }
 
+    const esAdmin = false; // los viajes de otros se buscan en el panel de administrador
     const misViajes = Object.entries(data)
-      .filter(([k,v]) => 
+      .filter(([k,v]) => v && typeof v === 'object')
+      .filter(([k,v]) =>
         v.autorUid === usuarioActual.uid || 
         v.autorEmail === usuarioActual.email ||
         v.autor === usuarioActual.nombre ||
@@ -1930,13 +1940,13 @@ async function cargarMisViajes() {
       return;
     }
 
-    container.innerHTML = '<div style="font-size:0.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:12px">Mis viajes</div>' +
+    container.innerHTML = '<div style="font-size:0.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:12px">' + (esAdmin ? `Todos los viajes (administrador) · ${misViajes.length}` : 'Mis viajes') + '</div>' +
       misViajes.map(it => `
         <div style="background:white;border-radius:14px;padding:14px;margin-bottom:10px;border:1px solid var(--border)">
           <div style="display:flex;align-items:center;justify-content:space-between">
             <div style="flex:1;cursor:pointer" onclick="editarViajeFirebase('${it.fbId}')">
               <div style="font-family:'Syne',sans-serif;font-size:0.9rem;font-weight:700">${it.titulo || it.destino}</div>
-              <div style="font-size:0.75rem;color:var(--muted);margin-top:2px">${it.destino} · ${it.dias} días</div>
+              <div style="font-size:0.75rem;color:var(--muted);margin-top:2px">${it.destino || 'Sin destino'} · ${it.dias || 1} días${esAdmin ? ' · 👤 ' + (it.autorNombre || it.autor || '¿?') + (it.estado === 'borrador' ? ' · borrador' : '') : ''}</div>
             </div>
             <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;margin-left:10px">
               <div style="color:var(--primary);font-size:0.8rem;font-weight:700;cursor:pointer" onclick="editarViajeFirebase('${it.fbId}')">Editar →</div>
@@ -1986,7 +1996,8 @@ async function editarViajeFirebase(fbId) {
 async function eliminarViaje(fbId, titulo) {
   if (!confirm(`¿Eliminar "${titulo}"?`)) return;
   try {
-    await fbFetch(`${FB_URL}/itinerarios/${fbId}.json`, { method:'DELETE' });
+    const rDel = await fbFetch(`${FB_URL}/itinerarios/${fbId}.json`, { method:'DELETE' });
+    if (!rDel.ok) { mostrarToast(rDel.status === 401 || rDel.status === 403 ? '🔒 No tienes permiso para borrar este viaje' : '❌ Error eliminando'); return; }
     mostrarToast('🗑️ Viaje eliminado');
     // Limpiar de memoria local inmediatamente
     Object.values(destinos).forEach(d => {
@@ -5483,11 +5494,12 @@ async function publicarViaje() {
   try {
     // Si tiene fbId es una edición — actualizar en Firebase
     if (it.fbId) {
-      await fbFetch(`${FB_URL}/itinerarios/${it.fbId}.json`, {
+      const rPut = await fbFetch(`${FB_URL}/itinerarios/${it.fbId}.json`, {
         method:'PUT',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(it)
       });
+      if (!rPut.ok) throw new Error(rPut.status === 401 || rPut.status === 403 ? 'permiso' : 'http ' + rPut.status);
       // Actualizar en memoria local
       const k = it.destinoKey || it.destino?.toLowerCase().replace(/\s+/g,'_');
       if (destinos[k]) {
@@ -5502,6 +5514,7 @@ async function publicarViaje() {
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(it)
       });
+      if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? 'permiso' : 'http ' + r.status);
       const data = await r.json();
       it.fbId = data.name;
       // Guardar fbId dentro del objeto en Firebase para que el lookup funcione siempre
@@ -5532,6 +5545,7 @@ async function publicarViaje() {
     }
 
     renderHome();
+    cargarMisViajes(); // que el viaje aparezca ya en el perfil, sin recargar la app
     navegarA('screenHome','navHome');
     setTimeout(() => abrirDestino(it.destinoKey), 400);
     irPaso(1);
@@ -5540,7 +5554,7 @@ async function publicarViaje() {
     itinerarioGenerado = null;
     fotosBase64 = [];
   } catch(e) {
-    mostrarToast('❌ Error guardando. Inténtalo de nuevo.');
+    mostrarToast(e?.message === 'permiso' ? '🔒 No tienes permiso para guardar este viaje' : '❌ Error guardando. Inténtalo de nuevo.');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Publicar'; }
   }
@@ -5962,6 +5976,40 @@ async function abrirPerfilPublico(nombre, uid) {
     container.appendChild(card);
   });
 }// ══ ADMIN FUNCTIONS ══════════════════════════════════
+let _adminTodos = null, _adminT = null;
+function adminBuscarViajes(q) {
+  clearTimeout(_adminT);
+  _adminT = setTimeout(async () => {
+    const out = document.getElementById('adminResultados');
+    const t = (q || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (t.length < 2) { out.textContent = 'Escribe al menos 2 letras para buscar.'; return; }
+    try {
+      if (!_adminTodos) { out.textContent = 'Buscando...'; _adminTodos = await (await fetch(`${FB_URL}/itinerarios.json`)).json() || {}; }
+      const norm = x => (x || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const res = Object.entries(_adminTodos).filter(([k, v]) => v && typeof v === 'object' &&
+        [v.titulo, v.destino, v.autorNombre, v.autor, v.autorEmail].some(c => norm(c).includes(t)));
+      if (!res.length) { out.textContent = 'Ningún viaje coincide.'; return; }
+      const esc = x => (x || '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      out.innerHTML = (res.length > 20 ? `<div style="margin-bottom:6px">${res.length} resultados, se muestran 20. Afina la búsqueda.</div>` : '') +
+        res.slice(0, 20).map(([k, v]) => `
+        <div style="background:white;border-radius:10px;padding:10px;margin-bottom:6px;border:1px solid var(--border);display:flex;align-items:center;gap:8px">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;color:var(--ink);font-size:.85rem">${esc(v.titulo || v.destino || 'Sin título')}</div>
+            <div style="font-size:.72rem">${esc(v.destino || 'Sin destino')} · 👤 ${esc(v.autorNombre || v.autor || '¿?')}${v.estado === 'borrador' ? ' · borrador' : ''}</div>
+          </div>
+          <div style="color:var(--primary);font-weight:700;cursor:pointer;font-size:.8rem" onclick="editarViajeFirebase('${k}')">Editar</div>
+          <div style="cursor:pointer" onclick="adminEliminarDesdeBusqueda('${k}')">🗑️</div>
+        </div>`).join('');
+    } catch (e) { out.textContent = 'Error buscando. Inténtalo de nuevo.'; }
+  }, 300);
+}
+async function adminEliminarDesdeBusqueda(id) {
+  const v = _adminTodos?.[id];
+  await eliminarViaje(id, ((v?.titulo || v?.destino || 'este viaje') + '').replace(/'/g, '').substring(0, 30));
+  _adminTodos = null; // recargar la lista en la próxima búsqueda
+  adminBuscarViajes(document.getElementById('adminBuscar')?.value || '');
+}
+
 async function adminBorrarItinerario() {
   const input = document.getElementById('adminDeleteId');
   const status = document.getElementById('adminBorrarStatus');
