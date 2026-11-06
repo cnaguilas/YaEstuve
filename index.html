@@ -1806,6 +1806,15 @@ async function fbFetch(url, options = {}) {
   return fetch(authUrl, options);
 }
 
+let usuarioActual = null;
+// Crear, editar o borrar viajes exige haber iniciado sesión: así Firebase
+// sabe de quién es cada viaje y solo su autor (o un administrador) puede tocarlo.
+function _exigirSesion(msg) {
+  if (usuarioActual?.uid) return true;
+  mostrarToast(msg || '🔐 Inicia sesión para crear o editar viajes');
+  abrirLoginSheet();
+  return false;
+} // antes no estaba declarada: fallaba al comprobarla sin sesión iniciada
 const destinos = {};
 
 
@@ -2038,22 +2047,13 @@ function guardarPuntosEnFirebase() {
 // pestaña "Mapa" general antes de este arreglo). Sin esto, se quedan
 // invisibles en "Días" para siempre aunque el punto exista de verdad.
 function _repararPuntosHuerfanos() {
-  if (!itinerarioGenerado?.jornadas?.length) return false;
-  const nombresEnDias = new Set();
-  itinerarioGenerado.jornadas.forEach(j => (j.items || []).forEach(item => {
-    if (item?.nombre) nombresEnDias.add(item.nombre);
-  }));
-  const huerfanos = (puntosEdicion || []).filter(p => p?.nombre && !nombresEnDias.has(p.nombre));
-  if (!huerfanos.length) return false;
-  huerfanos.forEach(p => {
-    const idxDia = Math.max(0, (p.dia || 1) - 1);
-    const jornada = itinerarioGenerado.jornadas[idxDia] || itinerarioGenerado.jornadas[0];
-    if (!jornada.items) jornada.items = [];
-    jornada.items.push({ nombre: p.nombre, tipo: p.tipo || 'visita', desc: p.desc || '' });
-    if (!p.dia) p.dia = jornada.dia;
-  });
-  guardarJornadasEnFirebase();
-  return true;
+  if (!itinerarioGenerado) return false;
+  const contar = () => (itinerarioGenerado.jornadas || []).reduce((n, j) => n + (j?.items || []).length, 0);
+  const antes = contar();
+  const sinPid = (itinerarioGenerado.jornadas || []).some(j => (j?.items || []).some(it => it && !it.pid));
+  _vincularDiasYPuntos(true);
+  if (contar() !== antes || sinPid) { guardarJornadasEnFirebase(); return true; }
+  return false;
 }
 
 function renderDias() {
@@ -2109,8 +2109,11 @@ function actualizarLugarDia(ji, valor) {
 
 function actualizarItem(ji, ii, campo, valor) {
   if (!itinerarioGenerado?.jornadas?.[ji]?.items?.[ii]) return;
-  itinerarioGenerado.jornadas[ji].items[ii][campo] = valor;
-  guardarJornadasEnFirebase();
+  const item = itinerarioGenerado.jornadas[ji].items[ii];
+  item[campo] = valor;
+  const p = (puntosEdicion || []).find(x => x && x.id === item.pid);
+  if (p) p[campo] = valor;
+  _guardarPronto();
 }
 
 function eliminarDia(ji) {
@@ -2133,33 +2136,94 @@ function eliminarItem(ji, ii) {
 }
 
 function sincronizarPuntosEdicion() {
-  // Preservar TODOS los datos de los puntos existentes (foto, aproximado, etc.)
-  // Antes se reconstruía cada punto a mano con una lista fija de campos, y
-  // cualquier campo que no estuviera en esa lista (como la foto) se perdía
-  // cada vez que se reordenaba o movía un punto de día. Ahora se parte del
-  // punto existente entero y solo se pisa lo que realmente cambia.
-  const mapaExistente = {};
-  puntosEdicion.forEach(p => {
-    if (p.nombre) mapaExistente[p.nombre] = p;
-  });
-  puntosEdicion = [];
+  // Los días mandan: la lista de puntos se reconstruye a partir de los
+  // elementos de cada día, y cada elemento sabe cuál es SU punto por el
+  // identificador "pid" (antes se emparejaban por nombre, y al renombrar un
+  // punto o tener dos con el mismo nombre se perdían coordenadas y fotos o
+  // salían duplicados). Del punto existente se conserva todo (foto,
+  // coordenadas, aproximado...) y solo se pisa lo que viene del día.
+  _vincularDiasYPuntos();
+  const porId = new Map((puntosEdicion || []).filter(Boolean).map(p => [p.id, p]));
+  const nuevos = [];
   (itinerarioGenerado?.jornadas || []).forEach(j => {
-    (j.items || []).forEach(item => {
-      const existente = mapaExistente[item.nombre] || {};
-      puntosEdicion.push({
-        ...existente,
-        id: existente.id || item.id || newPuntoId(),
-        tipo: item.tipo || existente.tipo || 'visita',
-        nombre: item.nombre,
-        desc: item.desc || existente.desc || '',
+    (j?.items || []).forEach(item => {
+      if (!item) return;
+      const ex = porId.get(item.pid) || {};
+      nuevos.push({
+        ...ex,
+        id: item.pid,
+        tipo: item.tipo || ex.tipo || 'visita',
+        nombre: item.nombre || ex.nombre || '',
+        desc: item.desc != null ? item.desc : (ex.desc || ''),
         dia: j.dia,
-        lat: existente.lat || item.lat || null,
-        lng: existente.lng || item.lng || null
+        lat: ex.lat ?? item.lat ?? null,
+        lng: ex.lng ?? item.lng ?? null
       });
     });
   });
-  // Sincronizar con estado central
-  if (state.viajeActual) state.viajeActual.puntos = puntosEdicion;
+  puntosEdicion = nuevos;
+  if (itinerarioGenerado) itinerarioGenerado.puntos = nuevos;
+  if (state.viajeActual) state.viajeActual.puntos = nuevos;
+}
+
+// Une cada elemento de los días con su punto del mapa mediante "pid".
+// También migra los viajes antiguos (sin pid) emparejando por nombre una
+// sola vez, y recoloca en su día los puntos que no estaban en ninguno.
+function _vincularDiasYPuntos(adoptarHuerfanos = false) {
+  const it = itinerarioGenerado;
+  if (!it) return;
+  if (!Array.isArray(it.jornadas)) it.jornadas = [];
+  const puntos = ((puntosEdicion && puntosEdicion.length) ? puntosEdicion : (it.puntos || [])).filter(p => p && typeof p === 'object');
+  puntos.forEach(p => { if (!p.id) p.id = newPuntoId(); });
+  // Si hay puntos pero ningún día, crear el Día 1 para no perderlos
+  if (!it.jornadas.length && puntos.length) it.jornadas.push({ dia: 1, lugar: it.destino || 'Día 1', items: [] });
+  const porId = new Map(puntos.map(p => [p.id, p]));
+  const usados = new Set();
+  it.jornadas.forEach(j => {
+    if (!j) return;
+    j.items = (j.items || []).filter(Boolean);
+    j.items.forEach(item => {
+      if (!item.pid) return;
+      if (usados.has(item.pid)) { item.pid = null; return; } // pid repetido: se reasigna abajo
+      if (porId.has(item.pid)) usados.add(item.pid);
+    });
+  });
+  it.jornadas.forEach(j => (j?.items || []).forEach(item => {
+    if (item.pid && porId.has(item.pid)) return; // ya unido a su punto
+    const libre = puntos.find(p => !usados.has(p.id) && p.nombre === item.nombre);
+    if (libre) item.pid = libre.id;          // viaje antiguo: se une por nombre una única vez
+    else if (!item.pid) item.pid = newPuntoId(); // elemento solo de texto
+    usados.add(item.pid);
+  }));
+  it.jornadas = it.jornadas.filter(Boolean);
+  // Solo al abrir un viaje o el mapa: los puntos que no estén en ningún día
+  // (viajes antiguos) se colocan en su día. Nunca después de borrar algo.
+  if (adoptarHuerfanos && it.jornadas.length) puntos.forEach(p => {
+    if (usados.has(p.id)) return;
+    const j = it.jornadas[Math.max(0, (p.dia || 1) - 1)] || it.jornadas[0];
+    j.items.push({ pid: p.id, nombre: p.nombre || 'Punto', tipo: p.tipo || 'visita', desc: p.desc || '' });
+    usados.add(p.id);
+  });
+  puntosEdicion = puntos;
+}
+
+// Busca el elemento de un día que corresponde a un punto
+function _itemPorPid(pid) {
+  const js = itinerarioGenerado?.jornadas || [];
+  for (let ji = 0; ji < js.length; ji++) {
+    const items = js[ji]?.items || [];
+    const ii = items.findIndex(x => x && x.pid === pid);
+    if (ii >= 0) return { ji, ii, item: items[ii] };
+  }
+  return null;
+}
+
+// Guardado agrupado: al escribir o arrastrar no se manda todo a Firebase en
+// cada pulsación, sino una vez cuando el usuario para un momento.
+let _tGuardado = null;
+function _guardarPronto() {
+  clearTimeout(_tGuardado);
+  _tGuardado = setTimeout(() => { guardarJornadasEnFirebase(); guardarPuntosEnFirebase(); }, 900);
 }
 
 function moverItem(ji, ii, dir) {
@@ -2207,8 +2271,11 @@ function añadirPuntoDesde(ji) {
 
 function añadirItemTexto(ji) {
   if (!itinerarioGenerado?.jornadas?.[ji]) return;
-  itinerarioGenerado.jornadas[ji].items.push({ tipo: 'visita', nombre: 'Nuevo item', desc: '' });
+  if (!itinerarioGenerado.jornadas[ji].items) itinerarioGenerado.jornadas[ji].items = [];
+  itinerarioGenerado.jornadas[ji].items.push({ pid: newPuntoId(), tipo: 'visita', nombre: 'Nuevo item', desc: '' });
+  sincronizarPuntosEdicion();
   guardarJornadasEnFirebase();
+  guardarPuntosEnFirebase();
   renderDias();
   setTimeout(() => {
     const items = document.querySelectorAll(`#itemsDia${ji} .item-edit-nombre`);
@@ -2349,6 +2416,7 @@ function updatePuntoById(id, cambios) {
   if (p) Object.assign(p, cambios);
   puntosEdicion = state.viajeActual.puntos;
   state._dirty = true;
+  _guardarPronto();
 }
 
 // Generar ID único para cada punto
@@ -2707,18 +2775,13 @@ function seleccionarTipoPunto(tipo) {
   document.getElementById('puntoMenu').classList.remove('active');
 
   // Si venimos de cambiarIconoItem (lista de días)
-  if (_cambiarIconoJornada !== undefined) {
+  if (_cambiarIconoJornada != null) {
     const { ji, ii } = _cambiarIconoJornada;
     _cambiarIconoJornada = undefined;
     if (itinerarioGenerado?.jornadas?.[ji]?.items?.[ii]) {
       itinerarioGenerado.jornadas[ji].items[ii].tipo = tipo;
       sincronizarPuntosEdicion();
-      // Actualizar tipo en estado central por nombre
-      const nombre = itinerarioGenerado.jornadas[ji].items[ii].nombre;
-      if (state.viajeActual?.puntos) {
-        const p = state.viajeActual.puntos.find(x => x.nombre === nombre);
-        if (p) p.tipo = tipo;
-      }
+
       state._dirty = true;
       guardarJornadasEnFirebase();
       guardarPuntosEnFirebase();
@@ -2734,13 +2797,16 @@ function seleccionarTipoPunto(tipo) {
   }
 
   // Si venimos de cambiarIconoPunto (lista de puntos del mapa)
-  if (_cambiarIconoIndex !== undefined) {
+  if (_cambiarIconoIndex != null) {
     const i = _cambiarIconoIndex;
     _cambiarIconoIndex = undefined;
     if (puntosEdicion[i]) {
       puntosEdicion[i].tipo = tipo;
-      if (state.viajeActual?.puntos?.[i]) state.viajeActual.puntos[i].tipo = tipo;
+      const r = _itemPorPid(puntosEdicion[i].id);
+      if (r) r.item.tipo = tipo;
       state._dirty = true;
+      guardarJornadasEnFirebase();
+      guardarPuntosEnFirebase();
       renderPuntos();
       // Redibujar markers en mapa si está abierto
       if (mapEditFullInstance) {
@@ -2868,6 +2934,9 @@ async function _guardarPuntoInterno() {
 
   if (editIndex !== undefined) {
     puntosEdicion[editIndex] = punto;
+    const rEdit = _itemPorPid(punto.id);
+    if (rEdit) Object.assign(rEdit.item, { nombre: punto.nombre, desc: punto.desc, tipo: punto.tipo });
+    guardarJornadasEnFirebase();
     delete formEl._editIndex;
     formEl.classList.remove('active');
     formEl._latLng = null;
@@ -2896,7 +2965,9 @@ async function _guardarPuntoInterno() {
     puntosEdicion.push(punto);
     if (_puntoParaDia !== undefined && itinerarioGenerado?.jornadas?.[_puntoParaDia]) {
       const ji = _puntoParaDia;
+      if (!itinerarioGenerado.jornadas[ji].items) itinerarioGenerado.jornadas[ji].items = [];
       itinerarioGenerado.jornadas[ji].items.push({
+        pid: punto.id,
         tipo: punto.tipo,
         nombre: punto.nombre,
         desc: punto.desc
@@ -2931,7 +3002,7 @@ async function _guardarPuntoInterno() {
       if (navigator.vibrate) navigator.vibrate(60);
 
       const veniaDeAutoDia = !!itinerarioGenerado?._modoMarcha;
-      delete _puntoParaDia;
+      _puntoParaDia = undefined;
       _guardarBorradorMarcha();
       if (veniaDeAutoDia) return; // seguimos en el mapa, sin navegar fuera
       goBack();
@@ -2941,7 +3012,7 @@ async function _guardarPuntoInterno() {
     // Si _puntoParaDia apuntaba a un día que ya no existe (o no aplica),
     // lo olvidamos y seguimos por el camino normal de abajo — así el punto
     // SIEMPRE se guarda y el formulario SIEMPRE se cierra, pase lo que pase.
-    delete _puntoParaDia;
+    _puntoParaDia = undefined;
 
   if (!formEl.classList.contains('active')) return; // ya se cerró arriba
   formEl.classList.remove('active');
@@ -2986,6 +3057,7 @@ async function _guardarPuntoInterno() {
   if (itinerarioGenerado?.jornadas?.length > 0 && _puntoParaDia === undefined) {
     itinerarioGenerado.jornadas[0].items = itinerarioGenerado.jornadas[0].items || [];
     itinerarioGenerado.jornadas[0].items.push({
+      pid: punto.id,
       tipo: punto.tipo,
       nombre: punto.nombre,
       desc: punto.desc,
@@ -3024,11 +3096,28 @@ function renderPuntos() {
 function moverPunto(i, dir) {
   const j = i + dir;
   if (j < 0 || j >= puntosEdicion.length) return;
-  [puntosEdicion[i], puntosEdicion[j]] = [puntosEdicion[j], puntosEdicion[i]];
-  // Sincronizar con estado central
-    state._dirty = true;
+  // Mover el punto es mover su elemento en los días (si cruza de un día a
+  // otro, cambia de día), y luego se reconstruye la lista desde los días.
+  const a = _itemPorPid(puntosEdicion[i]?.id), b = _itemPorPid(puntosEdicion[j]?.id);
+  if (a && b) {
+    const js = itinerarioGenerado.jornadas;
+    if (a.ji === b.ji) {
+      js[a.ji].items[a.ii] = b.item;
+      js[b.ji].items[b.ii] = a.item;
+    } else {
+      // Cruza de día: pasa al final del día anterior o al principio del siguiente
+      js[a.ji].items.splice(a.ii, 1);
+      if (dir > 0) js[b.ji].items.unshift(a.item); else js[b.ji].items.push(a.item);
+      mostrarToast(`📅 Pasa al Día ${js[b.ji].dia}`);
+    }
+    sincronizarPuntosEdicion();
+    guardarJornadasEnFirebase();
+    guardarPuntosEnFirebase();
+  } else {
+    [puntosEdicion[i], puntosEdicion[j]] = [puntosEdicion[j], puntosEdicion[i]];
+  }
+  state._dirty = true;
   renderPuntos();
-  // Redibujar línea en mapa si está abierto
   if (mapEditFullInstance) _redibujarLineaMapa();
   mostrarToast(dir === -1 ? '⬆️ Punto subido' : '⬇️ Punto bajado');
 }
@@ -3054,9 +3143,19 @@ function cambiarIconoPunto(i) {
 }
 
 function eliminarPunto(i) {
-  puntosEdicion.splice(i, 1);
-  // Sincronizar con estado central
-    state._dirty = true;
+  const p = puntosEdicion[i];
+  if (!p) return;
+  if (!confirm(`¿Borrar "${p.nombre || 'este punto'}"?`)) return;
+  const r = _itemPorPid(p.id);
+  if (r) {
+    itinerarioGenerado.jornadas[r.ji].items.splice(r.ii, 1);
+    sincronizarPuntosEdicion();
+  } else {
+    puntosEdicion.splice(i, 1);
+  }
+  guardarJornadasEnFirebase();
+  guardarPuntosEnFirebase();
+  state._dirty = true;
   renderPuntos();
   // Redibujar mapa con pequeño delay para evitar race condition
   if (mapEditFullInstance) {
@@ -3071,6 +3170,9 @@ function eliminarPunto(i) {
   }
   mostrarToast('🗑️ Punto eliminado');
 }
+
+function editarPuntoPorId(id) { const i = puntosEdicion.findIndex(p => p && p.id === id); if (i >= 0) editarPunto(i); }
+function eliminarPuntoPorId(id) { const i = puntosEdicion.findIndex(p => p && p.id === id); if (i >= 0) eliminarPunto(i); }
 
 function editarPunto(i) {
   const p = puntosEdicion[i];
@@ -3578,8 +3680,9 @@ async function abrirMapaEdicionPantalla() {
 
     // Usar estado central como fuente de verdad
     const fbId = itinerarioGenerado?.fbId;
-    if (state.viajeActual?.puntos?.filter(p=>p?.lat).length > 0) {
-      puntosEdicion = state.viajeActual.puntos;
+    if (itinerarioGenerado) {
+      _repararPuntosHuerfanos();
+      sincronizarPuntosEdicion();
     } else if (fbId) {
       try {
         const r = await fetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`);
@@ -3685,8 +3788,8 @@ async function abrirMapaEdicionPantalla() {
               <b style="font-size:0.9rem">${cfg.icon} ${p.nombre}</b>
               ${p.desc ? `<p style="font-size:0.78rem;color:#666;margin:4px 0">${p.desc}</p>` : ''}
               <div style="display:flex;gap:8px;margin-top:8px">
-                <button onclick="editarPunto(${idx})" style="flex:1;padding:6px;background:#E8471C;color:white;border:none;border-radius:8px;font-size:0.75rem;cursor:pointer">✏️ Editar</button>
-                <button onclick="eliminarPunto(${idx})" style="flex:1;padding:6px;background:#fee;color:#c00;border:1px solid #fcc;border-radius:8px;font-size:0.75rem;cursor:pointer">🗑️ Borrar</button>
+                <button onclick="editarPuntoPorId('${p.id}')" style="flex:1;padding:6px;background:#E8471C;color:white;border:none;border-radius:8px;font-size:0.75rem;cursor:pointer">✏️ Editar</button>
+                <button onclick="eliminarPuntoPorId('${p.id}')" style="flex:1;padding:6px;background:#fee;color:#c00;border:1px solid #fcc;border-radius:8px;font-size:0.75rem;cursor:pointer">🗑️ Borrar</button>
               </div>
             </div>`);
         }
@@ -3699,8 +3802,8 @@ async function abrirMapaEdicionPantalla() {
           ${p.aproximado ? `<div style="font-size:0.72rem;color:#f5a623;font-weight:700;margin-top:4px">ℹ️ Ubicación aproximada — arrastra para corregir</div>` : ''}
           ${p.desc ? `<p style="font-size:0.78rem;color:#666;margin:4px 0">${p.desc}</p>` : ''}
           <div style="display:flex;gap:8px;margin-top:8px">
-            <button onclick="editarPunto(${idx})" style="flex:1;padding:6px;background:#E8471C;color:white;border:none;border-radius:8px;font-size:0.75rem;cursor:pointer">✏️ Editar</button>
-            <button onclick="eliminarPunto(${idx})" style="flex:1;padding:6px;background:#fee;color:#c00;border:1px solid #fcc;border-radius:8px;font-size:0.75rem;cursor:pointer">🗑️ Borrar</button>
+            <button onclick="editarPuntoPorId('${p.id}')" style="flex:1;padding:6px;background:#E8471C;color:white;border:none;border-radius:8px;font-size:0.75rem;cursor:pointer">✏️ Editar</button>
+            <button onclick="eliminarPuntoPorId('${p.id}')" style="flex:1;padding:6px;background:#fee;color:#c00;border:1px solid #fcc;border-radius:8px;font-size:0.75rem;cursor:pointer">🗑️ Borrar</button>
           </div>
         </div>`);
     });
@@ -4619,8 +4722,11 @@ function irPaso(n) {
 function iniciarModoMarcha() {
   const autor = document.getElementById('f-autor').value.trim();
   if (!autor) { mostrarToast('⚠️ Pon primero tu nombre'); return; }
+  if (!_exigirSesion()) return;
 
   itinerarioGenerado = {
+    autorUid: usuarioActual.uid,
+    autorEmail: usuarioActual.email || null,
     titulo: 'Viaje sin título',
     destino: '',
     emoji: '📍',
@@ -4903,8 +5009,11 @@ async function descartarBorrador() {
 function crearManualmente() {
   const autor = document.getElementById('f-autor').value.trim();
   if (!autor) { mostrarToast('⚠️ Pon primero tu nombre'); return; }
+  if (!_exigirSesion()) return;
   // Crear itinerario vacío y abrir edición directamente
   itinerarioGenerado = {
+    autorUid: usuarioActual.uid,
+    autorEmail: usuarioActual.email || null,
     titulo: 'Mi viaje',
     destino: '',
     emoji: '📍',
@@ -4936,6 +5045,7 @@ async function generarConIA() {
   const autor = document.getElementById('f-autor').value.trim();
   const desc = document.getElementById('f-descripcion').value.trim();
   if (!autor || !desc) { mostrarToast('⚠️ Rellena tu nombre y el viaje'); return; }
+  if (!_exigirSesion()) return;
 
   // Limpiar estado anterior
   puntosEdicion = [];
@@ -5235,8 +5345,10 @@ async function construirPuntosDesdeIA(parsed, loadEl) {
         sinCoords.push(item.nombre);
       }
 
+      const pidIA = newPuntoId();
+      item.pid = pidIA;
       puntosIA.push({
-        id: newPuntoId(),
+        id: pidIA,
         tipo: item.tipo || 'visita',
         nombre: item.nombre,
         desc: item.desc || '',
@@ -5316,6 +5428,8 @@ async function publicarViaje() {
   }
 
   const it = itinerarioGenerado;
+  if (!it) return;
+  if (!_exigirSesion('🔐 Inicia sesión para publicar el viaje')) return;
   const key = it.destinoKey;
 
   // Recoger cambios de edición si estamos en pantalla editar
@@ -5341,9 +5455,11 @@ async function publicarViaje() {
   it.presupuesto = document.getElementById('e-presupuesto')?.value || it.presupuesto;
   it.resumen = document.getElementById('e-resumen')?.value || it.resumen;
   it.fotos = fotosBase64 || [];
-  it.autorUid = usuarioActual?.uid || null;
-  it.autorEmail = usuarioActual?.email || null;
-  it.autorNombre = usuarioActual?.displayName || it.autor || 'Anónimo';
+  // El autor se fija al crear el viaje y no cambia al editarlo (si un
+  // administrador corrige un viaje ajeno, el viaje sigue siendo de su autor).
+  it.autorUid = it.autorUid || usuarioActual.uid;
+  it.autorEmail = it.autorEmail || usuarioActual.email || null;
+  it.autorNombre = it.autorNombre || usuarioActual.nombre || it.autor || 'Anónimo';
   delete it.estado; // quitar la marca de "borrador sobre la marcha" si la tenía: ya se publica de verdad
   borrarReferenciaBorrador();
   fotosBase64 = [];
@@ -5353,22 +5469,12 @@ async function publicarViaje() {
     it.puntos = state.viajeActual.puntos;
   }
 
-  // Si es edición, cargar puntos frescos de Firebase para no machacarlos
-  if (it.fbId) {
-    try {
-      const rp = await fetch(`${FB_URL}/itinerarios/${it.fbId}/puntos.json`);
-      const puntosFirebase = await rp.json();
-      if (Array.isArray(puntosFirebase) && puntosFirebase.length > 0) {
-        it.puntos = puntosFirebase;
-      } else {
-        it.puntos = puntosEdicion.filter(p => p && p.tipo);
-      }
-    } catch(e) {
-      it.puntos = puntosEdicion.filter(p => p && p.tipo);
-    }
-  } else {
-    it.puntos = puntosEdicion.filter(p => p && p.tipo);
-  }
+  // Lo que se publica es exactamente lo que se ve en el editor (días y
+  // puntos unidos por id). Antes, al editar, se volvían a descargar los
+  // puntos de Firebase y se perdían los arrastres y borrados hechos en el mapa.
+  clearTimeout(_tGuardado);
+  if (Array.isArray(it.jornadas) && it.jornadas.length) { _repararPuntosHuerfanos(); sincronizarPuntosEdicion(); }
+  it.puntos = (puntosEdicion || []).filter(p => p && p.tipo);
 
   const btn = document.querySelector('#screenEditar button[onclick="publicarViaje()"]') || 
                document.querySelector('.btn-primary');
