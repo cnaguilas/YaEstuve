@@ -1220,6 +1220,10 @@ html, body {
   .zona-chip { flex-shrink:0; border:none; border-radius:50px; padding:7px 12px; background:rgba(255,255,255,0.95); color:var(--ink); font-family:'Syne',sans-serif; font-size:0.75rem; font-weight:700; box-shadow:0 2px 10px rgba(0,0,0,0.15); cursor:pointer; }
   .zona-chip.activa { background:var(--ink); color:white; }
   #zonaChips::-webkit-scrollbar { display:none; }
+  .badge-sugerida { background:rgba(255,255,255,0.92); color:#6b3fa0; font-size:0.68rem; font-weight:800; padding:4px 9px; border-radius:50px; font-family:'Syne',sans-serif; box-shadow:0 2px 8px rgba(0,0,0,0.15); }
+  .bloque-planifica a { display:flex; align-items:center; gap:10px; padding:11px 12px; background:var(--card); border:1.5px solid var(--border); border-radius:12px; margin-bottom:8px; text-decoration:none; color:var(--ink); font-size:0.85rem; font-weight:700; }
+  .bloque-planifica a small { display:block; font-weight:600; color:var(--muted); font-size:0.72rem; }
+  .ruta-dia-link { display:inline-block; margin:2px 0 8px; font-size:0.75rem; font-weight:700; color:var(--primary); text-decoration:none; }
 </style>
 </head>
 <body>
@@ -1338,6 +1342,7 @@ html, body {
       <div id="comentariosLoginMsg" style="font-size:.8rem;color:var(--muted);text-align:center;padding:8px 0"><span onclick="abrirLoginSheet()" style="color:var(--primary);font-weight:700;cursor:pointer">Inicia sesión</span> para comentar</div>
     </div>
     <div id="detalleDias"></div>
+    <div id="detallePlanifica" style="margin-top:8px"></div>
   </div>
 </div>
 
@@ -1713,6 +1718,12 @@ html, body {
       <div id="adminResultados" style="font-size:.8rem;color:var(--muted)">Escribe al menos 2 letras para buscar.</div>
       <button onclick="adminRegenerarIndice(this)" style="width:100%;margin-top:10px;padding:10px;background:white;color:#e8471c;border:1.5px solid #e8471c;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">🔄 Actualizar índice de viajes (país, región, portadas)</button>
       <div id="adminIndiceStatus" style="font-size:.75rem;color:var(--muted);margin-top:6px"></div>
+      <label style="display:block;width:100%;box-sizing:border-box;margin-top:10px;padding:10px;background:#6b3fa0;color:white;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.8rem;text-align:center;cursor:pointer">📥 Importar rutas sugeridas (.json)
+        <input type="file" accept=".json,application/json" onchange="adminImportarRutas(this)" style="display:none">
+      </label>
+      <button id="adminImportParar" onclick="_importParar=true" style="display:none;width:100%;margin-top:6px;padding:8px;background:white;color:#6b3fa0;border:1.5px solid #6b3fa0;border-radius:10px;font-weight:700;font-size:.78rem">⏸️ Parar al terminar la ruta actual</button>
+      <div id="adminImportStatus" style="font-size:.75rem;color:var(--muted);margin-top:6px"></div>
+      <div id="adminImportLog" style="font-size:.72rem;color:var(--muted);margin-top:4px;max-height:180px;overflow:auto;line-height:1.5"></div>
       <details style="margin-top:12px">
         <summary style="font-size:.75rem;color:#e8471c;cursor:pointer">Borrar por ID de Firebase</summary>
         <div style="margin-top:8px">
@@ -3997,6 +4008,7 @@ let _feedFiltro = 'todos';
 
 function filtrarFeed(tipo, el) {
   _feedFiltro = tipo;
+  window._feedLimite = 30;
   document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
   if (el) el.classList.add('active');
   renderSocialFeed();
@@ -4038,6 +4050,20 @@ function renderSocialFeed() {
   const likes = JSON.parse(localStorage.getItem('ye_likes') || '{}');
 
   feed.innerHTML = '';
+  // Con cientos de viajes se pintan de 30 en 30
+  const _limite = window._feedLimite || 30;
+  const _total = todos.length;
+  todos = todos.slice(0, _limite);
+  setTimeout(() => {
+    if (_total > _limite && !document.getElementById('feedVerMas')) {
+      const b = document.createElement('button');
+      b.id = 'feedVerMas'; b.className = 'btn-secondary';
+      b.style.cssText = 'width:100%;margin:6px 0 20px';
+      b.textContent = `Ver más viajes (${_total - _limite})`;
+      b.onclick = () => { window._feedLimite = _limite + 30; renderSocialFeed(); };
+      feed.appendChild(b);
+    }
+  }, 0);
   todos.forEach(it => {
     const card = document.createElement('div');
     card.className = 'feed-card';
@@ -4058,6 +4084,7 @@ function renderSocialFeed() {
         <div style="position:absolute;top:12px;right:12px;z-index:2">
           <span class="feed-card-dias">${dias} día${dias!=1?'s':''}</span>
         </div>
+        ${it.sugerida ? '<div class="badge-sugerida" style="position:absolute;top:12px;left:12px;z-index:2">✨ Ruta sugerida</div>' : ''}
       </div>
       <div class="feed-card-body">
         <div class="feed-card-title">${it.titulo}</div>
@@ -4234,7 +4261,7 @@ function abrirItinerario(key, id) {
     <span>✈️ ${d.nombre}</span>
     <span>📅 ${it.dias} días</span>
     <span>👤 ${it.autor}</span>`;
-  document.getElementById('detallePresupuesto').textContent = it.presupuesto;
+  document.getElementById('detallePresupuesto').textContent = it.presupuesto || '—';
 
   const diasEl = document.getElementById('detalleDias');
   diasEl.innerHTML = '';
@@ -4249,6 +4276,13 @@ function abrirItinerario(key, id) {
   else if (!Array.isArray(jornadas)) jornadas = Object.values(jornadas);
   if (!jornadas.length) {
     diasEl.innerHTML += '<p style="text-align:center;color:var(--muted);padding:24px;font-size:0.85rem">Este itinerario aún no tiene días añadidos.</p>';
+  }
+  if (it.sugerida) {
+    const av = document.createElement('div');
+    av.style.cssText = 'background:#f3edfa;border:1.5px solid #6b3fa033;border-radius:14px;padding:12px 14px;margin-bottom:14px;font-size:0.8rem;color:var(--ink);line-height:1.45';
+    av.innerHTML = `<b style="color:#6b3fa0">✨ Ruta sugerida por el equipo de YaEstuve.</b> No es la experiencia de un viajero concreto: es una propuesta para organizar tu viaje. Comprueba horarios y precios antes de ir.${it.mejorEpoca ? `<div style="margin-top:6px">📆 <b>Mejor época:</b> ${it.mejorEpoca}</div>` : ''}
+      <button onclick="usarComoBase()" class="btn-primary" style="margin:10px 0 0;width:100%;padding:10px">✏️ Usar como base para mi viaje</button>`;
+    diasEl.appendChild(av);
   }
   jornadas.forEach(j => {
     const block = document.createElement('div');
@@ -4270,8 +4304,23 @@ function abrirItinerario(key, id) {
           </div>`;
         }).join('')}
       </div>`;
+    // Enlace a la ruta del día en Google Maps (si hay al menos 2 puntos ubicados)
+    const ptsDia = (Array.isArray(j.items) ? j.items : (j.items ? Object.values(j.items) : [])).map(x => x && _pDe(x)).filter(Boolean);
+    const urlRuta = _urlRutaGoogle(ptsDia);
+    if (urlRuta) {
+      const a = document.createElement('a');
+      a.className = 'ruta-dia-link'; a.href = urlRuta; a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = `🗺️ Ver la ruta del día ${j.dia ?? ''} en Google Maps`;
+      block.querySelector('.dia-header')?.after(a);
+    }
     diasEl.appendChild(block);
   });
+  if (Array.isArray(it.consejos) && it.consejos.length) {
+    const c = document.createElement('div');
+    c.className = 'dia-block';
+    c.innerHTML = `<div class="dia-header"><span class="dia-num">CONSEJOS</span></div><div style="padding:4px 2px 10px;font-size:0.85rem;line-height:1.5">${it.consejos.map(x => `<div style="margin-bottom:6px">💡 ${x}</div>`).join('')}</div>`;
+    diasEl.appendChild(c);
+  }
 
   document.getElementById('btnVerMapa').onclick = () => verEnMapa(key, it.fbId || id);
 
@@ -4285,6 +4334,8 @@ function abrirItinerario(key, id) {
   const totalLinks = nVuelos + nAlojamiento + nEnlaces + nTours;
   window._detalleLinks = links;
 
+  const _pl = document.getElementById('detallePlanifica');
+  if (_pl) _pl.innerHTML = _bloquePlanifica(it);
   if (totalLinks > 0) {
     detalleLinksEl.innerHTML = `
       <button onclick="abrirLinksSheet()" style="width:100%;padding:13px 16px;background:var(--card);border:1.5px solid var(--border);border-radius:14px;display:flex;align-items:center;gap:12px;cursor:pointer;font-family:'Mulish',sans-serif">
@@ -4304,6 +4355,164 @@ function abrirItinerario(key, id) {
   _viajeCompartido = it;
   navegarDetalle('screenDetalle');
   cargarComentarios(it.fbId || id);
+}
+
+// ══ PLANIFICA TU VIAJE: búsquedas directas en webs de reserva ══
+// Si algún día os dais de alta en programas de afiliados (Booking, GetYourGuide...),
+// basta con poner aquí vuestro identificador y se añadirá a todos los enlaces.
+const AFILIADOS = { booking: '', getyourguide: '' };
+function _bloquePlanifica(it) {
+  const dest = (it.destino || '').trim();
+  if (!dest) return '';
+  const q = encodeURIComponent(dest);
+  const enEspana = (it.zona || _zonaDe(it.paisCode)) === 'espana';
+  const aid = AFILIADOS.booking ? `&aid=${AFILIADOS.booking}` : '';
+  const gyg = AFILIADOS.getyourguide ? `&partner_id=${AFILIADOS.getyourguide}` : '';
+  const items = [
+    !enEspana || it.dias > 2 ? [`https://www.google.com/travel/flights?q=${encodeURIComponent('Vuelos a ' + dest)}`, '✈️', 'Vuelos a ' + dest, 'Comparar precios en Google Flights'] : null,
+    [`https://www.booking.com/searchresults.es.html?ss=${q}${aid}`, '🏨', 'Alojamiento en ' + dest, 'Hoteles y apartamentos en Booking'],
+    [`https://www.getyourguide.es/s/?q=${q}${gyg}`, '🎟️', 'Excursiones y entradas', 'Tours y actividades en GetYourGuide'],
+    [`https://www.google.com/search?q=${encodeURIComponent('alquiler de coches ' + dest)}`, '🚗', 'Alquiler de coche', 'Comparar compañías en ' + dest],
+    enEspana ? ['https://www.renfe.com/es/es', '🚆', 'Trenes en España', 'Horarios y billetes en Renfe'] : null
+  ].filter(Boolean);
+  return `<div class="bloque-planifica" style="margin-bottom:14px">
+    <div style="font-size:.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Planifica tu viaje</div>
+    ${items.map(([u, ic, t, sub]) => `<a href="${u}" target="_blank" rel="noopener"><span style="font-size:1.2rem">${ic}</span><span style="flex:1">${t}<small>${sub}</small></span><span style="color:var(--muted)">›</span></a>`).join('')}
+  </div>`;
+}
+function _urlRutaGoogle(puntos) {
+  const pts = (puntos || []).filter(p => p && p.lat && p.lng).slice(0, 10);
+  if (pts.length < 2) return null;
+  const c = p => `${(+p.lat).toFixed(5)},${(+p.lng).toFixed(5)}`;
+  const medio = pts.slice(1, -1).map(c).join('|');
+  return `https://www.google.com/maps/dir/?api=1&origin=${c(pts[0])}&destination=${c(pts[pts.length - 1])}${medio ? '&waypoints=' + encodeURIComponent(medio) : ''}`;
+}
+
+// Copia una ruta sugerida como borrador propio para adaptarla y publicarla
+function usarComoBase() {
+  const base = _viajeCompartido;
+  if (!base) return;
+  if (!_exigirSesion('🔐 Inicia sesión para crear tu viaje a partir de esta ruta')) return;
+  const copia = JSON.parse(JSON.stringify(base));
+  ['fbId', 'id', 'sugerida', 'sugeridaId', 'likes', 'fotos', 'links', 'ts', 'fechaPublicacion', '_resumen', '_fotosNoC', 'consejos', 'mejorEpoca', 'autorFoto'].forEach(k => delete copia[k]);
+  Object.assign(copia, {
+    titulo: 'Mi viaje a ' + (base.destino || ''),
+    autor: usuarioActual.nombre || 'Viajero', autorNombre: usuarioActual.nombre || null,
+    autorUid: usuarioActual.uid, autorEmail: usuarioActual.email || null,
+    destinoKey: _norm(base.destino || 'viaje').replace(/[^a-z0-9]+/g, '_') + '_' + Date.now(),
+    fotos: [], links: { vuelos: [], alojamiento: [], enlaces: [], tours: [] }
+  });
+  itinerarioGenerado = copia;
+  puntosEdicion = Array.isArray(copia.puntos) ? copia.puntos : [];
+  state.viajeActual = itinerarioGenerado;
+  fotosBase64 = [];
+  mostrarToast('✏️ Ajusta la ruta a lo que hiciste y publícala como tuya');
+  abrirEdicion();
+}
+
+// ══ IMPORTADOR DE RUTAS SUGERIDAS (solo administrador) ══
+// Lee un archivo .json con rutas, coloca cada lugar en el mapa con
+// OpenStreetMap y publica cada ruta como "Ruta sugerida" del Equipo YaEstuve.
+let _importParar = false;
+const _esperar = ms => new Promise(r => setTimeout(r, ms));
+function _distKm(a, b) {
+  const R = 6371, t = x => x * Math.PI / 180;
+  const dLat = t(b.lat - a.lat), dLng = t(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(t(a.lat)) * Math.cos(t(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+async function _geoBuscar(q, cerca) {
+  // 1) Photon (rápido, admite sesgo hacia una zona)
+  try {
+    const u = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=1&lang=default${cerca ? `&lat=${cerca.lat}&lon=${cerca.lng}` : ''}`;
+    const f = (await (await fetch(u)).json())?.features?.[0];
+    if (f) return { lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] };
+  } catch (e) {}
+  // 2) Nominatim (más estricto; una consulta por segundo)
+  try {
+    await _esperar(1100);
+    const g = (await (await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`)).json())?.[0];
+    if (g) return { lat: +g.lat, lng: +g.lon };
+  } catch (e) {}
+  return null;
+}
+async function adminImportarRutas(input) {
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  const st = document.getElementById('adminImportStatus');
+  let rutas;
+  try { rutas = JSON.parse(await file.text()); if (!Array.isArray(rutas)) rutas = rutas.rutas; if (!Array.isArray(rutas)) throw 0; }
+  catch (e) { st.textContent = '❌ El archivo no tiene el formato de rutas'; return; }
+  if (!confirm(`El archivo tiene ${rutas.length} rutas. Se publicarán como "Ruta sugerida". Mantén esta pantalla abierta mientras se importan. ¿Empezar?`)) return;
+  _importParar = false;
+  document.getElementById('adminImportParar').style.display = 'block';
+  const lista = await obtenerListaLigera();
+  const yaImportadas = new Set(Object.values(lista).map(v => v.sugeridaId).filter(Boolean));
+  const destinosReales = new Set(Object.values(lista).filter(v => !v.sugerida).map(v => _norm(v.destino).trim()));
+  const log = [];
+  let ok = 0, saltadas = 0, fallos = 0;
+  for (let n = 0; n < rutas.length; n++) {
+    if (_importParar) { log.push('⏸️ Importación detenida'); break; }
+    const r = rutas[n];
+    const pre = `(${n + 1}/${rutas.length}) ${r.titulo || r.id}`;
+    if (!r.id || !r.destino || !Array.isArray(r.jornadas)) { fallos++; log.push(`❌ ${pre}: formato incompleto`); continue; }
+    if (yaImportadas.has(r.id)) { saltadas++; log.push(`↷ ${pre}: ya estaba importada`); continue; }
+    if (destinosReales.has(_norm(r.destino).trim())) { saltadas++; log.push(`↷ ${pre}: ya hay un viaje real en ${r.destino}`); continue; }
+    try {
+      st.textContent = `⏳ ${pre}: ubicando destino...`;
+      const centro = (r.lat && r.lng) ? { lat: r.lat, lng: r.lng } : (await _geoBuscar(r.geo || `${r.destino}, ${r.pais || ''}`) || null);
+      if (!centro) throw new Error('no encuentro el destino en el mapa');
+      const radio = r.radioKm || 400;
+      const jornadas = [], puntos = [];
+      let total = 0, ubicados = 0, ref = centro;
+      for (const j of r.jornadas) {
+        const items = [];
+        for (const x of (j.items || [])) {
+          const pid = newPuntoId();
+          const p = { id: pid, nombre: x.nombre, tipo: TIPOS_CONFIG[x.tipo] ? x.tipo : 'visita', desc: x.desc || '', dia: j.dia, lat: null, lng: null };
+          if (x.q) {
+            total++;
+            st.textContent = `⏳ ${pre}: ${x.nombre}`;
+            let g = await _geoBuscar(x.q, ref);
+            await _esperar(350);
+            if (g && _distKm(centro, g) > radio) g = null; // resultado en otra parte del mundo: se descarta
+            if (!g && x.lat && x.lng) { g = { lat: x.lat, lng: x.lng }; p.aproximado = true; }
+            if (g) { p.lat = g.lat; p.lng = g.lng; ref = g; ubicados++; }
+          }
+          items.push({ pid, nombre: x.nombre, tipo: p.tipo, desc: p.desc });
+          puntos.push(p);
+        }
+        jornadas.push({ dia: j.dia, lugar: j.lugar || r.destino, items });
+      }
+      const it = {
+        titulo: r.titulo, destino: r.destino, destinoKey: 'sug_' + r.id,
+        emoji: r.emoji || '📍', color: r.color || '#6b3fa0',
+        lat: centro.lat, lng: centro.lng, dias: r.dias || jornadas.length,
+        presupuesto: r.presupuesto || '', tipo: r.tipo || [], resumen: r.resumen || '',
+        mejorEpoca: r.mejorEpoca || null, consejos: r.consejos || [],
+        jornadas, puntos, fotos: [], links: r.links || { vuelos: [], alojamiento: [], enlaces: [], tours: [] },
+        autor: 'Equipo YaEstuve', autorNombre: 'Equipo YaEstuve',
+        autorUid: usuarioActual.uid, autorEmail: usuarioActual.email || null,
+        sugerida: true, sugeridaId: r.id, ts: Date.now(), fechaPublicacion: Date.now()
+      };
+      const g = await _geoInfo(centro.lat, centro.lng);
+      await _esperar(1100);
+      if (g) Object.assign(it, g, { geoKey: it.destinoKey });
+      const resp = await fbFetch(`${FB_URL}/itinerarios.json`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(it) });
+      if (!resp.ok) throw new Error(resp.status === 401 || resp.status === 403 ? 'sin permiso (¿has iniciado sesión como administrador?)' : 'error ' + resp.status);
+      it.fbId = (await resp.json()).name;
+      await fbFetch(`${FB_URL}/itinerarios/${it.fbId}/fbId.json`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(it.fbId) });
+      await guardarResumen(it, it.fbId);
+      yaImportadas.add(r.id);
+      ok++;
+      log.push(`✅ ${pre}: ${ubicados}/${total} lugares en el mapa`);
+    } catch (e) { fallos++; log.push(`❌ ${pre}: ${e.message || e}`); }
+    document.getElementById('adminImportLog').innerHTML = log.slice(-60).reverse().map(l => `<div>${l}</div>`).join('');
+  }
+  document.getElementById('adminImportParar').style.display = 'none';
+  st.textContent = `Terminado: ${ok} importadas · ${saltadas} saltadas · ${fallos} con error. Recarga la app para verlas.`;
+  document.getElementById('adminImportLog').innerHTML = log.slice(-60).reverse().map(l => `<div>${l}</div>`).join('');
 }
 
 function abrirLinksSheet(cat) {
@@ -5701,6 +5910,8 @@ async function construirResumen(it, id) {
     pais: it.pais || null, region: it.region || null, paisCode: it.paisCode || null, zona: it.zona || _zonaDe(it.paisCode),
     lugares: [...new Set(nombres)].slice(0, 40).join(' · ').slice(0, 1200),
     sugerida: !!it.sugerida,
+    sugeridaId: it.sugeridaId || null,
+    fechaPublicacion: it.fechaPublicacion || it.ts || null,
     estado: it.estado || null,
     ts: it.ts || it.fecha || Date.now(),
     nFotos: fotos.length,
