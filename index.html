@@ -1721,6 +1721,9 @@ html, body {
       <label style="display:block;width:100%;box-sizing:border-box;margin-top:10px;padding:10px;background:#6b3fa0;color:white;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.8rem;text-align:center;cursor:pointer">📥 Importar rutas sugeridas (.json)
         <input type="file" accept=".json,application/json" onchange="adminImportarRutas(this)" style="display:none">
       </label>
+      <label style="display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:8px;background:white;color:#6b3fa0;border:1.5px solid #6b3fa0;border-radius:10px;font-weight:700;font-size:.75rem;text-align:center;cursor:pointer">↩️ Deshacer una importación (elige el mismo archivo)
+        <input type="file" accept=".json,application/json" onchange="adminDeshacerImportacion(this)" style="display:none">
+      </label>
       <button id="adminImportParar" onclick="_importParar=true" style="display:none;width:100%;margin-top:6px;padding:8px;background:white;color:#6b3fa0;border:1.5px solid #6b3fa0;border-radius:10px;font-weight:700;font-size:.78rem">⏸️ Parar al terminar la ruta actual</button>
       <div id="adminImportStatus" style="font-size:.75rem;color:var(--muted);margin-top:6px"></div>
       <div id="adminImportLog" style="font-size:.72rem;color:var(--muted);margin-top:4px;max-height:180px;overflow:auto;line-height:1.5"></div>
@@ -4458,7 +4461,7 @@ async function adminImportarRutas(input) {
     const pre = `(${n + 1}/${rutas.length}) ${r.titulo || r.id}`;
     if (!r.id || !r.destino || !Array.isArray(r.jornadas)) { fallos++; log.push(`❌ ${pre}: formato incompleto`); continue; }
     if (yaImportadas.has(r.id)) { saltadas++; log.push(`↷ ${pre}: ya estaba importada`); continue; }
-    if (destinosReales.has(_norm(r.destino).trim())) { saltadas++; log.push(`↷ ${pre}: ya hay un viaje real en ${r.destino}`); continue; }
+    if (!r.forzar && destinosReales.has(_norm(r.destino).trim())) { saltadas++; log.push(`↷ ${pre}: ya hay un viaje real en ${r.destino}`); continue; }
     try {
       st.textContent = `⏳ ${pre}: ubicando destino...`;
       const centro = (r.lat && r.lng) ? { lat: r.lat, lng: r.lng } : (await _geoBuscar(r.geo || `${r.destino}, ${r.pais || ''}`) || null);
@@ -4475,7 +4478,7 @@ async function adminImportarRutas(input) {
             total++;
             st.textContent = `⏳ ${pre}: ${x.nombre}`;
             let g = await _geoBuscar(x.q, ref);
-            await _esperar(350);
+            await _esperar(150);
             if (g && _distKm(centro, g) > radio) g = null; // resultado en otra parte del mundo: se descarta
             if (!g && x.lat && x.lng) { g = { lat: x.lat, lng: x.lng }; p.aproximado = true; }
             if (g) { p.lat = g.lat; p.lng = g.lng; ref = g; ubicados++; }
@@ -4513,6 +4516,31 @@ async function adminImportarRutas(input) {
   document.getElementById('adminImportParar').style.display = 'none';
   st.textContent = `Terminado: ${ok} importadas · ${saltadas} saltadas · ${fallos} con error. Recarga la app para verlas.`;
   document.getElementById('adminImportLog').innerHTML = log.slice(-60).reverse().map(l => `<div>${l}</div>`).join('');
+}
+
+// Borra las rutas sugeridas que vinieron en un archivo concreto.
+// Solo toca rutas marcadas como sugeridas con esos códigos: nunca viajes reales.
+async function adminDeshacerImportacion(input) {
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  const st = document.getElementById('adminImportStatus');
+  let ids;
+  try { let r = JSON.parse(await file.text()); if (!Array.isArray(r)) r = r.rutas; ids = new Set(r.map(x => x && x.id).filter(Boolean)); }
+  catch (e) { st.textContent = '❌ El archivo no tiene el formato de rutas'; return; }
+  st.textContent = 'Buscando las rutas de ese archivo...';
+  const lista = await obtenerListaLigera();
+  const borrar = Object.entries(lista).filter(([k, v]) => v && v.sugerida && ids.has(v.sugeridaId));
+  if (!borrar.length) { st.textContent = 'No hay ninguna ruta de ese archivo publicada.'; return; }
+  if (!confirm(`Se van a borrar ${borrar.length} rutas sugeridas de ese archivo. Tus viajes reales no se tocan. ¿Continuar?`)) { st.textContent = ''; return; }
+  let n = 0;
+  for (const [k] of borrar) {
+    const r = await fbFetch(`${FB_URL}/itinerarios/${k}.json`, { method: 'DELETE' });
+    if (r.ok) { await borrarResumen(k); n++; }
+    st.textContent = `⏳ Borradas ${n} de ${borrar.length}...`;
+  }
+  st.textContent = `✅ Borradas ${n} rutas sugeridas. Recarga la app.`;
+  _adminTodos = null;
 }
 
 function abrirLinksSheet(cat) {
