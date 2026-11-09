@@ -1455,6 +1455,12 @@ html, body {
         <span>Cómo funciona · toca para más info</span>
       </div>
 
+      <button class="btn-secondary" onclick="abrirImportCronologia()" style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px">🕓 Crear desde mi cronología de Google</button>
+      <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:8px auto 0;padding:6px 14px;background:var(--primary-light);border-radius:20px;color:var(--primary);font-size:0.74rem;font-weight:700;cursor:pointer;width:fit-content" onclick="mostrarInfoBubble('ℹ️ En Android: Ajustes del móvil → Ubicación → Servicios de ubicación → Cronología (o «Rutas») → Exportar.<br>En iPhone: Google Maps → tu foto → Ajustes → Contenido personal → Exportar cronología.<br><br>El archivo se lee en tu móvil: solo se guardan las paradas de las fechas que elijas.')">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;background:var(--primary);color:white;font-size:0.7rem;font-weight:800;flex-shrink:0">i</span>
+        <span>Cómo sacar el archivo · toca para más info</span>
+      </div>
+
       <div style="text-align:center;color:var(--muted);font-size:0.78rem;margin:18px 0 4px">— o si prefieres planificarlo antes —</div>
 
       <button class="btn-secondary" onclick="generarConIA()" style="display:flex;align-items:center;justify-content:center;gap:6px">✨ Generar con IA</button>
@@ -1489,22 +1495,21 @@ html, body {
     <button class="back-btn" onclick="salirModoMarcha()">←</button>
     <div class="nav-title" style="color:white;font-family:'Syne',sans-serif;font-weight:700" id="marchaTitulo">Sobre la marcha</div>
   </div>
-  <div style="padding:20px 16px 100px;max-width:480px;margin:0 auto;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch">
-    <div style="text-align:center;margin-bottom:20px">
-      <div id="marchaEstadoGPS" style="font-size:0.78rem;color:var(--muted);margin-bottom:14px">📡 Toca el botón para marcar tu ubicación actual</div>
-      <button class="btn-primary" onclick="marcarAqui()" id="btnMarcarAqui" style="font-size:1.05rem;padding:20px">📍 Marcar aquí</button>
-      <button class="btn-secondary" onclick="marcarAquiManual()" style="margin-top:10px">🗺️ No hay GPS · elegir en el mapa</button>
+  <div style="padding:16px 16px 110px;max-width:480px;margin:0 auto;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch">
+    <div id="marchaHoy" style="font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;margin:0 2px 8px"></div>
+    <div id="marchaMapa" style="height:170px;border-radius:16px;overflow:hidden;background:#e9e4dc;margin-bottom:14px;display:none"></div>
+    <div style="text-align:center;margin-bottom:16px">
+      <div id="marchaEstadoGPS" style="font-size:0.78rem;color:var(--muted);margin-bottom:10px">Un toque y se guarda dónde estás, con nombre y hora</div>
+      <button class="btn-primary" onclick="marchaEstoyAqui()" id="btnMarcarAqui" style="font-size:1.15rem;padding:20px;border-radius:18px">📍 Estoy aquí</button>
+      <button class="btn-secondary" onclick="marcarAquiManual()" style="margin-top:10px;font-size:.82rem">🗺️ Sin GPS · elegir en el mapa</button>
     </div>
-
     <div id="marchaOffline" style="display:none;background:#FEF0EC;border:1.5px solid var(--primary);border-radius:14px;padding:12px 14px;margin-bottom:16px;font-size:0.8rem;color:var(--primary);font-weight:600">
-      📡 Sin conexión — los puntos se guardarán en cuanto vuelva la señal
+      📡 Sin conexión: tus paradas están guardadas en el móvil y se subirán solas cuando vuelva la señal
     </div>
-
-    <div style="font-size:0.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px" id="marchaContador">0 puntos añadidos</div>
+    <div style="font-size:0.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px" id="marchaContador">0 paradas</div>
     <div id="marchaLista"></div>
-
-    <button class="btn-primary" onclick="terminarModoMarcha()" style="margin-top:24px">✅ Terminar viaje por ahora</button>
-    <p style="text-align:center;font-size:0.75rem;color:var(--muted);margin-top:10px">Podrás retomarlo cuando quieras — nada se pierde.</p>
+    <button class="btn-primary" onclick="terminarModoMarcha()" style="margin-top:20px">✅ Terminar y revisar el viaje</button>
+    <p style="text-align:center;font-size:0.75rem;color:var(--muted);margin-top:10px">Puedes cerrar la app cuando quieras: al volver, «Subir» te deja continuar.</p>
   </div>
 </div>
 
@@ -5427,35 +5432,24 @@ function iniciarModoMarcha() {
   state._dirty = false;
   fotosBase64 = [];
 
+  itinerarioGenerado._tituloAuto = true;
+  puntosEdicion = itinerarioGenerado.puntos;
   navegarA('screenMarcha', null);
-  document.getElementById('marchaTitulo').textContent = '📍 ' + autor;
+  document.getElementById('marchaTitulo').textContent = '📍 Sobre la marcha';
   renderMarchaLista();
-
-  // Crear el borrador en Firebase YA para no perder nada si se cierra la app.
-  // Sin destino todavía (se rellena al terminar) — por eso no usamos publicarViaje().
-  fbFetch(`${FB_URL}/itinerarios.json`, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(itinerarioGenerado)
-  }).then(async r => {
-    const data = await r.json();
-    itinerarioGenerado.fbId = data.name;
-    guardarReferenciaBorrador(itinerarioGenerado.fbId, 'marcha');
-    await fbFetch(`${FB_URL}/itinerarios/${itinerarioGenerado.fbId}/fbId.json`, {
-      method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(itinerarioGenerado.fbId)
-    }).catch(()=>{});
-  }).catch(() => {
-    mostrarToast('📡 Sin conexión — empezamos igualmente, se guardará luego');
-    document.getElementById('marchaOffline').style.display = 'block';
-  });
+  // El borrador se crea en Firebase al guardar la primera parada (antes se
+  // creaba al entrar y quedaban "Viaje sin título" vacíos si no marcabas nada).
 }
 
 // Devuelve el índice de la jornada que corresponde a la fecha de HOY,
 // creándola si aún no existe. Así los puntos se agrupan solos por día
 // real, sin que el usuario tenga que ir eligiendo "Día 1, Día 2..." cada vez.
+function _fechaLocal(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 function _jornadaAutoPorFecha() {
   if (!itinerarioGenerado.jornadas) itinerarioGenerado.jornadas = [];
-  const hoy = new Date().toISOString().slice(0,10); // YYYY-MM-DD
+  const hoy = _fechaLocal(); // fecha local (antes en UTC: de 0 a 2h caía en el día anterior)
   let idx = itinerarioGenerado.jornadas.findIndex(j => j._fecha === hoy);
   if (idx === -1) {
     const numDia = itinerarioGenerado.jornadas.length + 1;
@@ -5553,23 +5547,274 @@ function marcarAquiManual() {
 function renderMarchaLista() {
   const lista = document.getElementById('marchaLista');
   const contador = document.getElementById('marchaContador');
-  const puntos = puntosEdicion.filter(p => p && p.tipo);
-  contador.textContent = puntos.length === 1 ? '1 punto añadido' : `${puntos.length} puntos añadidos`;
-  if (!puntos.length) { lista.innerHTML = ''; return; }
-  lista.innerHTML = puntos.map((p, i) => {
-    const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.otro;
-    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:8px">
-      ${p.foto ? `<img src="${p.foto}" style="width:38px;height:38px;border-radius:8px;object-fit:cover;flex-shrink:0">` : `<span style="font-size:1.3rem">${cfg.icon}</span>`}
-      <div style="flex:1;min-width:0">
-        <div style="font-size:0.85rem;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.nombre}</div>
-        ${p.aproximado ? `<div style="font-size:0.68rem;color:#f5a623;font-weight:700">ℹ️ posición aproximada</div>` : ''}
-      </div>
-    </div>`;
-  }).join('');
+  const it = itinerarioGenerado;
+  if (!lista || !it) return;
+  const puntos = (it.puntos || puntosEdicion || []).filter(p => p && p.tipo);
+  contador.textContent = puntos.length === 1 ? '1 parada' : `${puntos.length} paradas`;
+  const hoyIdx = (it.jornadas || []).findIndex(j => j._fecha === _fechaLocal());
+  const nDia = hoyIdx >= 0 ? it.jornadas[hoyIdx].dia : (it.jornadas || []).length + 1;
+  const fHoy = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' });
+  const fechasJ = (it.jornadas || []).map(j => j._fecha).filter(Boolean).sort();
+  const pasado = fechasJ.length && fechasJ[fechasJ.length - 1] < _fechaLocal();
+  document.getElementById('marchaHoy').textContent = pasado
+    ? `🕓 Viaje del ${new Date(fechasJ[0] + 'T12:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} al ${new Date(fechasJ[fechasJ.length - 1] + 'T12:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`
+    : `Día ${nDia} · ${fHoy}`;
+  const tit = document.getElementById('marchaTitulo');
+  if (tit) tit.textContent = '📍 ' + (it.destino || 'Sobre la marcha');
+  // Viaje en curso: lo último arriba. Viaje pasado (cronología): en orden.
+  const jornadas = [...(it.jornadas || [])].sort((a, b) => pasado ? a.dia - b.dia : b.dia - a.dia);
+  const bloqueGPS = document.getElementById('btnMarcarAqui')?.parentElement;
+  if (bloqueGPS) bloqueGPS.style.display = pasado ? 'none' : '';
+  lista.innerHTML = jornadas.map(j => {
+    const ps = puntos.filter(p => p.dia === j.dia).sort((a, b) => pasado ? (a.hora || '').localeCompare(b.hora || '') : (b.hora || '').localeCompare(a.hora || ''));
+    if (!ps.length) return '';
+    const f = j._fecha ? new Date(j._fecha + 'T12:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' }) : '';
+    return `<div style="font-size:.75rem;font-weight:800;color:var(--primary);margin:12px 2px 6px">DÍA ${j.dia}${f ? ' · ' + f : ''}${j.lugar ? ' · ' + j.lugar : ''}</div>` +
+      ps.map(p => {
+        const cfg = TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.otro;
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:8px">
+          ${p.foto ? `<img src="${p.foto}" style="width:40px;height:40px;border-radius:8px;object-fit:cover;flex-shrink:0">` : `<span style="font-size:1.3rem;width:40px;text-align:center">${cfg.icon}</span>`}
+          <div style="flex:1;min-width:0" onclick="marchaEditarParada('${p.id}')">
+            <div style="font-size:0.86rem;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.nombre}</div>
+            <div style="font-size:0.7rem;color:var(--muted)">${p.hora ? '🕓 ' + p.hora + ' · ' : ''}${cfg.label}${p.desc ? ' · 📝' : ''}</div>
+          </div>
+          <button onclick="marchaEditarParada('${p.id}')" style="background:none;border:none;font-size:1rem;cursor:pointer;padding:4px">✏️</button>
+          <button onclick="marchaBorrarParada('${p.id}')" style="background:none;border:none;font-size:1rem;cursor:pointer;padding:4px;color:#bbb">🗑️</button>
+        </div>`;
+      }).join('');
+  }).join('') || '<div style="text-align:center;color:var(--muted);font-size:.82rem;padding:16px 10px">Aún no hay paradas. Pulsa «Estoy aquí» en cada sitio que visites.</div>';
+  _marchaPintarMapa(puntos);
+}
+
+let _marchaMapaInst = null;
+function _marchaPintarMapa(puntos) {
+  const el = document.getElementById('marchaMapa');
+  const con = puntos.filter(p => p.lat != null);
+  if (!el || !con.length || typeof L === 'undefined') { if (el) el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  try {
+    if (!_marchaMapaInst) {
+      _marchaMapaInst = L.map(el, { zoomControl: false, attributionControl: false });
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(_marchaMapaInst);
+    }
+    _marchaMapaInst.eachLayer(l => { if (!(l instanceof L.TileLayer)) _marchaMapaInst.removeLayer(l); });
+    const orden = [...con].sort((a, b) => (a.dia - b.dia) || (a.hora || '').localeCompare(b.hora || ''));
+    L.polyline(orden.map(p => [p.lat, p.lng]), { color: '#E8471C', weight: 3, dashArray: '6 6' }).addTo(_marchaMapaInst);
+    orden.forEach(p => L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', html: `<div style="font-size:1.2rem;transform:translate(-50%,-50%)">${(TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.otro).icon}</div>`, iconSize: [0, 0] }) }).addTo(_marchaMapaInst));
+    setTimeout(() => { _marchaMapaInst.invalidateSize(); if (orden.length === 1) _marchaMapaInst.setView([orden[0].lat, orden[0].lng], 14); else _marchaMapaInst.fitBounds(orden.map(p => [p.lat, p.lng]), { padding: [24, 24], maxZoom: 15 }); }, 60);
+  } catch (e) { el.style.display = 'none'; }
+}
+
+// ── Qué hay en unas coordenadas: nombre, tipo y pueblo ──
+const _OSM_A_TIPO = {
+  restaurant: 'restaurante', fast_food: 'restaurante', food_court: 'restaurante', cafe: 'cafeteria', ice_cream: 'helado',
+  bar: 'bar', pub: 'bar', biergarten: 'bar', nightclub: 'discoteca', hotel: 'hotel', guest_house: 'hotel', hostel: 'hotel',
+  motel: 'hotel', apartment: 'hotel', chalet: 'hotel', camp_site: 'camping', caravan_site: 'camping', museum: 'museo',
+  gallery: 'museo', viewpoint: 'mirador', attraction: 'atraccion', theme_park: 'atraccion', zoo: 'zoo', aquarium: 'atraccion',
+  place_of_worship: 'iglesia', church: 'iglesia', cathedral: 'catedral', monastery: 'monasterio', castle: 'castillo',
+  monument: 'monumento', memorial: 'monumento', ruins: 'ruinas', archaeological_site: 'ruinas', beach: 'playa',
+  park: 'parque', garden: 'jardin', nature_reserve: 'parque', marketplace: 'mercado', mall: 'compras', supermarket: 'compras',
+  waterfall: 'cascada', peak: 'montaña', spring: 'fuente', fountain: 'fuente', swimming_area: 'rio', water_park: 'atraccion',
+  spa: 'spa', winery: 'bodega', bakery: 'panaderia', fuel: 'gasolinera', parking: 'parking', aerodrome: 'aeropuerto',
+  station: 'tren', ferry_terminal: 'barco', marina: 'marina', theatre: 'teatro', cinema: 'atraccion',
+  village: 'pueblo', town: 'pueblo', hamlet: 'pueblo', city: 'ciudad',
+};
+async function _queHayAqui(lat, lng) {
+  const res = { nombre: '', tipo: 'visita', localidad: '', sugerencias: [] };
+  try {
+    const j = await (await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1&accept-language=es`)).json();
+    const a = j.address || {};
+    res.localidad = a.village || a.town || a.city || a.hamlet || a.municipality || a.suburb || '';
+    const t = _OSM_A_TIPO[j.type];
+    if (j.name && t) { res.nombre = j.name; res.tipo = t; res.sugerencias.push({ nombre: j.name, tipo: t }); }
+  } catch (e) {}
+  try {
+    const f = (await (await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}&limit=8&radius=0.15&lang=default`)).json())?.features || [];
+    f.forEach(x => {
+      const pr = x.properties || {}; const t = _OSM_A_TIPO[pr.osm_value];
+      if (pr.name && t && !res.sugerencias.some(s => s.nombre === pr.name)) res.sugerencias.push({ nombre: pr.name, tipo: t });
+      if (!res.localidad) res.localidad = pr.city || pr.town || pr.village || '';
+    });
+  } catch (e) {}
+  res.sugerencias = res.sugerencias.slice(0, 5);
+  if (!res.nombre && res.sugerencias[0]) { res.nombre = res.sugerencias[0].nombre; res.tipo = res.sugerencias[0].tipo; }
+  if (!res.nombre && res.localidad) res.nombre = res.localidad;
+  return res;
+}
+
+// ── "Estoy aquí": una parada con un toque ──
+let _marchaGPS = null;
+function marchaEstoyAqui() {
+  const btn = document.getElementById('btnMarcarAqui');
+  const st = document.getElementById('marchaEstadoGPS');
+  if (!navigator.geolocation) { mostrarToast('⚠️ Sin GPS: elige el sitio en el mapa'); marcarAquiManual(); return; }
+  btn.disabled = true; st.textContent = '📡 Buscando dónde estás…';
+  navigator.geolocation.getCurrentPosition(async pos => {
+    _marchaGPS = { lat: pos.coords.latitude, lng: pos.coords.longitude, precision: Math.round(pos.coords.accuracy || 0) };
+    st.textContent = '🔎 Mirando qué hay aquí…';
+    const info = await _queHayAqui(_marchaGPS.lat, _marchaGPS.lng);
+    btn.disabled = false; st.textContent = 'Un toque y se guarda dónde estás, con nombre y hora';
+    _abrirFichaParada({ nombre: info.nombre, tipo: info.tipo, desc: '', lat: _marchaGPS.lat, lng: _marchaGPS.lng, localidad: info.localidad, precision: _marchaGPS.precision }, info.sugerencias);
+  }, () => {
+    btn.disabled = false; st.textContent = 'Un toque y se guarda dónde estás, con nombre y hora';
+    mostrarToast('⚠️ No se pudo obtener el GPS: elige el sitio en el mapa'); marcarAquiManual();
+  }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 20000 });
+}
+
+const _TIPOS_RAPIDOS = ['restaurante', 'bar', 'cafeteria', 'hotel', 'monumento', 'museo', 'mirador', 'iglesia', 'playa', 'parque', 'senderismo', 'paseo', 'pueblo', 'compras', 'visita'];
+let _fichaParada = null;
+function _abrirFichaParada(p, sugerencias = [], editId = null) {
+  _fichaParada = { ...p, editId, foto: p.foto || null };
+  document.getElementById('_fichaParada')?.remove();
+  const el = document.createElement('div');
+  el.id = '_fichaParada';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:flex-end';
+  el.innerHTML = `<div style="background:var(--bg);border-radius:22px 22px 0 0;width:100%;max-height:92vh;overflow-y:auto;padding:18px 16px 28px">
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem;margin-bottom:2px">${editId ? '✏️ Editar parada' : '📍 ¿Dónde estás?'}</div>
+    <div style="font-size:.74rem;color:var(--muted);margin-bottom:12px">${p.localidad ? '📌 ' + p.localidad + ' · ' : ''}${p.hora || new Date().toTimeString().slice(0, 5)}${p.precision > 60 ? ` · ⚠️ GPS poco preciso (±${p.precision} m)` : ''}</div>
+    ${sugerencias.length > 1 ? `<div style="font-size:.72rem;font-weight:700;color:var(--muted);margin-bottom:6px">¿Es alguno de estos?</div><div class="ye-subchips" style="margin:0 0 12px;padding:0">${sugerencias.map((x, i) => `<div data-i="${i}">${(TIPOS_CONFIG[x.tipo] || TIPOS_CONFIG.otro).icon} ${x.nombre}</div>`).join('')}</div>` : ''}
+    <input id="_fpNombre" value="${(p.nombre || '').replace(/"/g, '&quot;')}" placeholder="Nombre del sitio" style="width:100%;box-sizing:border-box;padding:13px 14px;border:1.5px solid var(--border);border-radius:12px;font-size:1rem;font-family:inherit;margin-bottom:10px">
+    <div class="ye-subchips" id="_fpTipos" style="margin:0 0 10px;padding:0;flex-wrap:wrap">${_TIPOS_RAPIDOS.map(t => `<div data-t="${t}" class="${t === p.tipo ? 'on' : ''}">${TIPOS_CONFIG[t]?.icon || '📍'} ${TIPOS_CONFIG[t]?.label || t}</div>`).join('')}</div>
+    <textarea id="_fpDesc" placeholder="¿Qué tal? Una nota para acordarte (opcional)" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid var(--border);border-radius:12px;font-size:.9rem;font-family:inherit;min-height:64px;margin-bottom:10px">${p.desc || ''}</textarea>
+    <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px dashed var(--border);border-radius:12px;cursor:pointer;margin-bottom:14px">
+      <span id="_fpFotoPrev" style="width:44px;height:44px;border-radius:8px;background:#eee center/cover;display:flex;align-items:center;justify-content:center;font-size:1.3rem;${p.foto ? `background-image:url(${p.foto});font-size:0` : ''}">📷</span>
+      <span style="font-size:.85rem;font-weight:700">${p.foto ? 'Cambiar foto' : 'Añadir foto (opcional)'}</span>
+      <input type="file" accept="image/*" capture="environment" style="display:none" id="_fpFoto">
+    </label>
+    <button class="btn-primary" id="_fpGuardar" style="margin:0">${editId ? 'Guardar cambios' : 'Guardar parada ✓'}</button>
+    <button class="btn-secondary" id="_fpCancelar" style="margin-top:8px">Cancelar</button>
+  </div>`;
+  document.body.appendChild(el);
+  el.addEventListener('click', e => { if (e.target === el) el.remove(); });
+  el.querySelectorAll('[data-i]').forEach(c => c.onclick = () => {
+    const x = sugerencias[+c.dataset.i];
+    el.querySelector('#_fpNombre').value = x.nombre;
+    _fichaParada.tipo = x.tipo;
+    el.querySelectorAll('#_fpTipos div').forEach(d => d.classList.toggle('on', d.dataset.t === x.tipo));
+  });
+  el.querySelectorAll('#_fpTipos div').forEach(c => c.onclick = () => {
+    _fichaParada.tipo = c.dataset.t;
+    el.querySelectorAll('#_fpTipos div').forEach(d => d.classList.toggle('on', d === c));
+  });
+  el.querySelector('#_fpFoto').onchange = async e => {
+    const f = e.target.files?.[0]; if (!f) return;
+    _fichaParada.foto = await comprimirFoto(f);
+    const pv = el.querySelector('#_fpFotoPrev'); pv.style.backgroundImage = `url(${_fichaParada.foto})`; pv.style.fontSize = '0';
+  };
+  el.querySelector('#_fpCancelar').onclick = () => el.remove();
+  el.querySelector('#_fpGuardar').onclick = () => {
+    const nombre = el.querySelector('#_fpNombre').value.trim();
+    if (!nombre) { mostrarToast('⚠️ Ponle un nombre'); return; }
+    _fichaParada.nombre = nombre;
+    _fichaParada.desc = el.querySelector('#_fpDesc').value.trim();
+    el.remove();
+    _marchaGuardarParada(_fichaParada);
+  };
+}
+
+function _marchaGuardarParada(f) {
+  const it = itinerarioGenerado;
+  if (!Array.isArray(it.puntos)) it.puntos = [];
+  puntosEdicion = it.puntos;
+  if (!Array.isArray(it.fotos)) it.fotos = [];
+  if (f.editId) {
+    const p = it.puntos.find(x => x.id === f.editId);
+    if (p) {
+      if (p.foto && p.foto !== f.foto) it.fotos = it.fotos.filter(x => x !== p.foto);
+      Object.assign(p, { nombre: f.nombre, tipo: f.tipo, desc: f.desc, foto: f.foto || null });
+      (it.jornadas || []).forEach(j => (j.items || []).forEach(x => { if (x.pid === p.id) Object.assign(x, { nombre: p.nombre, tipo: p.tipo, desc: p.desc }); }));
+    }
+  } else {
+    const ji = _jornadaAutoPorFecha();
+    const j = it.jornadas[ji];
+    if (!j.lugar && f.localidad) j.lugar = f.localidad;
+    const p = { id: newPuntoId(), tipo: f.tipo || 'visita', nombre: f.nombre, desc: f.desc || '', lat: f.lat, lng: f.lng, dia: j.dia,
+      hora: new Date().toTimeString().slice(0, 5), fecha: j._fecha, localidad: f.localidad || '', foto: f.foto || null, aproximado: !!f.aproximado };
+    it.puntos.push(p);
+    if (!j.items) j.items = [];
+    j.items.push({ pid: p.id, tipo: p.tipo, nombre: p.nombre, desc: p.desc });
+  }
+  const p2 = f.editId ? it.puntos.find(x => x.id === f.editId) : it.puntos[it.puntos.length - 1];
+  if (p2?.foto && !it.fotos.includes(p2.foto)) it.fotos.push(p2.foto);
+  _marchaRecalcularDatos();
+  renderMarchaLista();
+  mostrarToast(f.editId ? '✅ Parada actualizada' : `✅ Guardado: ${f.nombre}`);
+  if (navigator.vibrate) navigator.vibrate(60);
+  _sincronizarMarcha();
+}
+
+function marchaEditarParada(id) {
+  const p = (itinerarioGenerado?.puntos || []).find(x => x.id === id);
+  if (p) _abrirFichaParada({ ...p }, [], id);
+}
+
+function marchaBorrarParada(id) {
+  const it = itinerarioGenerado; if (!it) return;
+  const p = (it.puntos || []).find(x => x.id === id); if (!p) return;
+  if (!confirm(`¿Quitar «${p.nombre}»?`)) return;
+  it.puntos = it.puntos.filter(x => x.id !== id); puntosEdicion = it.puntos;
+  if (p.foto) it.fotos = (it.fotos || []).filter(x => x !== p.foto);
+  (it.jornadas || []).forEach(j => j.items = (j.items || []).filter(x => x.pid !== id));
+  // Quitar días vacíos y renumerar
+  const viejos = {};
+  it.jornadas = (it.jornadas || []).filter(j => (j.items || []).length);
+  it.jornadas.forEach((j, i) => { viejos[j.dia] = i + 1; j.dia = i + 1; });
+  it.puntos.forEach(x => { if (viejos[x.dia]) x.dia = viejos[x.dia]; });
+  _marchaRecalcularDatos();
+  renderMarchaLista();
+  _sincronizarMarcha();
+}
+
+// Destino, centro y título automáticos a partir de las paradas
+function _marchaRecalcularDatos() {
+  const it = itinerarioGenerado;
+  const ps = (it.puntos || []).filter(p => p.lat != null);
+  if (!ps.length) return;
+  const cnt = {};
+  ps.forEach(p => { if (p.localidad) cnt[p.localidad] = (cnt[p.localidad] || 0) + 1; });
+  const top = Object.entries(cnt).sort((a, b) => b[1] - a[1]).map(x => x[0]);
+  if (top.length && (!it.destino || it._destinoAuto !== false)) { it.destino = top.slice(0, 2).join(' y '); it._destinoAuto = true; }
+  it.lat = ps.reduce((s, p) => s + p.lat, 0) / ps.length;
+  it.lng = ps.reduce((s, p) => s + p.lng, 0) / ps.length;
+  it.dias = Math.max(1, (it.jornadas || []).length);
+  if (it._tituloAuto && it.destino) it.titulo = it.dias > 1 ? `${it.dias} días en ${it.destino}` : `Escapada a ${it.destino}`;
+}
+
+// Guarda en el móvil y en Firebase. El borrador se crea con la primera parada.
+let _marchaSyncEnCurso = false, _marchaSyncPendiente = false;
+async function _sincronizarMarcha() {
+  const it = itinerarioGenerado;
+  if (!it || !it._modoMarcha) return;
+  try { localStorage.setItem('yaestuve_marcha_local', JSON.stringify(it)); } catch (e) {}
+  if (_marchaSyncEnCurso) { _marchaSyncPendiente = true; return; }
+  _marchaSyncEnCurso = true;
+  try {
+    if (!it.fbId) {
+      const r = await fbFetch(`${FB_URL}/itinerarios.json`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(it) });
+      if (!r.ok) throw new Error('post');
+      it.fbId = (await r.json()).name;
+      guardarReferenciaBorrador(it.fbId, 'marcha');
+      await fbFetch(`${FB_URL}/itinerarios/${it.fbId}/fbId.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(it.fbId) });
+    } else {
+      const campos = { jornadas: it.jornadas, puntos: (it.puntos || []).filter(p => p && p.tipo), fotos: it.fotos || [], destino: it.destino || '', titulo: it.titulo, lat: it.lat, lng: it.lng, dias: it.dias };
+      const r = await fbFetch(`${FB_URL}/itinerarios/${it.fbId}.json`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(campos) });
+      if (!r.ok) throw new Error('patch');
+    }
+    document.getElementById('marchaOffline').style.display = 'none';
+  } catch (e) {
+    document.getElementById('marchaOffline').style.display = 'block';
+  } finally {
+    _marchaSyncEnCurso = false;
+    if (_marchaSyncPendiente) { _marchaSyncPendiente = false; _sincronizarMarcha(); }
+  }
 }
 
 function _guardarBorradorMarcha() {
   const fbId = itinerarioGenerado?.fbId;
+  // Parada añadida desde el mapa (sin GPS): completar hora y fecha y sincronizar
+  const ult = (itinerarioGenerado?.puntos || puntosEdicion || []).slice(-1)[0];
+  if (ult && !ult.hora) { ult.hora = new Date().toTimeString().slice(0, 5); ult.fecha = _fechaLocal(); }
+  if (itinerarioGenerado?._modoMarcha) { itinerarioGenerado.puntos = puntosEdicion; _marchaRecalcularDatos(); _sincronizarMarcha(); }
   renderMarchaLista();
   if (!fbId) {
     if (!navigator.onLine) document.getElementById('marchaOffline')?.style && (document.getElementById('marchaOffline').style.display = 'block');
@@ -5583,6 +5828,9 @@ function salirModoMarcha() {
 }
 
 function terminarModoMarcha() {
+  if (!(itinerarioGenerado?.puntos || []).length) { mostrarToast('Aún no has marcado ninguna parada'); return; }
+  _marchaRecalcularDatos();
+  _sincronizarMarcha();
   if (itinerarioGenerado?.fbId) guardarReferenciaBorrador(itinerarioGenerado.fbId, 'editando');
   mostrarToast('✅ Guardado — vamos a completar los detalles');
   setTimeout(() => abrirEdicion(), 200);
@@ -5598,8 +5846,8 @@ window.addEventListener('online', () => {
   const el = document.getElementById('marchaOffline');
   if (el) el.style.display = 'none';
   if (itinerarioGenerado?._modoMarcha) {
-    guardarJornadasEnFirebase();
-    const fbId = itinerarioGenerado?.fbId;
+    _sincronizarMarcha();
+    const fbId = null;
     if (fbId) {
       const puntosLimpios = puntosEdicion.filter(p => p && p.tipo);
       fbFetch(`${FB_URL}/itinerarios/${fbId}/puntos.json`, {
@@ -5666,8 +5914,9 @@ async function continuarBorrador() {
   // dejaste a medias marcando como si ya habías pasado a rellenar detalles —
   // desde ahí puedes seguir añadiendo puntos o darle otra vez a "Terminar"
   // para ir a los detalles finales.
+  itinerarioGenerado._modoMarcha = true;
+  puntosEdicion = itinerarioGenerado.puntos;
   navegarA('screenMarcha', null);
-  document.getElementById('marchaTitulo').textContent = '📍 ' + (itinerarioGenerado.autor || 'Viaje');
   renderMarchaLista();
 }
 
@@ -5679,6 +5928,244 @@ async function descartarBorrador() {
   borrarReferenciaBorrador();
   document.getElementById('borradorPendienteCard').style.display = 'none';
   mostrarToast('🗑️ Borrador descartado');
+}
+
+// ══ CREAR VIAJE DESDE LA CRONOLOGÍA DE GOOGLE ══════════════════
+// El archivo se lee aquí, en el móvil. Solo se guardan las paradas de las
+// fechas elegidas; el resto del historial no sale del teléfono.
+let _crono = null;
+function _cronoLatLng(v) {
+  const t = typeof v === 'string' ? v : (v?.latLng || v?.LatLng || '');
+  const m = String(t).match(/(-?\d+(?:\.\d+)?)°?\s*,\s*(-?\d+(?:\.\d+)?)/);
+  return m ? { lat: +m[1], lng: +m[2] } : null;
+}
+function _cronoParsear(d) {
+  const segs = Array.isArray(d) ? d : (d.semanticSegments || []);
+  const visitas = [], paseos = [];
+  let casa = null;
+  for (const sg of segs) {
+    const ini = sg.startTime, fin = sg.endTime;
+    if (!ini || !fin) continue;
+    if (sg.visit) {
+      const tc = sg.visit.topCandidate || {};
+      const ll = _cronoLatLng(tc.placeLocation);
+      if (!ll) continue;
+      const tipoSem = tc.semanticType || tc.semanticTypeName || '';
+      if (/HOME/i.test(tipoSem)) casa = casa || ll;
+      visitas.push({ ...ll, ini, fin, placeId: tc.placeId || tc.placeID || '', sem: tipoSem,
+        min: (new Date(fin) - new Date(ini)) / 60000 });
+    } else if (sg.activity) {
+      const tipo = sg.activity.topCandidate?.type || '';
+      const km = (+sg.activity.distanceMeters || 0) / 1000;
+      const ll = _cronoLatLng(sg.activity.start);
+      if (/WALK|HIK|ON_FOOT/i.test(tipo) && km >= 1.5 && ll) paseos.push({ ...ll, ini, fin, km });
+    }
+  }
+  return { visitas, paseos, casa };
+}
+function abrirImportCronologia() {
+  const autor = document.getElementById('f-autor').value.trim();
+  if (!autor) { mostrarToast('⚠️ Pon primero tu nombre'); return; }
+  if (!_exigirSesion()) return;
+  document.getElementById('_cronoSheet')?.remove();
+  const el = document.createElement('div');
+  el.id = '_cronoSheet';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:flex-end';
+  const esIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const paso = (n, t) => `<div style="display:flex;gap:10px;margin-bottom:9px"><span style="flex-shrink:0;width:22px;height:22px;border-radius:50%;background:var(--primary);color:white;font-size:.72rem;font-weight:800;display:flex;align-items:center;justify-content:center">${n}</span><span style="font-size:.84rem;line-height:1.4">${t}</span></div>`;
+  const guiaAndroid = [
+    'Sal de YaEstuve y abre los <b>Ajustes</b> del móvil (la rueda dentada ⚙️). <b>No</b> es dentro de Google Maps.',
+    'Entra en <b>Ubicación</b>. En algunos Samsung se llama <b>Localización</b>.',
+    'Pulsa <b>Servicios de ubicación</b>.',
+    'Pulsa <b>Cronología</b>. En móviles nuevos puede llamarse <b>Rutas</b>.',
+    'Pulsa <b>Exportar datos de la cronología</b> y luego <b>Continuar</b>.',
+    'Guárdalo en <b>Descargas</b>. Se llamará <b>Timeline.json</b> o <b>Rutas.json</b>.',
+    'Vuelve aquí y pulsa <b>Elegir archivo</b> 👇'].map((t, i) => paso(i + 1, t)).join('');
+  const guiaIOS = [
+    'Abre la app de <b>Google Maps</b>.',
+    'Toca tu <b>foto de perfil</b> (arriba a la derecha) y entra en <b>Ajustes</b>.',
+    'Entra en <b>Contenido personal</b> (o <b>Ubicación y privacidad</b>).',
+    'Pulsa <b>Exportar datos de la cronología</b>.',
+    'Guárdalo en <b>Archivos</b> (por ejemplo, en Descargas).',
+    'Vuelve aquí y pulsa <b>Elegir archivo</b> 👇'].map((t, i) => paso(i + 1, t)).join('');
+  el.innerHTML = `<div style="background:var(--bg);border-radius:22px 22px 0 0;width:100%;max-height:92vh;overflow-y:auto;padding:18px 16px 28px" id="_cronoBody">
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem;margin-bottom:4px">🕓 Viaje desde tu cronología</div>
+    <div style="font-size:.8rem;color:var(--muted);line-height:1.45;margin-bottom:12px">Google Maps guarda por dónde has ido. Si lo exportas, YaEstuve monta el viaje solo: paradas, horas y mapa.</div>
+    <div style="font-size:.74rem;font-weight:800;color:var(--muted);text-transform:uppercase;margin-bottom:8px">Cómo sacar el archivo</div>
+    <div class="ye-subchips" style="margin:0 0 12px;padding:0">
+      <div data-so="android" class="${esIOS ? '' : 'on'}">🤖 Android</div><div data-so="ios" class="${esIOS ? 'on' : ''}">🍎 iPhone</div>
+    </div>
+    <div id="_cronoGuia" style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 12px 6px;margin-bottom:12px">${esIOS ? guiaIOS : guiaAndroid}</div>
+    <details style="margin-bottom:10px;font-size:.8rem;line-height:1.45">
+      <summary style="cursor:pointer;font-weight:700;color:var(--primary)">No me sale la opción o el archivo está vacío</summary>
+      <div style="padding:8px 2px 0;color:var(--ink)">
+        • La cronología tiene que estar <b>activada desde antes del viaje</b>: no guarda nada de los días en que estaba apagada. Para activarla: Google Maps → tu foto → <b>Tu cronología</b> → activar.<br>
+        • Si no aparece «Exportar», <b>actualiza Google Maps</b> y los servicios de Google Play.<br>
+        • El archivo se tiene que sacar <b>desde el móvil</b>: Google ya no la guarda en el ordenador.
+      </div>
+    </details>
+    <div style="font-size:.74rem;color:var(--muted);background:var(--primary-light);border-radius:10px;padding:9px 11px;margin-bottom:14px">🔒 El archivo tiene todo tu historial, pero se lee aquí, en tu móvil. Solo se guardan las paradas de las fechas que elijas.</div>
+    <label class="btn-primary" style="display:block;text-align:center;cursor:pointer;margin:0">📂 Ya lo tengo · Elegir archivo<input type="file" accept=".json,application/json" style="display:none" id="_cronoFile"></label>
+    <button class="btn-secondary" style="margin-top:8px" onclick="document.getElementById('_cronoSheet').remove()">Cancelar</button>
+  </div>`;
+  el.querySelectorAll('[data-so]').forEach(c => c.onclick = () => {
+    el.querySelectorAll('[data-so]').forEach(d => d.classList.toggle('on', d === c));
+    el.querySelector('#_cronoGuia').innerHTML = c.dataset.so === 'ios' ? guiaIOS : guiaAndroid;
+  });
+  document.body.appendChild(el);
+  el.querySelector('#_cronoFile').onchange = async e => {
+    const f = e.target.files?.[0]; if (!f) return;
+    const body = el.querySelector('#_cronoBody');
+    body.innerHTML = '<div style="text-align:center;padding:30px"><div class="spinner" style="margin:0 auto 12px"></div>Leyendo tu cronología…</div>';
+    try { _crono = _cronoParsear(JSON.parse(await f.text())); }
+    catch (err) { body.innerHTML = '<div style="padding:20px;text-align:center">❌ Ese archivo no parece una cronología de Google.</div>'; return; }
+    if (!_crono.visitas.length) { body.innerHTML = '<div style="padding:20px;text-align:center">No he encontrado visitas en el archivo.</div>'; return; }
+    _cronoElegirFechas(body);
+  };
+}
+function _cronoElegirFechas(body) {
+  // Días con actividad fuera de casa (para proponer viajes)
+  const lejos = v => !_crono.casa || _distKm(_crono.casa, v) > 15;
+  const dias = {};
+  _crono.visitas.forEach(v => { if (lejos(v) && v.min >= 15) dias[v.ini.slice(0, 10)] = (dias[v.ini.slice(0, 10)] || 0) + 1; });
+  const fechas = Object.keys(dias).sort();
+  // Agrupar días seguidos en "posibles viajes"
+  const grupos = [];
+  fechas.forEach(f => {
+    const g = grupos[grupos.length - 1];
+    const ant = g && new Date(g.hasta + 'T12:00'); const act = new Date(f + 'T12:00');
+    if (g && (act - ant) / 86400000 <= 1) { g.hasta = f; g.n += dias[f]; } else grupos.push({ desde: f, hasta: f, n: dias[f] });
+  });
+  const recientes = grupos.filter(g => g.n >= 2).reverse().slice(0, 12);
+  const fmt = f => new Date(f + 'T12:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+  const ult = fechas[fechas.length - 1] || _fechaLocal();
+  body.innerHTML = `<div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem;margin-bottom:4px">¿Qué viaje quieres crear?</div>
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px">Estos son los días que pasaste fuera de casa. Toca uno o elige las fechas.</div>
+    ${recientes.map((g, i) => `<div data-g="${i}" style="padding:11px 13px;background:var(--card);border:1.5px solid var(--border);border-radius:12px;margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;gap:8px"><b style="font-size:.85rem">${g.desde === g.hasta ? fmt(g.desde) : fmt(g.desde) + ' → ' + fmt(g.hasta)}</b><span style="font-size:.75rem;color:var(--muted);white-space:nowrap">${g.n} paradas</span></div>`).join('')}
+    <div style="display:flex;gap:8px;margin:12px 0">
+      <label style="flex:1;font-size:.75rem;font-weight:700">Desde<input type="date" id="_cronoDesde" value="${ult}" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit"></label>
+      <label style="flex:1;font-size:.75rem;font-weight:700">Hasta<input type="date" id="_cronoHasta" value="${ult}" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit"></label>
+    </div>
+    <button class="btn-primary" id="_cronoVer" style="margin:0">Ver paradas →</button>
+    <button class="btn-secondary" style="margin-top:8px" onclick="document.getElementById('_cronoSheet').remove()">Cancelar</button>`;
+  body.querySelectorAll('[data-g]').forEach(c => c.onclick = () => {
+    const g = recientes[+c.dataset.g];
+    body.querySelector('#_cronoDesde').value = g.desde; body.querySelector('#_cronoHasta').value = g.hasta;
+    body.querySelector('#_cronoVer').click();
+  });
+  body.querySelector('#_cronoVer').onclick = () => _cronoParadas(body, body.querySelector('#_cronoDesde').value, body.querySelector('#_cronoHasta').value);
+}
+async function _cronoParadas(body, desde, hasta) {
+  if (!desde || !hasta || hasta < desde) { mostrarToast('⚠️ Revisa las fechas'); return; }
+  const enRango = x => { const f = x.ini.slice(0, 10); return f >= desde && f <= hasta; };
+  const lejos = v => !_crono.casa || _distKm(_crono.casa, v) > 15;
+  let vs = _crono.visitas.filter(v => enRango(v) && lejos(v) && v.min >= 15 && !/HOME|WORK/i.test(v.sem));
+  // Unir visitas seguidas al mismo sitio
+  const unidas = [];
+  vs.forEach(v => {
+    const u = unidas[unidas.length - 1];
+    if (u && ((v.placeId && v.placeId === u.placeId) || _distKm(u, v) < 0.05) && (new Date(v.ini) - new Date(u.fin)) < 3600000) { u.fin = v.fin; u.min += v.min; }
+    else unidas.push({ ...v });
+  });
+  // Alojamiento: el sitio donde se pasa la noche. Sale una sola vez, en la
+  // primera visita (la llegada); las vueltas al hotel no se repiten.
+  const clave = v => v.placeId || `${v.lat.toFixed(3)},${v.lng.toFixed(3)}`;
+  const noches = new Set(unidas.filter(v => v.ini.slice(0, 10) !== v.fin.slice(0, 10) && v.min > 300).map(clave));
+  const vistos = new Set();
+  const paradas = [];
+  unidas.forEach(v => {
+    const k = clave(v), noche = noches.has(k);
+    if (noche && vistos.has(k)) return;
+    vistos.add(k);
+    paradas.push({ ...v, noche, fecha: v.ini.slice(0, 10), hora: v.ini.slice(11, 16) });
+  });
+  // Paseos: los tramos a pie seguidos se juntan en uno
+  const paseos = [];
+  _crono.paseos.filter(enRango).filter(lejos).forEach(w => {
+    const u = paseos[paseos.length - 1];
+    if (u && new Date(w.ini) - new Date(u.fin) < 15 * 60000) { u.fin = w.fin; u.km += w.km; }
+    else paseos.push({ ...w });
+  });
+  paseos.forEach(w => paradas.push({ ...w, paseo: true, fecha: w.ini.slice(0, 10), hora: w.ini.slice(11, 16), min: (new Date(w.fin) - new Date(w.ini)) / 60000 }));
+  paradas.sort((a, b) => a.ini.localeCompare(b.ini));
+  if (!paradas.length) { mostrarToast('No hay paradas fuera de casa en esas fechas'); return; }
+  body.innerHTML = `<div style="text-align:center;padding:24px"><div class="spinner" style="margin:0 auto 12px"></div><div id="_cronoProg">Poniendo nombre a las paradas…</div></div>`;
+  for (let i = 0; i < paradas.length; i++) {
+    const p = paradas[i];
+    body.querySelector('#_cronoProg').textContent = `Poniendo nombre a las paradas… ${i + 1}/${paradas.length}`;
+    if (i) await _esperar(1100); // OpenStreetMap: una consulta por segundo
+    const info = await _queHayAqui(p.lat, p.lng);
+    p.localidad = info.localidad;
+    if (p.paseo) { p.nombre = `Paseo a pie${info.localidad ? ' por ' + info.localidad : ''} (${p.km.toFixed(1).replace('.', ',')} km)`; p.tipo = 'senderismo'; }
+    else if (p.noche) { p.nombre = info.nombre && info.tipo === 'hotel' ? info.nombre : `Alojamiento en ${info.localidad || 'la zona'}`; p.tipo = 'hotel'; }
+    else {
+      p.tipo = info.tipo;
+      const h = +p.hora.slice(0, 2);
+      const comida = ((h >= 13 && h <= 16) || (h >= 19 && h <= 23)) && p.min >= 45;
+      p.nombre = info.nombre && info.nombre !== info.localidad ? info.nombre
+        : (comida ? `${h < 18 ? 'Comida' : 'Cena'} en ${info.localidad || 'la zona'}` : (info.localidad || 'Parada'));
+      if (comida && !(info.nombre && info.nombre !== info.localidad)) p.tipo = 'restaurante';
+    }
+  }
+  _cronoRevisar(body, paradas);
+}
+function _cronoRevisar(body, paradas) {
+  const fmt = f => new Date(f + 'T12:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
+  let html = `<div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.05rem;margin-bottom:4px">Revisa las paradas</div>
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:10px">Desmarca lo que no forme parte del viaje (gasolineras, paradas de camino…). Los nombres los podrás cambiar después.</div>`;
+  let fAnt = '';
+  paradas.forEach((p, i) => {
+    if (p.fecha !== fAnt) { fAnt = p.fecha; html += `<div style="font-size:.74rem;font-weight:800;color:var(--primary);margin:12px 2px 6px">${fmt(p.fecha).toUpperCase()}</div>`; }
+    html += `<label style="display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:6px">
+      <input type="checkbox" data-i="${i}" checked style="width:18px;height:18px;flex-shrink:0">
+      <span style="font-size:1.1rem">${(TIPOS_CONFIG[p.tipo] || TIPOS_CONFIG.otro).icon}</span>
+      <span style="flex:1;min-width:0"><b style="font-size:.84rem;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.nombre}</b>
+      <span style="font-size:.7rem;color:var(--muted)">🕓 ${p.hora} · ${Math.round(p.min) >= 60 ? Math.floor(p.min / 60) + ' h ' + (Math.round(p.min) % 60) + ' min' : Math.round(p.min) + ' min'}${p.localidad ? ' · ' + p.localidad : ''}</span></span></label>`;
+  });
+  html += `<button class="btn-primary" id="_cronoCrear" style="margin-top:14px">Crear borrador del viaje ✓</button>
+    <button class="btn-secondary" style="margin-top:8px" onclick="document.getElementById('_cronoSheet').remove()">Cancelar</button>`;
+  body.innerHTML = html;
+  body.querySelector('#_cronoCrear').onclick = async () => {
+    const elegidas = paradas.filter((_, i) => body.querySelector(`input[data-i="${i}"]`).checked);
+    if (!elegidas.length) { mostrarToast('⚠️ Marca al menos una parada'); return; }
+    await _cronoCrearBorrador(elegidas);
+    document.getElementById('_cronoSheet')?.remove();
+  };
+}
+async function _cronoCrearBorrador(paradas) {
+  const autor = document.getElementById('f-autor').value.trim();
+  const fechas = [...new Set(paradas.map(p => p.fecha))].sort();
+  const jornadas = fechas.map((f, i) => ({ dia: i + 1, lugar: '', items: [], _fecha: f }));
+  const puntos = [];
+  paradas.forEach(p => {
+    const j = jornadas[fechas.indexOf(p.fecha)];
+    const pt = { id: newPuntoId(), tipo: p.tipo || 'visita', nombre: p.nombre, desc: '', lat: +p.lat.toFixed(5), lng: +p.lng.toFixed(5),
+      dia: j.dia, hora: p.hora, fecha: p.fecha, localidad: p.localidad || '' };
+    puntos.push(pt);
+    j.items.push({ pid: pt.id, tipo: pt.tipo, nombre: pt.nombre, desc: '' });
+  });
+  jornadas.forEach(j => {
+    const locs = puntos.filter(p => p.dia === j.dia && p.tipo !== 'hotel').map(p => p.localidad).filter(Boolean);
+    j.lugar = [...new Set(locs)].slice(0, 3).join(', ');
+  });
+  itinerarioGenerado = {
+    autorUid: usuarioActual.uid, autorEmail: usuarioActual.email || null, autor,
+    titulo: 'Viaje sin título', destino: '', emoji: '📍', lat: null, lng: null, color: '#E8471C',
+    dias: jornadas.length, tipo: [], presupuesto: '', resumen: '', id: Date.now(),
+    destinoKey: 'cronologia_' + Date.now(), jornadas, puntos, fotos: [],
+    links: { vuelos: [], alojamiento: [], enlaces: [], tours: [] },
+    estado: 'borrador', _modoMarcha: true, _tituloAuto: true, fechaViaje: fechas[0], deCronologia: true
+  };
+  puntosEdicion = itinerarioGenerado.puntos;
+  state.viajeActual = itinerarioGenerado;
+  state._dirty = false;
+  _marchaRecalcularDatos();
+  mostrarToast('⏳ Guardando el borrador…');
+  await _sincronizarMarcha();
+  if (!itinerarioGenerado.fbId) { mostrarToast('📡 Sin conexión: el borrador se guardará al volver la señal'); }
+  else mostrarToast(`✅ Borrador creado: ${puntos.length} paradas en ${jornadas.length} días`);
+  navegarA('screenMarcha', null);
+  renderMarchaLista();
 }
 
 function crearManualmente() {
