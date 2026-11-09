@@ -1220,6 +1220,34 @@ html, body {
   .zona-chip { flex-shrink:0; border:none; border-radius:50px; padding:7px 12px; background:rgba(255,255,255,0.95); color:var(--ink); font-family:'Syne',sans-serif; font-size:0.75rem; font-weight:700; box-shadow:0 2px 10px rgba(0,0,0,0.15); cursor:pointer; }
   .zona-chip.activa { background:var(--ink); color:white; }
   #zonaChips::-webkit-scrollbar { display:none; }
+  /* Inicio renovado */
+  .ye-hero{background:var(--ink);color:white;border-radius:20px;padding:18px 18px 16px;margin:4px 0 18px;position:relative;overflow:hidden}
+  .ye-hero:after{content:'';position:absolute;right:-30px;top:-30px;width:140px;height:140px;border-radius:50%;background:radial-gradient(circle,#E8471C66,transparent 70%)}
+  .ye-hero h2{font-family:'Syne',sans-serif;font-weight:800;font-size:1.25rem;line-height:1.25;margin:0 0 6px;position:relative;z-index:1}
+  .ye-hero h2 b{color:#FF7A45}
+  .ye-hero p{font-size:.8rem;opacity:.75;margin:0 0 12px;position:relative;z-index:1}
+  .ye-hero button{position:relative;z-index:1;background:var(--primary);color:white;border:none;border-radius:50px;padding:9px 16px;font-family:'Syne',sans-serif;font-weight:700;font-size:.8rem;cursor:pointer}
+  .ye-sec{display:flex;align-items:baseline;justify-content:space-between;margin:6px 2px 10px}
+  .ye-sec h3{font-family:'Syne',sans-serif;font-weight:800;font-size:1.02rem;margin:0;color:var(--ink)}
+  .ye-sec span{font-size:.75rem;font-weight:700;color:var(--primary);cursor:pointer;white-space:nowrap}
+  .ye-carrusel{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -16px 22px;padding:2px 16px 6px;scrollbar-width:none}
+  .ye-carrusel::-webkit-scrollbar{display:none}
+  .ye-mini{flex:0 0 220px;scroll-snap-align:start;background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.07);cursor:pointer}
+  .ye-mini:active{transform:scale(.97)}
+  .ye-mini-img{height:124px;position:relative;overflow:hidden}
+  .ye-mini-img svg,.ye-mini-img img{width:100%;height:100%;display:block;object-fit:cover}
+  .ye-mini-b{padding:10px 12px 12px}
+  .ye-mini-t{font-family:'Syne',sans-serif;font-weight:800;font-size:.86rem;line-height:1.25;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.15em}
+  .ye-mini-m{font-size:.7rem;color:var(--muted);margin-top:5px;font-weight:700}
+  .ye-mini-mas{flex:0 0 120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:2px dashed var(--border);border-radius:16px;color:var(--primary);font-family:'Syne',sans-serif;font-weight:800;font-size:.8rem;cursor:pointer;text-align:center;padding:10px}
+  .feed-card-img svg{position:absolute;inset:0;width:100%;height:100%}
+  .ye-volver{display:inline-flex;align-items:center;gap:6px;margin:4px 0 12px;font-weight:800;font-size:.85rem;color:var(--primary);cursor:pointer}
+  /* Marcadores del mapa mundial */
+  .ye-pin{position:absolute;transform:translate(-50%,-50%);cursor:pointer;white-space:nowrap}
+  .ye-pin-c{border-radius:50%;background:var(--ink);color:white;border:3px solid white;box-shadow:0 0 0 3px #E8471C88,0 4px 14px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center}
+  .ye-pin-s{background:white;color:var(--ink);border-radius:50px;padding:4px 10px 4px 5px;box-shadow:0 3px 10px rgba(0,0,0,.25);display:flex;align-items:center;gap:5px;font-size:11px}
+  .ye-pin-s i{font-style:normal;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px}
+  .leaflet-marker-icon .ye-txt{font-family:'Syne',sans-serif !important;font-weight:800}
   .badge-sugerida { background:rgba(255,255,255,0.92); color:#6b3fa0; font-size:0.68rem; font-weight:800; padding:4px 9px; border-radius:50px; font-family:'Syne',sans-serif; box-shadow:0 2px 8px rgba(0,0,0,0.15); }
   .bloque-planifica a { display:flex; align-items:center; gap:10px; padding:11px 12px; background:var(--card); border:1.5px solid var(--border); border-radius:12px; margin-bottom:8px; text-decoration:none; color:var(--ink); font-size:0.85rem; font-weight:700; }
   .bloque-planifica a small { display:block; font-weight:600; color:var(--muted); font-size:0.72rem; }
@@ -1329,10 +1357,12 @@ html, body {
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
       <button id="btnVerMapa" onclick="" style="padding:12px;background:var(--ink);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">🗺️ Ver mapa</button>
-      <button onclick="compartirViaje()" style="padding:12px;background:var(--primary);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">⬆️ Compartir</button>
+      <button onclick="descargarPDF()" style="padding:12px;background:var(--primary);color:white;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">📄 Guardar PDF</button>
     </div>
     <div id="detalleLinks" style="margin-bottom:16px"></div>
-    <div style="margin-bottom:8px">
+    <div id="detalleDias"></div>
+    <div id="detallePlanifica" style="margin-top:8px"></div>
+    <div id="bloqueComentarios" style="margin:22px 0 8px">
       <div style="font-size:.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:12px">Comentarios</div>
       <div id="comentariosList"></div>
       <div class="comment-input-row" id="comentariosInputRow" style="display:none">
@@ -1341,8 +1371,6 @@ html, body {
       </div>
       <div id="comentariosLoginMsg" style="font-size:.8rem;color:var(--muted);text-align:center;padding:8px 0"><span onclick="abrirLoginSheet()" style="color:var(--primary);font-weight:700;cursor:pointer">Inicia sesión</span> para comentar</div>
     </div>
-    <div id="detalleDias"></div>
-    <div id="detallePlanifica" style="margin-top:8px"></div>
   </div>
 </div>
 
@@ -1795,7 +1823,7 @@ html, body {
     <div class="nav-add-btn">+</div>
     <div class="nav-add-label">Subir</div>
   </button>
-  <button class="nav-item" id="navBuscar" onclick="focusSearch(); navegarA('screenHome','navHome')">
+  <button class="nav-item" id="navBuscar" onclick="irABuscar()">
     <span class="nav-icon">🔍</span>
     <span class="nav-label">Buscar</span>
   </button>
@@ -4018,6 +4046,129 @@ function filtrarFeed(tipo, el) {
   document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
   if (el) el.classList.add('active');
   renderSocialFeed();
+  const hb = document.querySelector('#screenHome .home-body'); if (hb) hb.scrollTop = 0;
+}
+
+// ── Portadas dibujadas con el recorrido (para rutas sin foto) ──
+function _trazaDe(it) {
+  if (Array.isArray(it.traza) && it.traza.length) return it.traza;
+  const pts = (Array.isArray(it.puntos) ? it.puntos : []).filter(p => p && p.lat != null && p.lng != null && !(p.lat === 0 && p.lng === 0));
+  const paso = Math.max(1, Math.ceil(pts.length / 40));
+  return pts.filter((_, i) => i % paso === 0).map(p => [Math.round(p.lat * 1000) / 1000, Math.round(p.lng * 1000) / 1000, p.dia || 1]);
+}
+const _PALETA_ZONA = { espana: ['#E8471C', '#F59E5B'], europa: ['#2E4A8B', '#5E8FD6'], mundo: ['#0F6B57', '#3FB68E'] };
+const _COLORES_DIA = ['#FFFFFF', '#FFE08A', '#B8F2E6', '#FFC2D1', '#CDE7FF', '#E4D1FF', '#FFD6A5'];
+function _svgRuta(traza, o = {}) {
+  const W = o.ancho || 400, H = o.alto || 200, PAD = 26;
+  const [c1, c2] = _PALETA_ZONA[o.zona] || _PALETA_ZONA.mundo;
+  const gid = 'g' + Math.random().toString(36).slice(2, 8);
+  const latM = traza.reduce((s, p) => s + p[0], 0) / traza.length;
+  const k = Math.cos(latM * Math.PI / 180);
+  const xs = traza.map(p => p[1] * k), ys = traza.map(p => -p[0]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const sx = maxX - minX || 0.01, sy = maxY - minY || 0.01;
+  const pT = o.padT ?? PAD, pB = o.padB ?? (PAD + 14);
+  const esc = Math.min((W - PAD * 2) / sx, (H - pT - pB) / sy);
+  const ox = (W - sx * esc) / 2, oy = pT + ((H - pT - pB) - sy * esc) / 2;
+  const P = traza.map((p, i) => [ox + (xs[i] - minX) * esc, oy + (ys[i] - minY) * esc, p[2] || 1]);
+  const linea = P.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  const puntos = P.map((p, i) => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${i === 0 ? 6 : 3.6}" fill="${i === 0 ? '#1C1917' : _COLORES_DIA[(p[2] - 1) % _COLORES_DIA.length]}" stroke="${i === 0 ? '#fff' : 'rgba(0,0,0,.25)'}" stroke-width="${i === 0 ? 2.5 : 1}"/>`).join('');
+  const dias = new Set(P.map(p => p[2])).size;
+  const etiqueta = o.sinTexto ? '' : `${o.emoji ? `<text x="12" y="${H - 12}" font-size="17">${o.emoji}</text>` : ''}<text x="${o.emoji ? 36 : 14}" y="${H - 14}" font-family="Syne,sans-serif" font-weight="800" font-size="13" fill="#fff" opacity=".95">${(o.pais || '').toUpperCase().replace(/[<&]/g, '')}</text><text x="${W - 14}" y="${H - 14}" text-anchor="end" font-family="Mulish,sans-serif" font-weight="700" font-size="11" fill="#fff" opacity=".85">${traza.length} paradas · ${dias} día${dias > 1 ? 's' : ''}</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient>
+    <pattern id="${gid}p" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.1" fill="#fff" opacity=".16"/></pattern></defs>
+    <rect width="${W}" height="${H}" fill="url(#${gid})"/><rect width="${W}" height="${H}" fill="url(#${gid}p)"/>
+    <circle cx="${W * 0.88}" cy="${H * 0.1}" r="${H * 0.55}" fill="#fff" opacity=".07"/>
+    <path d="${linea}" fill="none" stroke="rgba(0,0,0,.18)" stroke-width="6" stroke-linejoin="round" stroke-linecap="round" transform="translate(0,2)"/>
+    <path d="${linea}" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="7 5" stroke-linejoin="round" stroke-linecap="round"/>
+    ${puntos}${etiqueta}
+  </svg>`;
+}
+function _portadaHTML(it, ancho, alto) {
+  const foto = it.fotos?.[0];
+  if (foto) return `<img src="${foto}" alt="" loading="lazy">`;
+  const tz = _trazaDe(it);
+  if (tz.length >= 2) return _svgRuta(tz, { zona: it.zona, ancho, alto, emoji: it.emoji || it._destinoEmoji, pais: it.pais || it.destino });
+  const [c1, c2] = _PALETA_ZONA[it.zona] || _PALETA_ZONA.mundo;
+  return `<div style="position:absolute;inset:0;background:linear-gradient(135deg,${c1},${c2});display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;gap:4px"><div style="font-size:2.6rem">${it.emoji || it._destinoEmoji || '✈️'}</div><div style="font-family:Syne,sans-serif;font-weight:800;font-size:.85rem;letter-spacing:1px;text-transform:uppercase;opacity:.9">${(it.destino || '').replace(/</g, '')}</div></div>`;
+}
+
+// Orden aleatorio, pero fijo durante la sesión (así el feed no se baraja
+// cada vez que se repinta y no se abre un viaje distinto al que tocaste)
+const _ordenSesion = {};
+const _rnd = id => (_ordenSesion[id] ??= Math.random());
+
+const _COLECCIONES = [
+  { id: 'espana', titulo: '🇪🇸 Escapadas por España', f: it => it.zona === 'espana' },
+  { id: 'europa', titulo: '🏰 Europa imprescindible', f: it => it.zona === 'europa' },
+  { id: 'mundo', titulo: '🌍 Grandes viajes', f: it => it.zona === 'mundo' },
+  { id: 'finde', titulo: '⚡ Para un fin de semana', f: it => (it.dias || 0) <= 3 },
+];
+
+function _abrirDesdeCard(e, it) {
+  if (e.target.closest('.feed-like-btn')) return;
+  const ae = e.target.closest('.feed-card-author');
+  if (ae) { e.stopPropagation(); abrirPerfilPublico(ae.dataset.autor || '', ae.dataset.uid || ''); return; }
+  abrirItinerario(it._destinoKey, it.fbId);
+}
+
+function _cardFeed(it, likes) {
+  const card = document.createElement('div');
+  card.className = 'feed-card';
+  const fbId = it.fbId;
+  const liked = !!likes[fbId];
+  const dias = it.dias || '?';
+  const autor = it.autor || it.autorNombre || 'Viajero';
+  const inicial = autor[0]?.toUpperCase() || '?';
+  card.innerHTML = `
+    <div class="feed-card-img">
+      ${_portadaHTML(it, 400, 200)}
+      <div style="position:absolute;top:12px;right:12px;z-index:2"><span class="feed-card-dias">${dias} día${dias != 1 ? 's' : ''}</span></div>
+      ${it.sugerida ? '<div class="badge-sugerida" style="position:absolute;top:12px;left:12px;z-index:2">✨ Ruta sugerida</div>' : ''}
+    </div>
+    <div class="feed-card-body">
+      <div class="feed-card-title">${it.titulo}</div>
+      <div class="feed-card-meta">
+        <div class="feed-card-author" data-autor="${autor}" data-uid="${it.autorUid || ''}" style="cursor:pointer">
+          <div class="feed-card-author-avatar">${it.autorFoto ? `<img src="${it.autorFoto}" style="width:100%;height:100%;object-fit:cover" referrerpolicy="no-referrer">` : inicial}</div>
+          ${autor}
+        </div>
+        <div class="feed-card-stats">
+          <span>📍 ${it.destino || ''}</span>
+          <button class="feed-like-btn ${liked ? 'liked' : ''}" onclick="toggleLike(event,'${fbId}',this)">${liked ? '❤️' : '🤍'} <span class="like-count">${it.likes || 0}</span></button>
+        </div>
+      </div>
+    </div>`;
+  card.addEventListener('click', e => _abrirDesdeCard(e, it));
+  return card;
+}
+
+function _carrusel(col, lista) {
+  const frag = document.createDocumentFragment();
+  const head = document.createElement('div');
+  head.className = 'ye-sec';
+  head.innerHTML = `<h3>${col.titulo}</h3><span>Ver todas (${lista.length}) ›</span>`;
+  head.querySelector('span').onclick = () => filtrarFeed('col:' + col.id);
+  const row = document.createElement('div');
+  row.className = 'ye-carrusel';
+  lista.slice(0, 12).forEach(it => {
+    const c = document.createElement('div');
+    c.className = 'ye-mini';
+    c.innerHTML = `<div class="ye-mini-img">${_portadaHTML(it, 220, 124)}</div>
+      <div class="ye-mini-b"><div class="ye-mini-t">${it.titulo}</div><div class="ye-mini-m">📅 ${it.dias || '?'} días · ${it.pais || it.destino || ''}${it.likes ? ` · ❤️ ${it.likes}` : ''}</div></div>`;
+    c.onclick = e => _abrirDesdeCard(e, it);
+    row.appendChild(c);
+  });
+  if (lista.length > 12) {
+    const m = document.createElement('div');
+    m.className = 'ye-mini-mas';
+    m.innerHTML = `<div style="font-size:1.6rem">→</div>Ver las ${lista.length}`;
+    m.onclick = () => filtrarFeed('col:' + col.id);
+    row.appendChild(m);
+  }
+  frag.append(head, row);
+  return frag;
 }
 
 function renderSocialFeed() {
@@ -4027,7 +4178,7 @@ function renderSocialFeed() {
   let todos = [];
   Object.entries(destinos).forEach(([key, d]) => {
     d.itinerarios.forEach(it => {
-      todos.push({ ...it, _destinoKey: key, _destinoEmoji: d.emoji, _destinoColor: d.color });
+      todos.push({ ...it, zona: it.zona || d.zona, _destinoKey: key, _destinoEmoji: d.emoji, _destinoColor: d.color });
     });
   });
 
@@ -4045,78 +4196,81 @@ function renderSocialFeed() {
     return;
   }
 
-  if (_feedFiltro === 'recientes') todos.sort((a,b) => (b.fechaPublicacion||0)-(a.fechaPublicacion||0));
-  else if (_feedFiltro === 'populares') todos.sort((a,b) => (b.likes||0)-(a.likes||0));
-  else if (_feedFiltro === 'cortos') todos = todos.filter(it => (it.dias||0) <= 3).sort(() => Math.random()-.5);
-  else if (_feedFiltro === 'semana') todos = todos.filter(it => (it.dias||0) >= 4 && (it.dias||0) <= 7).sort(() => Math.random()-.5);
-  else if (_feedFiltro === 'largos') todos = todos.filter(it => (it.dias||0) > 7).sort(() => Math.random()-.5);
-  else todos.sort(() => Math.random() - 0.5);
-  _todosItinerarios = todos;
-
   const likes = JSON.parse(localStorage.getItem('ye_likes') || '{}');
-
+  const reales = todos.filter(it => !it.sugerida).sort((a, b) => _rnd(a.fbId) - _rnd(b.fbId));
+  const sugs = todos.filter(it => it.sugerida).sort((a, b) => _rnd(a.fbId) - _rnd(b.fbId));
   feed.innerHTML = '';
-  // Con cientos de viajes se pintan de 30 en 30
-  const _limite = window._feedLimite || 30;
-  const _total = todos.length;
-  todos = todos.slice(0, _limite);
-  setTimeout(() => {
-    if (_total > _limite && !document.getElementById('feedVerMas')) {
+
+  // ── Portada del inicio: secciones ──
+  if (_feedFiltro === 'todos') {
+    _todosItinerarios = todos;
+    const paises = new Set(todos.map(it => it.pais).filter(Boolean)).size;
+    const hero = document.createElement('div');
+    hero.className = 'ye-hero';
+    hero.innerHTML = `<h2>Viajes reales y <b>${sugs.length} rutas</b> listas para copiar${paises ? ` en <b>${paises} países</b>` : ''}</h2>
+      <p>Mira cómo lo organizaron otros, día a día y en el mapa.</p>
+      <button onclick="navegarA('screenSubir', null)">＋ Comparte tu viaje</button>`;
+    feed.appendChild(hero);
+
+    const cols = _COLECCIONES.map(c => ({ c, l: sugs.filter(c.f) })).filter(x => x.l.length >= 1);
+    const huecos = [2, 5, 8]; // tras cuántos viajes reales va cada carrusel
+    let ic = 0;
+    if (reales.length) {
+      const h = document.createElement('div');
+      h.className = 'ye-sec';
+      h.innerHTML = '<h3>📸 Viajes de viajeros</h3>';
+      feed.appendChild(h);
+    }
+    const lim = window._feedLimite || 30;
+    reales.slice(0, lim).forEach((it, i) => {
+      feed.appendChild(_cardFeed(it, likes));
+      if (huecos.includes(i + 1) && ic < cols.length) { feed.appendChild(_carrusel(cols[ic].c, cols[ic].l)); ic++; }
+    });
+    if (reales.length > lim) {
       const b = document.createElement('button');
-      b.id = 'feedVerMas'; b.className = 'btn-secondary';
-      b.style.cssText = 'width:100%;margin:6px 0 20px';
-      b.textContent = `Ver más viajes (${_total - _limite})`;
-      b.onclick = () => { window._feedLimite = _limite + 30; renderSocialFeed(); };
+      b.className = 'btn-secondary'; b.style.cssText = 'width:100%;margin:6px 0 20px';
+      b.textContent = `Ver más viajes (${reales.length - lim})`;
+      b.onclick = () => { window._feedLimite = lim + 30; renderSocialFeed(); };
       feed.appendChild(b);
     }
-  }, 0);
-  todos.forEach(it => {
-    const card = document.createElement('div');
-    card.className = 'feed-card';
+    while (ic < cols.length) { feed.appendChild(_carrusel(cols[ic].c, cols[ic].l)); ic++; }
+    return;
+  }
 
-    const fbId = it.fbId;
-    const liked = likes[fbId] ? true : false;
-    const likeCount = it.likes || 0;
-    const dias = it.dias || '?';
-    const autor = it.autor || it.autorNombre || 'Viajero';
-    const inicial = autor[0]?.toUpperCase() || '?';
-    const foto = it.fotos?.[0];
-    const emoji = it._destinoEmoji || it.emoji || '✈️';
-
-    card.innerHTML = `
-      <div class="feed-card-img">
-        ${foto ? `<img src="${foto}" alt="${it.titulo}" loading="lazy">` : ''}
-        <span style="position:relative;z-index:1">${foto ? '' : emoji}</span>
-        <div style="position:absolute;top:12px;right:12px;z-index:2">
-          <span class="feed-card-dias">${dias} día${dias!=1?'s':''}</span>
-        </div>
-        ${it.sugerida ? '<div class="badge-sugerida" style="position:absolute;top:12px;left:12px;z-index:2">✨ Ruta sugerida</div>' : ''}
-      </div>
-      <div class="feed-card-body">
-        <div class="feed-card-title">${it.titulo}</div>
-        <div class="feed-card-meta">
-          <div class="feed-card-author" data-autor="${autor}" data-uid="${it.autorUid||''}" style="cursor:pointer">
-            <div class="feed-card-author-avatar">${it.autorFoto ? `<img src="${it.autorFoto}" style="width:100%;height:100%;object-fit:cover" referrerpolicy="no-referrer">` : inicial}</div>
-            ${autor}
-          </div>
-          <div class="feed-card-stats">
-            <span>📍 ${it.destino || ''}</span>
-            <button class="feed-like-btn ${liked?'liked':''}" onclick="toggleLike(event,'${fbId}',this)">
-              ${liked?'❤️':'🤍'} <span class="like-count">${likeCount}</span>
-            </button>
-          </div>
-        </div>
-      </div>`;
-
-    card.addEventListener('click', (e) => {
-      if (e.target.closest('.feed-like-btn')) return;
-      const ae = e.target.closest('.feed-card-author');
-      if (ae) { e.stopPropagation(); abrirPerfilPublico(ae.dataset.autor||'', ae.dataset.uid||''); return; }
-      abrirItinerario(it._destinoKey, fbId);
-    });
-
-    feed.appendChild(card);
-  });
+  // ── Listas filtradas ──
+  let lista;
+  let col = null;
+  if (_feedFiltro.startsWith('col:')) {
+    col = _COLECCIONES.find(c => 'col:' + c.id === _feedFiltro);
+    lista = col ? sugs.filter(col.f) : [];
+  } else {
+    lista = [...reales, ...sugs];
+    if (_feedFiltro === 'recientes') lista.sort((a, b) => (b.fechaPublicacion || b.ts || 0) - (a.fechaPublicacion || a.ts || 0));
+    else if (_feedFiltro === 'populares') lista.sort((a, b) => (b.likes || 0) - (a.likes || 0));
+    else if (_feedFiltro === 'cortos') lista = lista.filter(it => (it.dias || 0) <= 3);
+    else if (_feedFiltro === 'semana') lista = lista.filter(it => (it.dias || 0) >= 4 && (it.dias || 0) <= 7);
+    else if (_feedFiltro === 'largos') lista = lista.filter(it => (it.dias || 0) > 7);
+  }
+  _todosItinerarios = lista;
+  if (col) {
+    const v = document.createElement('div');
+    v.innerHTML = `<div class="ye-volver">← Inicio</div><div class="ye-sec"><h3>${col.titulo}</h3><span style="color:var(--muted)">${lista.length} rutas</span></div>`;
+    v.querySelector('.ye-volver').onclick = () => filtrarFeed('todos', document.querySelector('.filter-chip'));
+    feed.appendChild(v);
+  }
+  if (!lista.length) {
+    feed.insertAdjacentHTML('beforeend', '<div style="text-align:center;padding:40px 20px;color:var(--muted);font-size:.85rem">No hay viajes con este filtro.</div>');
+    return;
+  }
+  const lim = window._feedLimite || 30;
+  lista.slice(0, lim).forEach(it => feed.appendChild(_cardFeed(it, likes)));
+  if (lista.length > lim) {
+    const b = document.createElement('button');
+    b.className = 'btn-secondary'; b.style.cssText = 'width:100%;margin:6px 0 20px';
+    b.textContent = `Ver más viajes (${lista.length - lim})`;
+    b.onclick = () => { window._feedLimite = lim + 30; renderSocialFeed(); };
+    feed.appendChild(b);
+  }
 }
 
 async function toggleLike(e, fbId, btn) {
@@ -4259,7 +4413,10 @@ function abrirItinerario(key, id) {
         }
       }).catch(() => {});
   } else {
-    heroFotos.innerHTML = `<div style="min-width:100%;height:100%;background:linear-gradient(135deg,${d.color}88,${d.color});display:flex;align-items:center;justify-content:center;font-size:5rem">${d.emoji}</div>`;
+    const tz = _trazaDe(it);
+    heroFotos.innerHTML = tz.length >= 2
+      ? `<div style="min-width:100%;height:100%">${_svgRuta(tz, { zona: it.zona, ancho: 400, alto: 240, sinTexto: true, padT: 70, padB: 82 })}</div>`
+      : `<div style="min-width:100%;height:100%;background:linear-gradient(135deg,${d.color}88,${d.color});display:flex;align-items:center;justify-content:center;font-size:5rem">${d.emoji}</div>`;
   }
 
   document.getElementById('heroTitulo').textContent = it.titulo;
@@ -4359,6 +4516,7 @@ function abrirItinerario(key, id) {
   }
 
   _viajeCompartido = it;
+  const _db = document.querySelector('#screenDetalle .detalle-body'); if (_db) _db.scrollTop = 0;
   navegarDetalle('screenDetalle');
   cargarComentarios(it.fbId || id);
 }
@@ -4605,6 +4763,7 @@ async function adminRecolocarRutas(input) {
       }
       const resp = await fbFetch(`${FB_URL}/itinerarios/${id}/puntos.json`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(it.puntos) });
       if (!resp.ok) throw new Error('sin permiso');
+      await guardarResumen(it, id).catch(() => {});
       hechas++; movidos += cambios;
       log.push(`✅ ${pre}: ${cambios} puntos corregidos`);
     } catch (e) { log.push(`❌ ${pre}: ${e.message || e}`); }
@@ -5071,6 +5230,13 @@ function filtrarZonaMapa(zona, btn) {
 }
 
 // ══ BÚSQUEDA ══════════════════════════════════
+function irABuscar() {
+  navegarA('screenHome', 'navHome');
+  const hb = document.querySelector('#screenHome .home-body'); if (hb) hb.scrollTop = 0;
+  const inp = document.getElementById('searchInput');
+  inp.focus(); // en el mismo toque, para que el móvil abra el teclado
+  setTimeout(() => inp.focus(), 150);
+}
 function focusSearch() {
   setTimeout(() => document.getElementById('searchInput').focus(), 100);
 }
@@ -6043,6 +6209,7 @@ async function construirResumen(it, id) {
     estado: it.estado || null,
     ts: it.ts || it.fecha || Date.now(),
     nFotos: fotos.length,
+    traza: _trazaDe(it),
     portada: fotos.length ? await _miniatura(fotos[0]) : null
   };
 }
@@ -6079,6 +6246,7 @@ async function cargarViajeCompleto(it) {
     if (!full) { mostrarToast('❌ Este viaje ya no existe'); return false; }
     const fotos = Array.isArray(full.fotos) ? full.fotos : (full.fotos ? Object.values(full.fotos) : []);
     Object.assign(it, full, { fbId: it.fbId, id: it.fbId, fotos, _resumen: false, _fotosNoC: false });
+    ocultarToast();
     return true;
   } catch (e) { mostrarToast('❌ Sin conexión'); return false; }
 }
@@ -6216,12 +6384,15 @@ function cerrarLightbox() {
   document.getElementById('lightbox').classList.remove('active');
 }
 
+let _toastTimer = null;
 function mostrarToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
 }
+function ocultarToast() { clearTimeout(_toastTimer); document.getElementById('toast').classList.remove('show'); }
 
 // Para textos más largos que no caben bien en el toast normal (pill de una línea).
 // Se muestra centrado, con el texto ajustado, y se cierra tocando fuera.
@@ -6390,7 +6561,7 @@ function renderPinsMundiales() {
   const entries = Object.entries(destinos).filter(([,d]) => d.lat && d.lng && (!_zonaMapa || _zonaDestino(d) === _zonaMapa));
   if (!entries.length) return;
   const isMobile = window.innerWidth < 768;
-  const CLUSTER_PX = isMobile ? 90 : 110;
+  const CLUSTER_PX = isMobile ? 70 : 90;
   const toPixel = (lat, lng) => mapaMundial.latLngToContainerPoint([lat, lng]);
   const usados = new Set();
   const grupos = [];
@@ -6414,15 +6585,16 @@ function renderPinsMundiales() {
     let html, onClick;
     if (g.destinos.length === 1) {
       const d = g.destinos[0]; const key = g.keys[0];
-      html = `<div style="background:${d.color||'#E8471C'};color:white;border-radius:50px;padding:6px 12px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 3px 12px rgba(0,0,0,0.25);border:2px solid white;cursor:pointer">${d.emoji||'📍'} ${d.nombre}</div>`;
+      const nom = (d.nombre || '').length > 16 ? d.nombre.slice(0, 15) + '…' : (d.nombre || '');
+      html = `<div class="ye-pin ye-pin-s"><i style="background:${d.color||'#E8471C'}">${d.emoji||'📍'}</i><span class="ye-txt">${nom}</span></div>`;
       onClick = () => abrirDestino(key);
     } else {
       const total = g.destinos.reduce((s,d)=>s+(d.itinerarios?.length||0),0);
-      const emojis = g.destinos.slice(0,3).map(d=>d.emoji||'📍').join('');
-      html = `<div style="background:var(--ink);color:white;border-radius:50px;padding:8px 16px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.3);border:2.5px solid white;cursor:pointer;display:flex;align-items:center;gap:6px"><span>${emojis}</span><span>${g.destinos.length} destinos</span><span style="background:var(--primary);border-radius:50px;padding:2px 7px;font-size:10px">${total} viajes</span></div>`;
+      const tam = Math.min(58, 34 + Math.round(Math.sqrt(total) * 3));
+      html = `<div class="ye-pin ye-pin-c" style="width:${tam}px;height:${tam}px"><span class="ye-txt" style="font-size:${tam > 46 ? 16 : 14}px">${total}</span></div>`;
       onClick = () => { const bounds = L.latLngBounds(g.destinos.map(d=>[d.lat,d.lng])); mapaMundial.fitBounds(bounds,{padding:[80,80],maxZoom:10}); renderPinsMundiales(); };
     }
-    const icon = L.divIcon({ className:'', html, iconSize:'auto', iconAnchor:[-4, 16] });
+    const icon = L.divIcon({ className:'', html, iconSize:[0, 0], iconAnchor:[0, 0] });
     const marker = L.marker([lat,lng],{icon}).addTo(mapaMundial).on('click', onClick);
     _pinsMundiales.push(marker);
   });
