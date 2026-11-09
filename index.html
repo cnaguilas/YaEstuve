@@ -1241,11 +1241,11 @@ html, body {
   .ye-mini-m{font-size:.7rem;color:var(--muted);margin-top:5px;font-weight:700}
   .ye-mini-mas{flex:0 0 120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:2px dashed var(--border);border-radius:16px;color:var(--primary);font-family:'Syne',sans-serif;font-weight:800;font-size:.8rem;cursor:pointer;text-align:center;padding:10px}
   .feed-card-img svg{position:absolute;inset:0;width:100%;height:100%}
-  .ye-zonas{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 22px}
+  .ye-zonas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 22px}
   .ye-zona{background:white;border-radius:14px;padding:10px 6px 9px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.06);cursor:pointer;border:1.5px solid transparent}
   .ye-zona:active{transform:scale(.96)}
   .ye-zona b{display:block;font-size:1.5rem;line-height:1.1;margin-bottom:3px}
-  .ye-zona span{display:block;font-family:'Syne',sans-serif;font-weight:800;font-size:.7rem;line-height:1.15;color:var(--ink)}
+  .ye-zona span{display:block;font-family:'Syne',sans-serif;font-weight:800;font-size:.66rem;line-height:1.15;color:var(--ink);overflow-wrap:break-word}
   .ye-zona small{display:block;font-size:.65rem;color:var(--muted);font-weight:700;margin-top:2px}
   .ye-subchips{display:flex;gap:6px;overflow-x:auto;margin:0 -16px 14px;padding:0 16px 4px;scrollbar-width:none}
   .ye-subchips::-webkit-scrollbar{display:none}
@@ -4146,7 +4146,7 @@ const _COLECCIONES = [
 
 const _ZONAS_UI = [
   ['espana', '🏖️', 'España'], ['europa', '🏰', 'Europa'], ['sudeste', '🛕', 'Sudeste asiático'],
-  ['caribe', '🌴', 'Caribe y Centroamérica'], ['norteamerica', '🗽', 'Norteamérica'], ['sudamerica', '🦙', 'Sudamérica'],
+  ['caribe', '🌴', 'Caribe'], ['norteamerica', '🗽', 'EE. UU. y Canadá'], ['sudamerica', '🦙', 'Sudamérica'],
   ['asia', '🏯', 'Asia y Oriente Medio'], ['africa', '🦁', 'África'], ['islas', '🏝️', 'Índico y Pacífico'],
 ];
 function _regionIt(it) {
@@ -6730,7 +6730,7 @@ async function publicarViaje() {
 // buscador (título, destino, coordenadas, autor, miniatura, país, región y
 // nombres de los lugares). Al abrir la app solo se descarga esto; el viaje
 // completo (días, puntos y todas las fotos) se descarga al abrirlo.
-const _PAISES_EUROPA = new Set(['al','ad','at','by','be','ba','bg','hr','cy','cz','dk','ee','fi','fr','de','gr','hu','is','ie','it','xk','lv','li','lt','lu','mt','md','mc','me','nl','mk','no','pl','pt','ro','sm','rs','sk','si','ch','ua','gb','va','gi','fo','im','je','gg','ax','tr']);
+const _PAISES_EUROPA = new Set(['al','ad','at','by','be','ba','bg','hr','cy','cz','dk','ee','fi','fr','de','gr','hu','is','ie','it','xk','lv','li','lt','lu','mt','md','mc','me','nl','mk','no','pl','pt','ro','sm','rs','sk','si','ch','ua','gb','va','gi','fo','im','je','gg','ax','tr','se']);
 const _REGIONES = {
   caribe: 'mx gt bz sv hn ni cr pa cu do ht jm pr bs bb tt ag dm gd kn lc vc aw cw bq sx mf bl gp mq ky tc vg vi ai ms',
   norteamerica: 'us ca gl pm bm',
