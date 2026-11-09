@@ -1241,6 +1241,16 @@ html, body {
   .ye-mini-m{font-size:.7rem;color:var(--muted);margin-top:5px;font-weight:700}
   .ye-mini-mas{flex:0 0 120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:2px dashed var(--border);border-radius:16px;color:var(--primary);font-family:'Syne',sans-serif;font-weight:800;font-size:.8rem;cursor:pointer;text-align:center;padding:10px}
   .feed-card-img svg{position:absolute;inset:0;width:100%;height:100%}
+  .ye-zonas{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 22px}
+  .ye-zona{background:white;border-radius:14px;padding:10px 6px 9px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.06);cursor:pointer;border:1.5px solid transparent}
+  .ye-zona:active{transform:scale(.96)}
+  .ye-zona b{display:block;font-size:1.5rem;line-height:1.1;margin-bottom:3px}
+  .ye-zona span{display:block;font-family:'Syne',sans-serif;font-weight:800;font-size:.7rem;line-height:1.15;color:var(--ink)}
+  .ye-zona small{display:block;font-size:.65rem;color:var(--muted);font-weight:700;margin-top:2px}
+  .ye-subchips{display:flex;gap:6px;overflow-x:auto;margin:0 -16px 14px;padding:0 16px 4px;scrollbar-width:none}
+  .ye-subchips::-webkit-scrollbar{display:none}
+  .ye-subchips div{flex-shrink:0;background:white;border:1.5px solid var(--border);border-radius:50px;padding:6px 12px;font-size:.75rem;font-weight:700;cursor:pointer;white-space:nowrap}
+  .ye-subchips div.on{background:var(--ink);border-color:var(--ink);color:white}
   .ye-volver{display:inline-flex;align-items:center;gap:6px;margin:4px 0 12px;font-weight:800;font-size:.85rem;color:var(--primary);cursor:pointer}
   /* Marcadores del mapa mundial */
   .ye-pin{position:absolute;transform:translate(-50%,-50%);cursor:pointer;white-space:nowrap}
@@ -1286,6 +1296,7 @@ html, body {
   <div class="home-body" style="padding:0">
     <div class="feed-filters">
       <div class="filter-chip active" onclick="filtrarFeed('todos',this)">✈️ Todos</div>
+      <div class="filter-chip" id="chipZonas" onclick="irAZonas(this)">🧭 Por zona</div>
       <div class="filter-chip" onclick="filtrarFeed('recientes',this)">🕐 Recientes</div>
       <div class="filter-chip" onclick="filtrarFeed('populares',this)">❤️ Populares</div>
       <div class="filter-chip" onclick="filtrarFeed('cortos',this)">⚡ 1-3 días</div>
@@ -4128,6 +4139,29 @@ const _COLECCIONES = [
   { id: 'ninos', titulo: '👨‍👩‍👧 Con niños', f: it => _tipos(it).includes('familiar') },
 ];
 
+const _ZONAS_UI = [
+  ['espana', '🏖️', 'España'], ['europa', '🏰', 'Europa'], ['sudeste', '🛕', 'Sudeste asiático'],
+  ['caribe', '🌴', 'Caribe y Centroamérica'], ['norteamerica', '🗽', 'Norteamérica'], ['sudamerica', '🦙', 'Sudamérica'],
+  ['asia', '🏯', 'Asia y Oriente Medio'], ['africa', '🦁', 'África'], ['islas', '🏝️', 'Índico y Pacífico'],
+];
+function _regionIt(it) {
+  return _regionDe(it.paisCode) || (it.zona === 'espana' || it.zona === 'europa' ? it.zona : null);
+}
+// Sub-zona: comunidad autónoma en España, país en el resto
+function _subIt(it, zona) {
+  if (zona === 'espana') return (it.region || '').trim() || null;
+  return (it.pais || '').trim() || null;
+}
+function irAZonas(el) {
+  filtrarFeed('todos', document.querySelector('.filter-chip'));
+  if (el) { document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active')); el.classList.add('active'); }
+  setTimeout(() => {
+    const z = document.getElementById('yeZonas');
+    const hb = document.querySelector('#screenHome .home-body');
+    if (z && hb) hb.scrollTop += z.getBoundingClientRect().top - hb.getBoundingClientRect().top - 6;
+  }, 50);
+}
+
 function _abrirDesdeCard(e, it) {
   if (e.target.closest('.feed-like-btn')) return;
   const ae = e.target.closest('.feed-card-author');
@@ -4234,6 +4268,15 @@ function renderSocialFeed() {
       <button onclick="navegarA('screenSubir', null)">＋ Comparte tu viaje</button>`;
     feed.appendChild(hero);
 
+    const cuenta = {};
+    todos.forEach(it => { const r = _regionIt(it); if (r) cuenta[r] = (cuenta[r] || 0) + 1; });
+    const zh = document.createElement('div');
+    zh.id = 'yeZonas';
+    zh.innerHTML = '<div class="ye-sec"><h3>🧭 Explora por zona</h3></div><div class="ye-zonas">' +
+      _ZONAS_UI.filter(([id]) => cuenta[id]).map(([id, em, nom]) =>
+        `<div class="ye-zona" onclick="filtrarFeed('zona:${id}', document.getElementById('chipZonas'))"><b>${em}</b><span>${nom}</span><small>${cuenta[id]} viajes</small></div>`).join('') + '</div>';
+    feed.appendChild(zh);
+
     const conTodo = [...reales, ...sugs];
     const cols = _COLECCIONES.map(c => ({ c, l: conTodo.filter(c.f) })).filter(x => x.l.length >= 3);
     const huecos = [2, 4, 6, 8, 10, 12, 14, 16]; // tras cuántos viajes reales va cada carrusel
@@ -4263,7 +4306,28 @@ function renderSocialFeed() {
   // ── Listas filtradas ──
   let lista;
   let col = null;
-  if (_feedFiltro.startsWith('col:')) {
+  if (_feedFiltro.startsWith('zona:')) {
+    const [, zona, ...resto] = _feedFiltro.split(':');
+    const sub = resto.join(':') || null;
+    const enZona = [...reales, ...sugs].filter(it => _regionIt(it) === zona);
+    const zInfo = _ZONAS_UI.find(z => z[0] === zona) || [zona, '📍', zona];
+    const subs = {};
+    enZona.forEach(it => { const s2 = _subIt(it, zona); if (s2) subs[s2] = (subs[s2] || 0) + 1; });
+    lista = sub ? enZona.filter(it => _subIt(it, zona) === sub) : enZona;
+    _todosItinerarios = lista;
+    const v = document.createElement('div');
+    const subOrden = Object.entries(subs).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    v.innerHTML = `<div class="ye-volver">← Todas las zonas</div>
+      <div class="ye-sec"><h3>${zInfo[1]} ${sub || zInfo[2]}</h3><span style="color:var(--muted)">${lista.length} viajes</span></div>
+      ${subOrden.length > 1 ? `<div class="ye-subchips"><div class="${sub ? '' : 'on'}" data-s="">Todo ${zona === 'espana' ? 'España' : zInfo[2]}</div>${subOrden.map(([n, c]) => `<div class="${n === sub ? 'on' : ''}" data-s="${n.replace(/"/g, '&quot;')}">${n} · ${c}</div>`).join('')}</div>` : ''}`;
+    v.querySelector('.ye-volver').onclick = () => irAZonas(document.getElementById('chipZonas'));
+    v.querySelectorAll('.ye-subchips div').forEach(c => c.onclick = () => {
+      _feedFiltro = 'zona:' + zona + (c.dataset.s ? ':' + c.dataset.s : '');
+      window._feedLimite = 30; renderSocialFeed();
+    });
+    feed.appendChild(v);
+    const onSub = v.querySelector('.ye-subchips .on'); if (onSub) onSub.scrollIntoView({ inline: 'center', block: 'nearest' });
+  } else if (_feedFiltro.startsWith('col:')) {
     col = _COLECCIONES.find(c => 'col:' + c.id === _feedFiltro);
     lista = col ? [...reales, ...sugs].filter(col.f) : [];
   } else {
@@ -4274,7 +4338,7 @@ function renderSocialFeed() {
     else if (_feedFiltro === 'semana') lista = lista.filter(it => (it.dias || 0) >= 4 && (it.dias || 0) <= 7);
     else if (_feedFiltro === 'largos') lista = lista.filter(it => (it.dias || 0) > 7);
   }
-  _todosItinerarios = lista;
+  if (!_feedFiltro.startsWith('zona:')) _todosItinerarios = lista;
   if (col) {
     const v = document.createElement('div');
     v.innerHTML = `<div class="ye-volver">← Inicio</div><div class="ye-sec"><h3>${col.titulo}</h3><span style="color:var(--muted)">${lista.length} viajes</span></div>`;
@@ -4330,25 +4394,33 @@ async function toggleLike(e, fbId, btn) {
 }
 
 
-function abrirDestino(key) {
-  const d = destinos[key];
-  document.getElementById('listaTitulo').textContent = `${d.emoji} ${d.nombre}`;
-  document.getElementById('listaCount').textContent = `${d.itinerarios.length} viajes`;
-
+function abrirDestino(key) { abrirGrupoDestinos([key]); }
+// Lista de viajes de uno o varios destinos (p. ej. dos destinos casi en el
+// mismo sitio, que en el mapa no se pueden separar). Los reales van primero.
+function abrirGrupoDestinos(keys) {
+  const ds = keys.map(k => [k, destinos[k]]).filter(([, d]) => d);
+  if (!ds.length) return;
+  const its = [];
+  ds.forEach(([k, d]) => d.itinerarios.forEach(it => its.push({ k, it })));
+  its.sort((a, b) => (!!a.it.sugerida - !!b.it.sugerida) || ((b.it.likes || 0) - (a.it.likes || 0)));
+  const d0 = (ds.find(([, d]) => d.itinerarios.some(i => !i.sugerida)) || ds[0])[1];
+  document.getElementById('listaTitulo').textContent = `${d0.emoji || '📍'} ${d0.nombre}`;
+  document.getElementById('listaCount').textContent = `${its.length} ${its.length === 1 ? 'viaje' : 'viajes'}`;
   const body = document.getElementById('listaBody');
   body.innerHTML = '';
-  d.itinerarios.forEach(it => {
+  its.forEach(({ k, it }) => {
     const card = document.createElement('div');
     card.className = 'it-card';
     card.innerHTML = `
+      ${it.sugerida ? '<div class="badge-sugerida" style="display:inline-block;margin-bottom:6px">✨ Ruta sugerida</div>' : '<div class="badge-sugerida" style="display:inline-block;margin-bottom:6px;color:var(--primary)">📸 Viaje real</div>'}
       <div class="it-card-top">
         <div class="it-titulo">${it.titulo}</div>
-        <div class="it-dias">${it.dias} días</div>
+        <div class="it-dias">${it.dias || '?'} días</div>
       </div>
-      <div class="it-autor">Por <strong>${it.autor}</strong></div>
+      <div class="it-autor">Por <strong>${it.autor || it.autorNombre || 'Viajero'}</strong></div>
       <div class="it-tags">${(it.tipo||[]).map(t=>`<span class="it-tag">${t}</span>`).join('')}</div>
-      <div class="it-presupuesto">💰 <strong>${it.presupuesto}</strong></div>`;
-    card.onclick = () => abrirItinerario(key, it.fbId || it.id);
+      ${it.presupuesto ? `<div class="it-presupuesto">💰 <strong>${it.presupuesto}</strong></div>` : ''}`;
+    card.onclick = () => abrirItinerario(k, it.fbId || it.id);
     body.appendChild(card);
   });
   navegarDetalle('screenLista');
@@ -6637,7 +6709,13 @@ function renderPinsMundiales() {
       const total = g.destinos.reduce((s,d)=>s+(d.itinerarios?.length||0),0);
       const tam = Math.min(58, 34 + Math.round(Math.sqrt(total) * 3));
       html = `<div class="ye-pin ye-pin-c" style="width:${tam}px;height:${tam}px"><span class="ye-txt" style="font-size:${tam > 46 ? 16 : 14}px">${total}</span></div>`;
-      onClick = () => { const bounds = L.latLngBounds(g.destinos.map(d=>[d.lat,d.lng])); mapaMundial.fitBounds(bounds,{padding:[80,80],maxZoom:10}); renderPinsMundiales(); };
+      onClick = () => {
+        // Si están prácticamente en el mismo sitio (o ya estamos muy cerca),
+        // acercar no los separa: se abre la lista con todos sus viajes.
+        const maxKm = Math.max(...g.destinos.map(d => _distKm(g.destinos[0], d)));
+        if (maxKm < 3 || mapaMundial.getZoom() >= 9) { abrirGrupoDestinos(g.keys); return; }
+        const bounds = L.latLngBounds(g.destinos.map(d=>[d.lat,d.lng])); mapaMundial.fitBounds(bounds,{padding:[80,80],maxZoom:10}); renderPinsMundiales();
+      };
     }
     const icon = L.divIcon({ className:'', html, iconSize:[0, 0], iconAnchor:[0, 0] });
     const marker = L.marker([lat,lng],{icon}).addTo(mapaMundial).on('click', onClick);
