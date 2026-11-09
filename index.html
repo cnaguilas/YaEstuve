@@ -1247,7 +1247,7 @@ html, body {
   .ye-pin-c{border-radius:50%;background:var(--ink);color:white;border:3px solid white;box-shadow:0 0 0 3px #E8471C88,0 4px 14px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center}
   .ye-pin-s{background:white;color:var(--ink);border-radius:50px;padding:4px 10px 4px 5px;box-shadow:0 3px 10px rgba(0,0,0,.25);display:flex;align-items:center;gap:5px;font-size:11px}
   .ye-pin-s i{font-style:normal;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px}
-  .leaflet-marker-icon .ye-txt{font-family:'Syne',sans-serif !important;font-weight:800}
+  .leaflet-marker-icon .ye-txt{font-family:'Syne',sans-serif !important;font-variant-emoji:text !important;font-variant-numeric:normal;font-weight:800}
   .badge-sugerida { background:rgba(255,255,255,0.92); color:#6b3fa0; font-size:0.68rem; font-weight:800; padding:4px 9px; border-radius:50px; font-family:'Syne',sans-serif; box-shadow:0 2px 8px rgba(0,0,0,0.15); }
   .bloque-planifica a { display:flex; align-items:center; gap:10px; padding:11px 12px; background:var(--card); border:1.5px solid var(--border); border-radius:12px; margin-bottom:8px; text-decoration:none; color:var(--ink); font-size:0.85rem; font-weight:700; }
   .bloque-planifica a small { display:block; font-weight:600; color:var(--muted); font-size:0.72rem; }
@@ -1382,9 +1382,15 @@ html, body {
   <div id="map"></div>
   <div id="zonaChips" style="position:absolute;left:10px;right:64px;top:104px;z-index:600;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none">
     <button class="zona-chip activa" data-zona="" onclick="filtrarZonaMapa('', this)">🌐 Todo</button>
-    <button class="zona-chip" data-zona="espana" onclick="filtrarZonaMapa('espana', this)">🇪🇸 España</button>
-    <button class="zona-chip" data-zona="europa" onclick="filtrarZonaMapa('europa', this)">🇪🇺 Europa</button>
-    <button class="zona-chip" data-zona="mundo" onclick="filtrarZonaMapa('mundo', this)">🌍 Resto del mundo</button>
+    <button class="zona-chip" data-zona="espana" onclick="filtrarZonaMapa('espana', this)">🏖️ España</button>
+    <button class="zona-chip" data-zona="europa" onclick="filtrarZonaMapa('europa', this)">🏰 Europa</button>
+    <button class="zona-chip" data-zona="sudeste" onclick="filtrarZonaMapa('sudeste', this)">🛕 Sudeste asiático</button>
+    <button class="zona-chip" data-zona="caribe" onclick="filtrarZonaMapa('caribe', this)">🌴 Caribe</button>
+    <button class="zona-chip" data-zona="norteamerica" onclick="filtrarZonaMapa('norteamerica', this)">🗽 Norteamérica</button>
+    <button class="zona-chip" data-zona="sudamerica" onclick="filtrarZonaMapa('sudamerica', this)">🦙 Sudamérica</button>
+    <button class="zona-chip" data-zona="asia" onclick="filtrarZonaMapa('asia', this)">🏯 Asia y Oriente Medio</button>
+    <button class="zona-chip" data-zona="africa" onclick="filtrarZonaMapa('africa', this)">🦁 África</button>
+    <button class="zona-chip" data-zona="islas" onclick="filtrarZonaMapa('islas', this)">🏝️ Índico y Pacífico</button>
   </div>
   <button onclick="irAMiUbicacion(mapaMundial, this)" title="Ir a mi ubicación" style="position:absolute;right:14px;bottom:90px;z-index:600;width:44px;height:44px;border-radius:50%;background:white;border:none;box-shadow:0 3px 10px rgba(0,0,0,0.25);font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center">🧭</button>
   <div style="position:absolute;right:6px;bottom:78px;z-index:600;background:rgba(0,0,0,0.6);color:white;font-size:0.62rem;font-weight:700;padding:2px 8px;border-radius:8px;pointer-events:none">Mi ubicación</div>
@@ -4074,7 +4080,7 @@ function _svgRuta(traza, o = {}) {
   const linea = P.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
   const puntos = P.map((p, i) => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${i === 0 ? 6 : 3.6}" fill="${i === 0 ? '#1C1917' : _COLORES_DIA[(p[2] - 1) % _COLORES_DIA.length]}" stroke="${i === 0 ? '#fff' : 'rgba(0,0,0,.25)'}" stroke-width="${i === 0 ? 2.5 : 1}"/>`).join('');
   const dias = new Set(P.map(p => p[2])).size;
-  const etiqueta = o.sinTexto ? '' : `${o.emoji ? `<text x="12" y="${H - 12}" font-size="17">${o.emoji}</text>` : ''}<text x="${o.emoji ? 36 : 14}" y="${H - 14}" font-family="Syne,sans-serif" font-weight="800" font-size="13" fill="#fff" opacity=".95">${(o.pais || '').toUpperCase().replace(/[<&]/g, '')}</text><text x="${W - 14}" y="${H - 14}" text-anchor="end" font-family="Mulish,sans-serif" font-weight="700" font-size="11" fill="#fff" opacity=".85">${traza.length} paradas · ${dias} día${dias > 1 ? 's' : ''}</text>`;
+  const etiqueta = o.sinTexto ? '' : o.compacto ? (o.emoji ? `<text x="10" y="${H - 10}" font-size="16">${o.emoji}</text>` : '') : `${o.emoji ? `<text x="12" y="${H - 12}" font-size="17">${o.emoji}</text>` : ''}<text x="${o.emoji ? 36 : 14}" y="${H - 14}" font-family="Syne,sans-serif" font-weight="800" font-size="13" fill="#fff" opacity=".95">${(o.pais || '').toUpperCase().replace(/[<&]/g, '')}</text><text x="${W - 14}" y="${H - 14}" text-anchor="end" font-family="Mulish,sans-serif" font-weight="700" font-size="11" fill="#fff" opacity=".85">${traza.length} paradas · ${dias} día${dias > 1 ? 's' : ''}</text>`;
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
     <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient>
     <pattern id="${gid}p" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.1" fill="#fff" opacity=".16"/></pattern></defs>
@@ -4085,11 +4091,11 @@ function _svgRuta(traza, o = {}) {
     ${puntos}${etiqueta}
   </svg>`;
 }
-function _portadaHTML(it, ancho, alto) {
+function _portadaHTML(it, ancho, alto, compacto) {
   const foto = it.fotos?.[0];
   if (foto) return `<img src="${foto}" alt="" loading="lazy">`;
   const tz = _trazaDe(it);
-  if (tz.length >= 2) return _svgRuta(tz, { zona: it.zona, ancho, alto, emoji: it.emoji || it._destinoEmoji, pais: it.pais || it.destino });
+  if (tz.length >= 2) return _svgRuta(tz, { zona: it.zona, ancho, alto, emoji: it.emoji || it._destinoEmoji, pais: it.pais || it.destino, compacto, padB: compacto ? 18 : undefined });
   const [c1, c2] = _PALETA_ZONA[it.zona] || _PALETA_ZONA.mundo;
   return `<div style="position:absolute;inset:0;background:linear-gradient(135deg,${c1},${c2});display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;gap:4px"><div style="font-size:2.6rem">${it.emoji || it._destinoEmoji || '✈️'}</div><div style="font-family:Syne,sans-serif;font-weight:800;font-size:.85rem;letter-spacing:1px;text-transform:uppercase;opacity:.9">${(it.destino || '').replace(/</g, '')}</div></div>`;
 }
@@ -4099,11 +4105,27 @@ function _portadaHTML(it, ancho, alto) {
 const _ordenSesion = {};
 const _rnd = id => (_ordenSesion[id] ??= Math.random());
 
+const _txt = it => _norm([it.titulo, it.destino, it.region, it.pais, it.lugares].filter(Boolean).join(' '));
+const _tipos = it => (Array.isArray(it.tipo) ? it.tipo : []).map(t => _norm(t));
+const _MEDIT_PAISES = new Set(['it', 'gr', 'hr', 'mt', 'cy', 'me', 'al']);
 const _COLECCIONES = [
-  { id: 'espana', titulo: '🇪🇸 Escapadas por España', f: it => it.zona === 'espana' },
-  { id: 'europa', titulo: '🏰 Europa imprescindible', f: it => it.zona === 'europa' },
-  { id: 'mundo', titulo: '🌍 Grandes viajes', f: it => it.zona === 'mundo' },
-  { id: 'finde', titulo: '⚡ Para un fin de semana', f: it => (it.dias || 0) <= 3 },
+  { id: 'medit', titulo: '☀️ Mediterráneo', f: it => {
+      const c = (it.paisCode || '').toLowerCase(), t = _txt(it);
+      if (/pirineo|morella|milan/.test(_norm(it.titulo || ''))) return false;
+      if (_MEDIT_PAISES.has(c) || /mediterr/.test(t)) return true;
+      if (c === 'fr') return /provenza|costa azul|niza|corcega|marsella/.test(t);
+      if (c === 'es') return /cataluna|catalunya|comunidad valenciana|comunitat valenciana|baleares|balears|murcia|malaga|costa del sol|almeria|cabo de gata|benalmadena|nerja|marbella/.test(t);
+      return false; } },
+  { id: 'finde', titulo: '⚡ Para un fin de semana', f: it => (it.dias || 0) > 0 && it.dias <= 3 },
+  { id: 'sudeste', titulo: '🛕 Sudeste asiático', f: it => _regionDe(it.paisCode) === 'sudeste' },
+  { id: 'playas', titulo: '🏖️ Playas y paraísos', f: it => {
+      const r = _regionDe(it.paisCode), tp = _tipos(it), t = _txt(it);
+      const relax = tp.some(x => /relax|playa|caribe|todo incluido/.test(x));
+      return relax && (['caribe', 'islas', 'sudeste'].includes(r) || /playa|cala|isla|zanzibar|algarve|canarias|caribe/.test(t)); } },
+  { id: 'natur', titulo: '🏔️ Naturaleza y montaña', f: it => { const tp = _tipos(it); return tp[0] === 'naturaleza' || (tp.includes('naturaleza') && tp.includes('aventura')); } },
+  { id: 'coche', titulo: '🚗 Grandes viajes en coche', f: it => /ruta 66|costa de california|parques nacionales del oeste|islandia|escocia|irlanda|fiordos|nueva zelanda|patagonia|rocosas|sudafrica|costa rica|australia|road trip/.test(_norm(it.titulo || '')) },
+  { id: 'ciudades', titulo: '🏛️ Ciudades con encanto', f: it => { const tp = _tipos(it); return tp[0] === 'cultural' && (it.dias || 9) <= 5 && (it.zona === 'europa' || it.zona === 'espana'); } },
+  { id: 'ninos', titulo: '👨‍👩‍👧 Con niños', f: it => _tipos(it).includes('familiar') },
 ];
 
 function _abrirDesdeCard(e, it) {
@@ -4155,7 +4177,7 @@ function _carrusel(col, lista) {
   lista.slice(0, 12).forEach(it => {
     const c = document.createElement('div');
     c.className = 'ye-mini';
-    c.innerHTML = `<div class="ye-mini-img">${_portadaHTML(it, 220, 124)}</div>
+    c.innerHTML = `<div class="ye-mini-img">${_portadaHTML(it, 220, 124, true)}${it.sugerida ? '' : '<div class="badge-sugerida" style="position:absolute;top:8px;left:8px;color:var(--primary)">📸 Viaje real</div>'}</div>
       <div class="ye-mini-b"><div class="ye-mini-t">${it.titulo}</div><div class="ye-mini-m">📅 ${it.dias || '?'} días · ${it.pais || it.destino || ''}${it.likes ? ` · ❤️ ${it.likes}` : ''}</div></div>`;
     c.onclick = e => _abrirDesdeCard(e, it);
     row.appendChild(c);
@@ -4212,8 +4234,9 @@ function renderSocialFeed() {
       <button onclick="navegarA('screenSubir', null)">＋ Comparte tu viaje</button>`;
     feed.appendChild(hero);
 
-    const cols = _COLECCIONES.map(c => ({ c, l: sugs.filter(c.f) })).filter(x => x.l.length >= 1);
-    const huecos = [2, 5, 8]; // tras cuántos viajes reales va cada carrusel
+    const conTodo = [...reales, ...sugs];
+    const cols = _COLECCIONES.map(c => ({ c, l: conTodo.filter(c.f) })).filter(x => x.l.length >= 3);
+    const huecos = [2, 4, 6, 8, 10, 12, 14, 16]; // tras cuántos viajes reales va cada carrusel
     let ic = 0;
     if (reales.length) {
       const h = document.createElement('div');
@@ -4242,7 +4265,7 @@ function renderSocialFeed() {
   let col = null;
   if (_feedFiltro.startsWith('col:')) {
     col = _COLECCIONES.find(c => 'col:' + c.id === _feedFiltro);
-    lista = col ? sugs.filter(col.f) : [];
+    lista = col ? [...reales, ...sugs].filter(col.f) : [];
   } else {
     lista = [...reales, ...sugs];
     if (_feedFiltro === 'recientes') lista.sort((a, b) => (b.fechaPublicacion || b.ts || 0) - (a.fechaPublicacion || a.ts || 0));
@@ -4254,7 +4277,7 @@ function renderSocialFeed() {
   _todosItinerarios = lista;
   if (col) {
     const v = document.createElement('div');
-    v.innerHTML = `<div class="ye-volver">← Inicio</div><div class="ye-sec"><h3>${col.titulo}</h3><span style="color:var(--muted)">${lista.length} rutas</span></div>`;
+    v.innerHTML = `<div class="ye-volver">← Inicio</div><div class="ye-sec"><h3>${col.titulo}</h3><span style="color:var(--muted)">${lista.length} viajes</span></div>`;
     v.querySelector('.ye-volver').onclick = () => filtrarFeed('todos', document.querySelector('.filter-chip'));
     feed.appendChild(v);
   }
@@ -5206,10 +5229,12 @@ function añadirPinMundial(key, d) { if (mapaMundial) renderPinsMundiales(); }
 // ── Filtro por zonas del mapa
 let _zonaMapa = '';
 function _zonaDestino(d) {
-  if (d.zona) return d.zona;
-  const z = (d.itinerarios || []).map(i => i.zona || _zonaDe(i.paisCode)).find(Boolean);
-  if (z) d.zona = z;
-  return z || null;
+  if (d._region !== undefined) return d._region;
+  const its = d.itinerarios || [];
+  let r = its.map(i => _regionDe(i.paisCode)).find(Boolean) || null;
+  if (!r) { const z = d.zona || its.map(i => i.zona).find(Boolean); if (z === 'espana' || z === 'europa') r = z; }
+  if (r || its.some(i => i.paisCode)) d._region = r;
+  return r;
 }
 const _VISTAS_ZONA = { espana: [[27.5, -18.3], [43.9, 4.4]], europa: [[35, -12], [61, 30]] };
 function filtrarZonaMapa(zona, btn) {
@@ -5218,9 +5243,9 @@ function filtrarZonaMapa(zona, btn) {
   if (!mapaMundial) return;
   if (zona === 'espana') mapaMundial.fitBounds([[35.8, -9.5], [43.9, 4.4]], { padding: [20, 20] });
   else if (zona === 'europa') mapaMundial.fitBounds(_VISTAS_ZONA.europa, { padding: [10, 10] });
-  else if (zona === 'mundo') {
-    const pts = Object.values(destinos).filter(d => d.lat && d.lng && _zonaDestino(d) === 'mundo').map(d => [d.lat, d.lng]);
-    if (pts.length) mapaMundial.fitBounds(pts, { padding: [60, 60], maxZoom: 5 }); else mapaMundial.setView([20, 10], 2);
+  else if (zona) {
+    const pts = Object.values(destinos).filter(d => d.lat && d.lng && _zonaDestino(d) === zona).map(d => [d.lat, d.lng]);
+    if (pts.length) mapaMundial.fitBounds(pts, { padding: [70, 70], maxZoom: 6 }); else mapaMundial.setView([20, 10], 2);
   } else mapaMundial.setView([25, 10], 2);
   renderPinsMundiales();
   if (zona) {
@@ -6147,6 +6172,26 @@ async function publicarViaje() {
 // nombres de los lugares). Al abrir la app solo se descarga esto; el viaje
 // completo (días, puntos y todas las fotos) se descarga al abrirlo.
 const _PAISES_EUROPA = new Set(['al','ad','at','by','be','ba','bg','hr','cy','cz','dk','ee','fi','fr','de','gr','hu','is','ie','it','xk','lv','li','lt','lu','mt','md','mc','me','nl','mk','no','pl','pt','ro','sm','rs','sk','si','ch','ua','gb','va','gi','fo','im','je','gg','ax','tr']);
+const _REGIONES = {
+  caribe: 'mx gt bz sv hn ni cr pa cu do ht jm pr bs bb tt ag dm gd kn lc vc aw cw bq sx mf bl gp mq ky tc vg vi ai ms',
+  norteamerica: 'us ca gl pm bm',
+  sudamerica: 'ar bo br cl co ec gy py pe sr uy ve gf fk',
+  sudeste: 'th vn kh la mm my sg id ph bn tl',
+  asia: 'jp cn kr kp tw hk mo mn in np bt lk bd pk af ir iq sy lb jo il ps sa ae qa bh kw om ye kz uz tm kg tj ge am az',
+  africa: 'ma dz tn ly eg sd ss et er dj so ke ug tz rw bi cd cg ga cm cf td ne ng bj tg gh ci lr sl gn gw sn gm ml bf mr cv st gq ao zm zw mw mz na bw za ls sz eh',
+  islas: 'mu mv sc re yt km mg au nz fj pf nc ws to vu pg sb ki fm mh pw nr tv ck nu gu mp',
+};
+const _REGION_DE_PAIS = {};
+Object.entries(_REGIONES).forEach(([r, l]) => l.split(' ').forEach(c => _REGION_DE_PAIS[c] = r));
+// Región para el mapa: España, Europa, Caribe, Norteamérica, Sudamérica,
+// Sudeste asiático, Asia y Oriente Medio, África, Islas del Índico y Pacífico
+function _regionDe(code) {
+  code = (code || '').toLowerCase();
+  if (!code) return null;
+  if (code === 'es') return 'espana';
+  if (_PAISES_EUROPA.has(code)) return 'europa';
+  return _REGION_DE_PAIS[code] || null;
+}
 function _zonaDe(code) { code = (code || '').toLowerCase(); if (!code) return null; return code === 'es' ? 'espana' : (_PAISES_EUROPA.has(code) ? 'europa' : 'mundo'); }
 function _norm(x) { return (x == null ? '' : String(x)).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
 
