@@ -1719,7 +1719,10 @@ html, body {
       <button onclick="adminRegenerarIndice(this)" style="width:100%;margin-top:10px;padding:10px;background:white;color:#e8471c;border:1.5px solid #e8471c;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">🔄 Actualizar índice de viajes (país, región, portadas)</button>
       <div id="adminIndiceStatus" style="font-size:.75rem;color:var(--muted);margin-top:6px"></div>
       <label style="display:block;width:100%;box-sizing:border-box;margin-top:10px;padding:10px;background:#6b3fa0;color:white;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:.8rem;text-align:center;cursor:pointer">📥 Importar rutas sugeridas (.json)
-        <input type="file" accept=".json,application/json" onchange="adminImportarRutas(this)" style="display:none">
+        <input type="file" accept=".json,application/json" multiple onchange="adminImportarRutas(this)" style="display:none">
+      </label>
+      <label style="display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:8px;background:white;color:#6b3fa0;border:1.5px solid #6b3fa0;border-radius:10px;font-weight:700;font-size:.75rem;text-align:center;cursor:pointer">📍 Recolocar puntos de rutas ya importadas (elige los archivos)
+        <input type="file" accept=".json,application/json" multiple onchange="adminRecolocarRutas(this)" style="display:none">
       </label>
       <label style="display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:8px;background:white;color:#6b3fa0;border:1.5px solid #6b3fa0;border-radius:10px;font-weight:700;font-size:.75rem;text-align:center;cursor:pointer">↩️ Deshacer una importación (elige el mismo archivo)
         <input type="file" accept=".json,application/json" onchange="adminDeshacerImportacion(this)" style="display:none">
@@ -4424,30 +4427,76 @@ function _distKm(a, b) {
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(t(a.lat)) * Math.cos(t(b.lat)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
-async function _geoBuscar(q, cerca) {
-  // 1) Photon (rápido, admite sesgo hacia una zona)
+// ── Ubicación fiable de lugares ──
+// 1) Se localiza primero el municipio (lo que va tras la última coma de la
+//    búsqueda, o el lugar del día, o el destino de la ruta).
+// 2) El sitio solo se acepta si cae cerca de ese municipio. Antes bastaba con
+//    estar a menos de X km del destino y se colaban homónimos de otros pueblos
+//    (p. ej. un "Mercado Central" a 60 km de Cádiz).
+// 3) Si no se encuentra, el punto se coloca en el centro del municipio y se
+//    marca como aproximado, en vez de ponerlo en un sitio equivocado.
+const _cacheAnclas = {};
+const _TIPOS_AMPLIOS = new Set(['parque', 'playa', 'mirador', 'cascada', 'lago', 'deporte', 'ruinas', 'castillo', 'barco', 'coche', 'jardin', 'pueblo', 'templo', 'pdi', 'fotografia']);
+async function _nominatimLista(q, extra = '') {
   try {
-    const u = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=1&lang=default${cerca ? `&lat=${cerca.lat}&lon=${cerca.lng}` : ''}`;
-    const f = (await (await fetch(u)).json())?.features?.[0];
-    if (f) return { lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] };
-  } catch (e) {}
-  // 2) Nominatim (más estricto; una consulta por segundo)
-  try {
-    await _esperar(1100);
-    const g = (await (await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`)).json())?.[0];
-    if (g) return { lat: +g.lat, lng: +g.lon };
-  } catch (e) {}
-  return null;
+    await _esperar(1100); // OpenStreetMap pide una consulta por segundo
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&accept-language=es${extra}`);
+    return ((await r.json()) || []).map(g => ({ lat: +g.lat, lng: +g.lon }));
+  } catch (e) { return []; }
 }
+async function _photonLista(q, cerca) {
+  try {
+    const u = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=default${cerca ? `&lat=${cerca.lat}&lon=${cerca.lng}` : ''}`;
+    return ((await (await fetch(u)).json())?.features || []).map(f => ({ lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] }));
+  } catch (e) { return []; }
+}
+async function _ancla(texto, centro, radio) {
+  const k = _norm(texto);
+  if (k in _cacheAnclas) return _cacheAnclas[k];
+  const cands = await _nominatimLista(texto);
+  const ok = cands.find(c => !centro || _distKm(centro, c) <= radio) || null;
+  _cacheAnclas[k] = ok;
+  return ok;
+}
+async function _ubicarLugar(x, ctx) {
+  // ctx: { centro, radio, pais, lugarDia }
+  const q = x.q;
+  const partes = q.split(',').map(t => t.trim()).filter(Boolean);
+  const localidad = partes.length > 1 ? partes[partes.length - 1] : null;
+  const margen = _TIPOS_AMPLIOS.has(x.tipo) ? 45 : 20;
+  // Zonas válidas: alrededor del municipio indicado y/o del sitio del día
+  const zonas = [];
+  const aLoc = localidad ? await _ancla(`${localidad}, ${ctx.pais}`, ctx.centro, ctx.radio) : null;
+  if (aLoc) zonas.push({ c: aLoc, km: margen });
+  const aDia = ctx.lugarDia ? await _ancla(`${ctx.lugarDia}, ${ctx.pais}`, ctx.centro, ctx.radio) : null;
+  if (aDia) zonas.push({ c: aDia, km: margen });
+  if (!zonas.length) zonas.push({ c: ctx.centro, km: Math.min(ctx.radio, 60) });
+  const dentro = c => c && zonas.some(z => _distKm(z.c, c) <= z.km);
+  const ref = zonas[0].c;
+  // Pueblos y ciudades: se busca el nombre completo cerca del destino
+  if (x.tipo === 'pueblo' || x.tipo === 'ciudad') {
+    const c = (await _nominatimLista(q)).find(c => _distKm(ctx.centro, c) <= ctx.radio);
+    if (c) return { ...c, aproximado: false };
+  }
+  let c = (await _photonLista(q, ref)).find(dentro);
+  if (!c) c = (await _nominatimLista(q)).find(dentro);
+  if (!c && localidad) c = (await _photonLista(partes.slice(0, -1).join(', '), ref)).find(dentro);
+  if (c) return { ...c, aproximado: false };
+  if (x.lat && x.lng && dentro({ lat: x.lat, lng: x.lng })) return { lat: x.lat, lng: x.lng, aproximado: true };
+  return { lat: ref.lat, lng: ref.lng, aproximado: true };
+}
+
 async function adminImportarRutas(input) {
-  const file = input.files?.[0];
+  const files = [...(input.files || [])];
   input.value = '';
-  if (!file) return;
+  if (!files.length) return;
   const st = document.getElementById('adminImportStatus');
-  let rutas;
-  try { rutas = JSON.parse(await file.text()); if (!Array.isArray(rutas)) rutas = rutas.rutas; if (!Array.isArray(rutas)) throw 0; }
-  catch (e) { st.textContent = '❌ El archivo no tiene el formato de rutas'; return; }
-  if (!confirm(`El archivo tiene ${rutas.length} rutas. Se publicarán como "Ruta sugerida". Mantén esta pantalla abierta mientras se importan. ¿Empezar?`)) return;
+  let rutas = [];
+  for (const file of files) {
+    try { let r = JSON.parse(await file.text()); if (!Array.isArray(r)) r = r.rutas; if (!Array.isArray(r)) throw 0; rutas = rutas.concat(r); }
+    catch (e) { st.textContent = `❌ El archivo ${file.name} no tiene el formato de rutas`; return; }
+  }
+  if (!confirm(`${files.length > 1 ? files.length + ' archivos con ' : 'El archivo tiene '}${rutas.length} rutas. Se publicarán como "Ruta sugerida". Mantén esta pantalla abierta mientras se importan. ¿Empezar?`)) return;
   _importParar = false;
   document.getElementById('adminImportParar').style.display = 'block';
   const lista = await obtenerListaLigera();
@@ -4464,11 +4513,11 @@ async function adminImportarRutas(input) {
     if (!r.forzar && destinosReales.has(_norm(r.destino).trim())) { saltadas++; log.push(`↷ ${pre}: ya hay un viaje real en ${r.destino}`); continue; }
     try {
       st.textContent = `⏳ ${pre}: ubicando destino...`;
-      const centro = (r.lat && r.lng) ? { lat: r.lat, lng: r.lng } : (await _geoBuscar(r.geo || `${r.destino}, ${r.pais || ''}`) || null);
+      const centro = (r.lat && r.lng) ? { lat: r.lat, lng: r.lng } : ((await _nominatimLista(r.geo || `${r.destino}, ${r.pais || ''}`))[0] || (await _photonLista(r.geo || `${r.destino}, ${r.pais || ''}`))[0] || null);
       if (!centro) throw new Error('no encuentro el destino en el mapa');
       const radio = r.radioKm || 400;
       const jornadas = [], puntos = [];
-      let total = 0, ubicados = 0, ref = centro;
+      let total = 0, ubicados = 0, aprox = 0;
       for (const j of r.jornadas) {
         const items = [];
         for (const x of (j.items || [])) {
@@ -4477,11 +4526,8 @@ async function adminImportarRutas(input) {
           if (x.q) {
             total++;
             st.textContent = `⏳ ${pre}: ${x.nombre}`;
-            let g = await _geoBuscar(x.q, ref);
-            await _esperar(150);
-            if (g && _distKm(centro, g) > radio) g = null; // resultado en otra parte del mundo: se descarta
-            if (!g && x.lat && x.lng) { g = { lat: x.lat, lng: x.lng }; p.aproximado = true; }
-            if (g) { p.lat = g.lat; p.lng = g.lng; ref = g; ubicados++; }
+            const g = await _ubicarLugar({ ...x, tipo: p.tipo }, { centro, radio, pais: r.pais || '', lugarDia: j.lugar });
+            if (g) { p.lat = g.lat; p.lng = g.lng; if (g.aproximado) { p.aproximado = true; aprox++; } else ubicados++; }
           }
           items.push({ pid, nombre: x.nombre, tipo: p.tipo, desc: p.desc });
           puntos.push(p);
@@ -4509,12 +4555,63 @@ async function adminImportarRutas(input) {
       await guardarResumen(it, it.fbId);
       yaImportadas.add(r.id);
       ok++;
-      log.push(`✅ ${pre}: ${ubicados}/${total} lugares en el mapa`);
+      log.push(`✅ ${pre}: ${ubicados}/${total} lugares exactos${aprox ? ` · ${aprox} aproximados (en el centro de su zona)` : ''}`);
     } catch (e) { fallos++; log.push(`❌ ${pre}: ${e.message || e}`); }
     document.getElementById('adminImportLog').innerHTML = log.slice(-60).reverse().map(l => `<div>${l}</div>`).join('');
   }
   document.getElementById('adminImportParar').style.display = 'none';
   st.textContent = `Terminado: ${ok} importadas · ${saltadas} saltadas · ${fallos} con error. Recarga la app para verlas.`;
+  document.getElementById('adminImportLog').innerHTML = log.slice(-60).reverse().map(l => `<div>${l}</div>`).join('');
+}
+
+// Vuelve a colocar los puntos de rutas sugeridas ya importadas, con el
+// método nuevo. Solo toca rutas sugeridas; nunca viajes reales.
+async function adminRecolocarRutas(input) {
+  const files = [...(input.files || [])];
+  input.value = '';
+  if (!files.length) return;
+  const st = document.getElementById('adminImportStatus');
+  let rutas = [];
+  for (const file of files) {
+    try { let r = JSON.parse(await file.text()); if (!Array.isArray(r)) r = r.rutas; rutas = rutas.concat(r); }
+    catch (e) { st.textContent = `❌ El archivo ${file.name} no tiene el formato de rutas`; return; }
+  }
+  const lista = await obtenerListaLigera();
+  const porSug = {};
+  Object.entries(lista).forEach(([k, v]) => { if (v && v.sugerida && v.sugeridaId) porSug[v.sugeridaId] = k; });
+  const aHacer = rutas.filter(r => r && porSug[r.id]);
+  if (!aHacer.length) { st.textContent = 'Ninguna ruta de esos archivos está publicada.'; return; }
+  if (!confirm(`Se van a recolocar los puntos de ${aHacer.length} rutas sugeridas (tus viajes reales no se tocan). Tarda unos minutos y hay que dejar la pantalla abierta. ¿Continuar?`)) return;
+  _importParar = false;
+  document.getElementById('adminImportParar').style.display = 'block';
+  const log = [];
+  let hechas = 0, movidos = 0;
+  for (let n = 0; n < aHacer.length; n++) {
+    if (_importParar) { log.push('⏸️ Detenido'); break; }
+    const r = aHacer[n], id = porSug[r.id], pre = `(${n + 1}/${aHacer.length}) ${r.titulo}`;
+    try {
+      const it = await (await fetch(`${FB_URL}/itinerarios/${id}.json`)).json();
+      if (!it || !it.sugerida || !Array.isArray(it.puntos)) { log.push(`↷ ${pre}: sin puntos`); continue; }
+      const centro = { lat: it.lat, lng: it.lng }, radio = r.radioKm || 400;
+      let cambios = 0;
+      for (const j of r.jornadas) for (const x of (j.items || [])) {
+        if (!x.q) continue;
+        const p = it.puntos.find(pp => pp && pp.dia === j.dia && pp.nombre === x.nombre);
+        if (!p) continue;
+        st.textContent = `⏳ ${pre}: ${x.nombre}`;
+        const g = await _ubicarLugar({ ...x, tipo: p.tipo }, { centro, radio, pais: r.pais || '', lugarDia: j.lugar });
+        if (g && (p.lat == null || _distKm({ lat: p.lat, lng: p.lng }, g) > 0.3)) { p.lat = g.lat; p.lng = g.lng; cambios++; }
+        if (g) { if (g.aproximado) p.aproximado = true; else delete p.aproximado; }
+      }
+      const resp = await fbFetch(`${FB_URL}/itinerarios/${id}/puntos.json`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(it.puntos) });
+      if (!resp.ok) throw new Error('sin permiso');
+      hechas++; movidos += cambios;
+      log.push(`✅ ${pre}: ${cambios} puntos corregidos`);
+    } catch (e) { log.push(`❌ ${pre}: ${e.message || e}`); }
+    document.getElementById('adminImportLog').innerHTML = log.slice(-60).reverse().map(l => `<div>${l}</div>`).join('');
+  }
+  document.getElementById('adminImportParar').style.display = 'none';
+  st.textContent = `Terminado: ${hechas} rutas revisadas · ${movidos} puntos corregidos.`;
   document.getElementById('adminImportLog').innerHTML = log.slice(-60).reverse().map(l => `<div>${l}</div>`).join('');
 }
 
@@ -5571,7 +5668,10 @@ async function buscarCoordsOSM(nombre, ciudad, latRef, lngRef, tipo) {
     const r = await fetch(url, { headers: { 'Accept-Language': 'es', 'User-Agent': 'YaEstuve/1.0 (yaestuve5.netlify.app)' } });
     const data = await r.json();
     const cercano = mejor(data || []);
-    if (cercano) return { lat: parseFloat(cercano.lat), lng: parseFloat(cercano.lon) };
+    // Solo si está razonablemente cerca del destino del día (antes se aceptaba
+    // aunque estuviera en otro país y el punto aparecía lejísimos)
+    if (cercano && _distanciaAprox(parseFloat(cercano.lat), parseFloat(cercano.lon), latRef, lngRef) <= 25)
+      return { lat: parseFloat(cercano.lat), lng: parseFloat(cercano.lon) };
   } catch(e) {}
 
   return null;
