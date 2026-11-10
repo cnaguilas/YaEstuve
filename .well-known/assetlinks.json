@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "app.netlify.yaestuve5.twa",
+    "sha256_cert_fingerprints": [
+      "D9:F9:5B:1A:63:05:7D:FB:F2:5C:1D:A1:5B:B1:E4:36:93:0D:80:E2:34:8A:14:DB:F6:17:60:84:04:77:F6:F3"
+    ]
+  }
+}
