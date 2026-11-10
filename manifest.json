@@ -1,24 +1,20 @@
 {
-  "name": "YaEstuve",
+  "id": "/",
+  "name": "YaEstuve · Viajes reales",
   "short_name": "YaEstuve",
-  "description": "Busca viajes de gente real con experiencias reales",
-  "start_url": "/",
+  "description": "Viajes de gente real y rutas listas para copiar: día a día, en el mapa y con consejos.",
+  "lang": "es",
+  "start_url": "/?origen=app",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#1a1a1a",
-  "theme_color": "#E8471C",
   "orientation": "portrait",
+  "background_color": "#E8471C",
+  "theme_color": "#E8471C",
+  "categories": ["travel", "lifestyle"],
   "icons": [
-    {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

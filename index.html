@@ -1790,11 +1790,9 @@ html, body {
       </details>
     </div>
     <div id="perfilMisViajes"></div>
-
-    
-
-
-
+    <div style="text-align:center;margin:26px 0 10px;font-size:.75rem;color:var(--muted)">
+      <a href="/privacidad.html" style="color:var(--muted)">Política de privacidad</a> · <a href="mailto:roblius81@gmail.com?subject=YaEstuve" style="color:var(--muted)">Contacto</a>
+    </div>
   </div>
 </div>
 <div class="screen" id="screenMapaEdit">
@@ -7055,10 +7053,12 @@ if (window._fbOnAuth) {
 // Sin esta llamada todas las pantallas quedan ocultas y la app no sale del splash
 navegarA('screenHome', 'navHome');
 
-// ── PWA SERVICE WORKER — desregistrar si existe para limpiar caché ──
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(regs => { regs.forEach(reg => reg.unregister()); });
-  if (window.caches) caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+// ── PWA SERVICE WORKER ──
+// Necesario para instalar la app y para publicarla en Google Play.
+// sw.js pide siempre la página a la red primero, así que las versiones
+// nuevas que subas a GitHub se ven al momento.
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 }
 
 
