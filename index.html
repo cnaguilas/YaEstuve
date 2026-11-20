@@ -7413,7 +7413,14 @@ function renderPinsMundiales() {
         // acercar no los separa: se abre la lista con todos sus viajes.
         const maxKm = Math.max(...g.destinos.map(d => _distKm(g.destinos[0], d)));
         if (maxKm < 3 || mapaMundial.getZoom() >= 9) { abrirGrupoDestinos(g.keys); return; }
-        const bounds = L.latLngBounds(g.destinos.map(d=>[d.lat,d.lng])); mapaMundial.fitBounds(bounds,{padding:[80,80],maxZoom:10}); renderPinsMundiales();
+        const bounds = L.latLngBounds(g.destinos.map(d=>[d.lat,d.lng]));
+        const pad = window.innerWidth < 768 ? 30 : 80;
+        const zAct = mapaMundial.getZoom();
+        let z = Math.min(10, mapaMundial.getBoundsZoom(bounds, false, L.point(pad * 2, pad * 2)));
+        let centro = bounds.getCenter();
+        if (z <= zAct) centro = L.latLng(lat, lng);
+        z = Math.min(10, Math.max(z, zAct + 2));
+        mapaMundial.setView(centro, z);
       };
     }
     const icon = L.divIcon({ className:'', html, iconSize:[0, 0], iconAnchor:[0, 0] });
